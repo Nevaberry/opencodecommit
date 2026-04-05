@@ -53,6 +53,21 @@ const SENSITIVE_FILE_PATTERNS = [
   /(?:^|\/)secrets?\.\w+$/,
   /(?:^|\/)\.netrc$/,
   /(?:^|\/)service[-_]?account.*\.json$/,
+  // Source maps — can expose full unminified source code
+  /\.(?:js|css)\.map$/,
+  /(?:^|\/)[^/]+\.map$/,
+  // Private keys and certificates
+  /\.pem$/,
+  /\.p12$/,
+  /\.pfx$/,
+  /\.key$/,
+  /\.keystore$/,
+  /\.jks$/,
+  // SSH private keys (not .pub)
+  /(?:^|\/)id_(?:rsa|ed25519|ecdsa|dsa)$/,
+  /(?:^|\/)\.ssh\//,
+  // Auth files
+  /(?:^|\/)\.htpasswd$/,
 ]
 
 const SENSITIVE_LINE_PATTERNS = [

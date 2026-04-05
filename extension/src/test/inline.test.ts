@@ -526,6 +526,29 @@ describe("detectSensitiveContent", () => {
     const diff = `+  const result = await fetchData()`
     assert.strictEqual(detectSensitiveContent(diff, ["app.ts"]), false)
   })
+
+  it("detects source map files", () => {
+    assert.strictEqual(detectSensitiveContent("diff", ["bundle.js.map"]), true)
+    assert.strictEqual(detectSensitiveContent("diff", ["styles.css.map"]), true)
+    assert.strictEqual(detectSensitiveContent("diff", ["dist/app.map"]), true)
+  })
+
+  it("detects private key files", () => {
+    assert.strictEqual(detectSensitiveContent("diff", ["server.pem"]), true)
+    assert.strictEqual(detectSensitiveContent("diff", ["cert.p12"]), true)
+    assert.strictEqual(detectSensitiveContent("diff", ["ssl.key"]), true)
+    assert.strictEqual(detectSensitiveContent("diff", ["app.keystore"]), true)
+  })
+
+  it("detects SSH private keys", () => {
+    assert.strictEqual(detectSensitiveContent("diff", ["id_rsa"]), true)
+    assert.strictEqual(detectSensitiveContent("diff", ["id_ed25519"]), true)
+    assert.strictEqual(detectSensitiveContent("diff", [".ssh/config"]), true)
+  })
+
+  it("detects htpasswd", () => {
+    assert.strictEqual(detectSensitiveContent("diff", [".htpasswd"]), true)
+  })
 })
 
 // --- buildBranchPrompt ---

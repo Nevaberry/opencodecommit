@@ -90,6 +90,21 @@ static SENSITIVE_FILE_PATTERNS: LazyLock<Vec<regex::Regex>> = LazyLock::new(|| {
         r"(?:^|/)secrets?\.\w+$",
         r"(?:^|/)\.netrc$",
         r"(?:^|/)service[-_]?account.*\.json$",
+        // Source maps — can expose full unminified source code
+        r"\.(?:js|css)\.map$",
+        r"(?:^|/)[^/]+\.map$",
+        // Private keys and certificates
+        r"\.pem$",
+        r"\.p12$",
+        r"\.pfx$",
+        r"\.key$",
+        r"\.keystore$",
+        r"\.jks$",
+        // SSH private keys (not .pub)
+        r"(?:^|/)id_(?:rsa|ed25519|ecdsa|dsa)$",
+        r"(?:^|/)\.ssh/",
+        // Auth files
+        r"(?:^|/)\.htpasswd$",
     ]
     .iter()
     .map(|p| regex::Regex::new(p).unwrap())
@@ -447,6 +462,33 @@ mod tests {
     fn returns_false_for_normal_code() {
         let diff = "+  const result = await fetchData()";
         assert!(!detect_sensitive_content(diff, &["app.ts".to_owned()]));
+    }
+
+    #[test]
+    fn detects_source_map_files() {
+        assert!(detect_sensitive_content("diff", &["bundle.js.map".to_owned()]));
+        assert!(detect_sensitive_content("diff", &["styles.css.map".to_owned()]));
+        assert!(detect_sensitive_content("diff", &["dist/app.map".to_owned()]));
+    }
+
+    #[test]
+    fn detects_private_key_files() {
+        assert!(detect_sensitive_content("diff", &["server.pem".to_owned()]));
+        assert!(detect_sensitive_content("diff", &["cert.p12".to_owned()]));
+        assert!(detect_sensitive_content("diff", &["ssl.key".to_owned()]));
+        assert!(detect_sensitive_content("diff", &["app.keystore".to_owned()]));
+    }
+
+    #[test]
+    fn detects_ssh_private_keys() {
+        assert!(detect_sensitive_content("diff", &["id_rsa".to_owned()]));
+        assert!(detect_sensitive_content("diff", &["id_ed25519".to_owned()]));
+        assert!(detect_sensitive_content("diff", &[".ssh/config".to_owned()]));
+    }
+
+    #[test]
+    fn detects_htpasswd() {
+        assert!(detect_sensitive_content("diff", &[".htpasswd".to_owned()]));
     }
 
     // --- skip patterns ---
