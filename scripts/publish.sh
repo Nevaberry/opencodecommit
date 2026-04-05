@@ -12,7 +12,8 @@ MAIN_ROOT="$(git -C "${REPO_ROOT}" rev-parse --path-format=absolute --git-common
 cd "${REPO_ROOT}/extension"
 
 VERSION=$(node -p "require('./package.json').version")
-VSIX="opencode-commit-${VERSION}.vsix"
+NAME=$(node -p "require('./package.json').name")
+VSIX="${NAME}-${VERSION}.vsix"
 
 echo "==> Installing extension dependencies"
 bun install --frozen-lockfile
