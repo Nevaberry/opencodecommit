@@ -79,6 +79,19 @@
         "command": "opencodecommit.diagnose",
         "title": "OpenCodeCommit: Diagnose",
         "icon": "$(bug)"
+      },
+      {
+        "command": "opencodecommit.generateBranch",
+        "title": "OpenCodeCommit: Generate Branch Name",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "opencodecommit.generateBranchAdaptive",
+        "title": "OpenCodeCommit: Generate Branch (Adaptive)"
+      },
+      {
+        "command": "opencodecommit.generateBranchConventional",
+        "title": "OpenCodeCommit: Generate Branch (Conventional)"
       }
     ],
     "submenus": [
@@ -137,6 +150,18 @@
         {
           "command": "opencodecommit.diagnose",
           "group": "6_debug"
+        },
+        {
+          "command": "opencodecommit.generateBranch",
+          "group": "4_branch"
+        },
+        {
+          "command": "opencodecommit.generateBranchAdaptive",
+          "group": "4_branch"
+        },
+        {
+          "command": "opencodecommit.generateBranchConventional",
+          "group": "4_branch"
         }
       ]
     },
@@ -394,6 +419,13 @@
           "type": "string",
           "default": "make it shorter",
           "description": "Pre-filled text in the refine input box"
+        },
+        "opencodecommit.branchMode": {
+          "order": 14,
+          "type": "string",
+          "enum": ["adaptive", "conventional"],
+          "default": "conventional",
+          "description": "Branch naming mode"
         }
       }
     }

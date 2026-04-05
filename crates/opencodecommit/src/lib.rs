@@ -111,3 +111,39 @@ pub fn refine_commit_message(
     let parsed = response::parse_response(&response);
     Ok(response::format_commit_message(&parsed, cfg))
 }
+
+/// Generate a branch name from the current repo state.
+pub fn generate_branch_name(cfg: &config::Config) -> Result<String> {
+    let repo_root = git::get_repo_root()?;
+
+    let diff = git::get_diff(cfg.diff_source, &repo_root).ok();
+
+    let existing_branches = if cfg.branch_mode == config::BranchMode::Adaptive {
+        git::get_recent_branch_names(&repo_root, 20).unwrap_or_default()
+    } else {
+        vec![]
+    };
+
+    let prompt = prompt::build_branch_prompt("", diff.as_deref(), cfg, cfg.branch_mode, &existing_branches);
+    let cli_path = backend::detect_cli(cfg.backend, cfg.backend_cli_path())?;
+    let invocation = backend::build_invocation(&cli_path, &prompt, cfg);
+    let response = backend::exec_cli(&invocation)?;
+
+    Ok(response::format_branch_name(&response))
+}
+
+/// Generate a commit message and execute git commit.
+pub fn generate_and_commit(cfg: &config::Config) -> Result<(String, String)> {
+    let message = generate_commit_message(cfg)?;
+    let repo_root = git::get_repo_root()?;
+    let git_output = git::git_commit(&repo_root, &message)?;
+    Ok((message, git_output))
+}
+
+/// Generate a branch name and create+checkout the branch.
+pub fn generate_and_create_branch(cfg: &config::Config) -> Result<String> {
+    let name = generate_branch_name(cfg)?;
+    let repo_root = git::get_repo_root()?;
+    git::create_and_checkout_branch(&repo_root, &name)?;
+    Ok(name)
+}

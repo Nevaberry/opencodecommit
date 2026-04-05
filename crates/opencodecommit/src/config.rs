@@ -35,6 +35,14 @@ pub enum DiffSource {
     Auto,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum BranchMode {
+    #[default]
+    Conventional,
+    Adaptive,
+}
+
 // --- Config structs ---
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -117,6 +125,9 @@ pub struct Config {
 
     #[serde(default)]
     pub gemini_model: String,
+
+    #[serde(default)]
+    pub branch_mode: BranchMode,
 
     #[serde(default = "default_diff_source")]
     pub diff_source: DiffSource,
@@ -218,6 +229,7 @@ impl Default for Config {
             codex_provider: String::new(),
             gemini_path: String::new(),
             gemini_model: String::new(),
+            branch_mode: BranchMode::default(),
             diff_source: default_diff_source(),
             max_diff_length: default_max_diff_length(),
             use_emojis: false,
@@ -463,6 +475,20 @@ prompt = "Generate: {{{{diff}}}}"
         let cfg = Config::load_or_default(None).unwrap();
         assert_eq!(cfg.backend, CliBackend::Opencode);
         assert_eq!(cfg.model, "gpt-5.4-mini");
+    }
+
+    #[test]
+    fn branch_mode_serde() {
+        let cfg: Config = toml::from_str("branch-mode = \"adaptive\"").unwrap();
+        assert_eq!(cfg.branch_mode, BranchMode::Adaptive);
+        let cfg2: Config = toml::from_str("branch-mode = \"conventional\"").unwrap();
+        assert_eq!(cfg2.branch_mode, BranchMode::Conventional);
+    }
+
+    #[test]
+    fn branch_mode_default() {
+        let cfg = Config::default();
+        assert_eq!(cfg.branch_mode, BranchMode::Conventional);
     }
 
     #[test]

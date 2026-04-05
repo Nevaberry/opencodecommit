@@ -1,9 +1,9 @@
 import * as vscode from "vscode"
 
 import { getConfig as getInlineConfig } from "./inline/config"
-import { gatherContext } from "./inline/context"
-import { generateCommitMessage, refineCommitMessage } from "./inline/generator"
-import type { Change, CommitMode, GitExtension, Repository } from "./inline/types"
+import { gatherContext, getRecentBranchNames } from "./inline/context"
+import { generateCommitMessage, refineCommitMessage, generateBranchName } from "./inline/generator"
+import type { BranchMode, Change, CommitMode, GitExtension, Repository } from "./inline/types"
 
 // Diagnostic output channel
 let outputChannel: vscode.OutputChannel
@@ -201,6 +201,67 @@ async function refineMessage(arg?: { rootUri?: vscode.Uri }) {
   vscode.commands.executeCommand("workbench.view.scm")
 }
 
+async function generateBranchInline(mode: BranchMode, repo: Repository) {
+  const config = getInlineConfig()
+  log(`Branch mode: ${mode}, Backend order: [${config.backendOrder.join(", ")}]`)
+
+  let diff: string | undefined
+  try {
+    diff = await getDiff(repo, config.diffSource)
+    log(`Branch diff length: ${diff.length} chars`)
+  } catch {
+    log("No diff available for branch generation, using description only")
+  }
+
+  let description = ""
+  if (!diff) {
+    const input = await vscode.window.showInputBox({
+      prompt: "Describe what the branch is for",
+      placeHolder: "e.g. add user authentication",
+    })
+    if (!input) return
+    description = input
+  }
+
+  const existingBranches = mode === "adaptive"
+    ? await getRecentBranchNames(repo.rootUri.fsPath)
+    : []
+
+  const branchName = await generateBranchName(diff, description, config, mode, existingBranches, log)
+  log(`Generated branch name: "${branchName}"`)
+
+  const confirmed = await vscode.window.showInputBox({
+    prompt: "Branch name (edit or press Enter to create)",
+    value: branchName,
+  })
+  if (!confirmed) return
+
+  // Create and checkout the branch using git
+  const terminal = vscode.window.createTerminal("OpenCodeCommit")
+  terminal.sendText(`cd "${repo.rootUri.fsPath}" && git checkout -b "${confirmed}"`)
+  terminal.show()
+}
+
+async function generateBranch(mode: BranchMode, arg?: { rootUri?: vscode.Uri }) {
+  const repo = resolveRepository(arg)
+  if (!repo) {
+    vscode.window.showErrorMessage("No git repository found.")
+    return
+  }
+
+  await vscode.window.withProgress(
+    { location: vscode.ProgressLocation.SourceControl, title: "Generating branch name..." },
+    async () => {
+      try {
+        await generateBranchInline(mode, repo)
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+        vscode.window.showErrorMessage(`OpenCodeCommit: ${msg}`)
+      }
+    },
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Activation
 // ---------------------------------------------------------------------------
@@ -222,6 +283,12 @@ export function activate(context: vscode.ExtensionContext) {
       generateMessage("conventional-oneliner", arg)),
     vscode.commands.registerCommand("opencodecommit.refine", (arg) =>
       refineMessage(arg)),
+    vscode.commands.registerCommand("opencodecommit.generateBranch", (arg) =>
+      generateBranch(cfg.get<BranchMode>("branchMode", "conventional"), arg)),
+    vscode.commands.registerCommand("opencodecommit.generateBranchAdaptive", (arg) =>
+      generateBranch("adaptive", arg)),
+    vscode.commands.registerCommand("opencodecommit.generateBranchConventional", (arg) =>
+      generateBranch("conventional", arg)),
     vscode.commands.registerCommand("opencodecommit.switchLanguage", async () => {
       const cfg = vscode.workspace.getConfiguration("opencodecommit")
       const languages = cfg.get<{ label: string; instruction: string }[]>("languages", [])

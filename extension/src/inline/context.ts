@@ -131,6 +131,36 @@ export function getRecentCommits(repoRoot: string): Promise<string[]> {
   })
 }
 
+export function getRecentBranchNames(repoRoot: string): Promise<string[]> {
+  return new Promise((resolve) => {
+    const child = spawn("git", ["branch", "--sort=-committerdate", "--format=%(refname:short)"], {
+      cwd: repoRoot,
+      stdio: ["ignore", "pipe", "pipe"],
+    })
+
+    let stdout = ""
+    child.stdout.on("data", (d: Buffer) => {
+      stdout += d
+    })
+
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve(
+          stdout
+            .trim()
+            .split("\n")
+            .filter((l) => l.trim())
+            .slice(0, 20),
+        )
+      } else {
+        resolve([])
+      }
+    })
+
+    child.on("error", () => resolve([]))
+  })
+}
+
 function extractChangedFilePaths(diff: string): string[] {
   const paths: string[] = []
   for (const line of diff.split("\n")) {

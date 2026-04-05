@@ -1,4 +1,4 @@
-use crate::config::{CommitMode, Config};
+use crate::config::{BranchMode, CommitMode, Config};
 use crate::context::CommitContext;
 
 // --- Prompt module constants (verbatim from TS generator.ts) ---
@@ -152,16 +152,49 @@ Respond with ONLY the improved commit message. No markdown, no code blocks, no e
     )
 }
 
+const ADAPTIVE_BRANCH_FORMAT: &str = "Match the naming style of the existing branches shown below.
+Adapt to whatever conventions the project uses — the existing branches are your primary guide.
+
+If they use type/description (e.g. feat/add-login, fix/auth-bug), follow that format.
+If they use other patterns (e.g. username/description, JIRA-123/description, dates), match that style.
+If no clear pattern exists, fall back to: type/short-description-slug
+
+Be specific about what the branch is for — do not write vague names.
+
+Existing branches:
+{existingBranches}";
+
 /// Build the prompt for branch name generation.
-pub fn build_branch_prompt(context_or_description: &str, diff: Option<&str>, config: &Config) -> String {
+pub fn build_branch_prompt(
+    context_or_description: &str,
+    diff: Option<&str>,
+    config: &Config,
+    mode: BranchMode,
+    existing_branches: &[String],
+) -> String {
     let mut parts = vec![
         "You are an expert at naming git branches.".to_owned(),
-        "Generate a branch name in the format: type/short-description-slug".to_owned(),
-        "Types: feat, fix, docs, refactor, test, chore".to_owned(),
-        "Use lowercase, hyphens between words, max 50 characters total.".to_owned(),
-        "Respond with ONLY the branch name. No explanations.".to_owned(),
     ];
 
+    match mode {
+        BranchMode::Conventional => {
+            parts.push("Generate a branch name in the format: type/short-description-slug".to_owned());
+            parts.push("Types: feat, fix, docs, refactor, test, chore".to_owned());
+            parts.push("Use lowercase, hyphens between words, max 50 characters total.".to_owned());
+        }
+        BranchMode::Adaptive => {
+            if existing_branches.is_empty() {
+                parts.push("Generate a branch name in the format: type/short-description-slug".to_owned());
+                parts.push("Types: feat, fix, docs, refactor, test, chore".to_owned());
+                parts.push("Use lowercase, hyphens between words, max 50 characters total.".to_owned());
+            } else {
+                let branch_text = existing_branches.join("\n");
+                parts.push(ADAPTIVE_BRANCH_FORMAT.replace("{existingBranches}", &branch_text));
+            }
+        }
+    }
+
+    parts.push("Respond with ONLY the branch name. No explanations.".to_owned());
     parts.push(config.active_language_instruction());
 
     if let Some(diff) = diff {
@@ -233,6 +266,7 @@ pub fn build_changelog_prompt(context: &CommitContext, config: &Config) -> Strin
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::BranchMode;
     use crate::context::{FileContext, TruncationMode};
 
     fn make_config(f: impl FnOnce(&mut Config)) -> Config {
@@ -399,6 +433,34 @@ mod tests {
         let context = make_context(|c| c.has_sensitive_content = false);
         let prompt = build_prompt(&context, &config, None);
         assert!(!prompt.contains("sensitive content"));
+    }
+
+    // --- buildBranchPrompt ---
+
+    #[test]
+    fn branch_prompt_conventional_contains_type_slug() {
+        let config = Config::default();
+        let prompt = build_branch_prompt("add login feature", None, &config, BranchMode::Conventional, &[]);
+        assert!(prompt.contains("type/short-description-slug"));
+        assert!(prompt.contains("feat, fix, docs"));
+        assert!(prompt.contains("add login feature"));
+    }
+
+    #[test]
+    fn branch_prompt_adaptive_includes_branches() {
+        let config = Config::default();
+        let branches = vec!["feat/add-login".to_owned(), "fix/auth-bug".to_owned()];
+        let prompt = build_branch_prompt("", Some("diff here"), &config, BranchMode::Adaptive, &branches);
+        assert!(prompt.contains("feat/add-login"));
+        assert!(prompt.contains("fix/auth-bug"));
+        assert!(prompt.contains("Match the naming style"));
+    }
+
+    #[test]
+    fn branch_prompt_adaptive_no_branches_falls_back() {
+        let config = Config::default();
+        let prompt = build_branch_prompt("desc", None, &config, BranchMode::Adaptive, &[]);
+        assert!(prompt.contains("type/short-description-slug"));
     }
 
     // --- buildRefinePrompt ---

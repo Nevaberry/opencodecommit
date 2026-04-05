@@ -8,6 +8,8 @@ export type CommitMode =
   | "conventional"
   | "conventional-oneliner"
 
+export type BranchMode = "adaptive" | "conventional"
+
 export interface LanguageConfig {
   label: string
   instruction: string
@@ -56,6 +58,7 @@ export interface ExtensionConfig {
   codexProvider: string
   geminiModel: string
   backendOrder: CliBackend[]
+  branchMode: BranchMode
 }
 
 export interface GitExtension {

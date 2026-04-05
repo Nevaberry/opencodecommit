@@ -1,5 +1,5 @@
 import * as vscode from "vscode"
-import type { CliBackend, CommitMode, ExtensionConfig, LanguageConfig } from "./types"
+import type { BranchMode, CliBackend, CommitMode, ExtensionConfig, LanguageConfig } from "./types"
 
 export function getConfig(): ExtensionConfig {
   const cfg = vscode.workspace.getConfiguration("opencodecommit")
@@ -55,5 +55,6 @@ export function getConfig(): ExtensionConfig {
     codexProvider: cfg.get<string>("codexCLIProvider", ""),
     geminiModel: cfg.get<string>("geminiCLIModel", ""),
     backendOrder: cfg.get<CliBackend[]>("backendOrder", ["codex", "opencode", "claude", "gemini"]),
+    branchMode: cfg.get<BranchMode>("branchMode", "conventional"),
   }
 }

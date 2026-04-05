@@ -1,6 +1,7 @@
 import { buildInvocation, detectCli, execCli, getConfigPath, parseOpenCodeJson } from "./cli"
 import type { CommitContext } from "./context"
-import type { CliBackend, CommitMode, ExtensionConfig } from "./types"
+import { getRecentBranchNames } from "./context"
+import type { BranchMode, CliBackend, CommitMode, ExtensionConfig } from "./types"
 
 interface ParsedCommit {
   type: string
@@ -80,6 +81,108 @@ Keep the same type prefix unless the feedback suggests otherwise.
 ${config.activeLanguageInstruction}
 
 Respond with ONLY the improved commit message. No markdown, no code blocks, no explanations.`
+}
+
+export function buildBranchPrompt(
+  description: string,
+  diff: string | undefined,
+  config: ExtensionConfig,
+  mode: BranchMode,
+  existingBranches: string[],
+): string {
+  const parts: string[] = ["You are an expert at naming git branches."]
+
+  if (mode === "adaptive" && existingBranches.length > 0) {
+    parts.push(
+      `Match the naming style of the existing branches shown below.
+Adapt to whatever conventions the project uses — the existing branches are your primary guide.
+
+If they use type/description (e.g. feat/add-login, fix/auth-bug), follow that format.
+If they use other patterns (e.g. username/description, JIRA-123/description, dates), match that style.
+If no clear pattern exists, fall back to: type/short-description-slug
+
+Be specific about what the branch is for — do not write vague names.
+
+Existing branches:
+${existingBranches.join("\n")}`,
+    )
+  } else {
+    parts.push("Generate a branch name in the format: type/short-description-slug")
+    parts.push("Types: feat, fix, docs, refactor, test, chore")
+    parts.push("Use lowercase, hyphens between words, max 50 characters total.")
+  }
+
+  parts.push("Respond with ONLY the branch name. No explanations.")
+  parts.push(config.activeLanguageInstruction)
+
+  if (diff) {
+    parts.push("--- Git Diff ---")
+    parts.push(diff)
+  }
+
+  if (description) {
+    parts.push(`Description: ${description}`)
+  }
+
+  return parts.join("\n\n")
+}
+
+export function formatBranchName(response: string): string {
+  const sanitized = sanitizeResponse(response)
+  const name = sanitized.split("\n")[0]?.trim() ?? ""
+
+  if (!name) return "chore/update"
+
+  // Already in type/slug format — return as-is if it looks right
+  if (name.includes("/") && !name.includes(" ") && name.length <= 60) {
+    return name.toLowerCase().replace(/-{2,}/g, "-")
+  }
+
+  // Slugify: lowercase, replace non-alphanumeric with hyphens, collapse
+  let slug = name.toLowerCase().replace(/[^a-z0-9/-]/g, "-").replace(/-{2,}/g, "-")
+  slug = slug.replace(/^-+|-+$/g, "")
+  return slug || "chore/update"
+}
+
+export async function generateBranchName(
+  diff: string | undefined,
+  description: string,
+  config: ExtensionConfig,
+  mode: BranchMode,
+  existingBranches: string[],
+  logger?: (msg: string) => void,
+): Promise<string> {
+  const logFn = logger ?? (() => {})
+
+  const truncatedDiff = diff && diff.length > config.maxDiffLength
+    ? `${diff.slice(0, config.maxDiffLength)}\n... (truncated)`
+    : diff
+
+  const prompt = buildBranchPrompt(description, truncatedDiff, config, mode, existingBranches)
+  logFn(`Branch prompt length: ${prompt.length} chars, mode: ${mode}`)
+
+  const backends = config.backendOrder
+  const errors: string[] = []
+
+  let response = ""
+  for (const backend of backends) {
+    try {
+      response = await tryBackend(backend, prompt, config, logFn)
+      logFn(`[${backend}] Success`)
+      break
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      logFn(`[${backend}] Failed: ${msg}`)
+      errors.push(`${backend}: ${msg}`)
+    }
+  }
+
+  if (!response.trim()) {
+    const detail = errors.join("\n  ")
+    throw new Error(`All backends failed:\n  ${detail}`)
+  }
+
+  return formatBranchName(response)
 }
 
 export function sanitizeResponse(response: string): string {

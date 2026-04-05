@@ -104,6 +104,10 @@ enum Commands {
         /// Read diff from stdin instead of git
         #[arg(long)]
         stdin: bool,
+
+        /// Preview the message without committing
+        #[arg(long)]
+        dry_run: bool,
     },
 
     /// Generate a branch name from diff or description
@@ -129,6 +133,14 @@ enum Commands {
         /// Plain text output instead of JSON
         #[arg(long, short)]
         text: bool,
+
+        /// Preview the branch name without creating it
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Branch naming mode
+        #[arg(long, value_enum, default_value_t = BranchModeArg::Conventional)]
+        mode: BranchModeArg,
     },
 
     /// Generate a PR title and body
@@ -231,6 +243,21 @@ enum DiffSourceArg {
     Auto,
 }
 
+#[derive(Clone, ValueEnum)]
+enum BranchModeArg {
+    Conventional,
+    Adaptive,
+}
+
+impl BranchModeArg {
+    fn to_config(&self) -> opencodecommit::config::BranchMode {
+        match self {
+            BranchModeArg::Conventional => opencodecommit::config::BranchMode::Conventional,
+            BranchModeArg::Adaptive => opencodecommit::config::BranchMode::Adaptive,
+        }
+    }
+}
+
 #[derive(Subcommand)]
 enum HookAction {
     /// Install prepare-commit-msg hook
@@ -328,6 +355,7 @@ fn run_commit(
     text: bool,
     use_stdin: bool,
     allow_sensitive: bool,
+    dry_run: bool,
 ) {
     // Exit code contract (default JSON mode):
     // 0 = success, 1 = no changes, 2 = provider error, 3 = config error,
@@ -397,20 +425,26 @@ fn run_commit(
         }
     };
 
-    // Block on sensitive content unless --allow-sensitive
-    if context.has_sensitive_content && !allow_sensitive {
-        if text {
-            eprintln!("error: sensitive content detected in diff (API keys, credentials, or tokens)");
-            eprintln!("The diff appears to contain secrets that would be sent to an AI backend.");
-            eprintln!("Use --allow-sensitive to skip this check.");
-            process::exit(1);
+    // Sensitive content handling
+    if context.has_sensitive_content {
+        if dry_run && !allow_sensitive {
+            // In dry-run mode, block on sensitive content (user can review and abort)
+            if text {
+                eprintln!("error: sensitive content detected in diff (API keys, credentials, or tokens)");
+                eprintln!("The diff appears to contain secrets that would be sent to an AI backend.");
+                eprintln!("Use --allow-sensitive to skip this check.");
+                process::exit(1);
+            }
+            let output = serde_json::json!({
+                "status": "error",
+                "error": "sensitive content detected in diff (API keys, credentials, or tokens). Use --allow-sensitive to skip this check."
+            });
+            println!("{}", serde_json::to_string(&output).unwrap());
+            process::exit(5);
+        } else if !allow_sensitive {
+            // In commit mode, warn but proceed
+            eprintln!("warning: sensitive content detected in diff (API keys, credentials, or tokens)");
         }
-        let output = serde_json::json!({
-            "status": "error",
-            "error": "sensitive content detected in diff (API keys, credentials, or tokens). Use --allow-sensitive to skip this check."
-        });
-        println!("{}", serde_json::to_string(&output).unwrap());
-        process::exit(5);
     }
 
     // Truncate diff if needed
@@ -470,26 +504,81 @@ fn run_commit(
         }
     };
 
-    // Output
-    if text {
-        println!("{message}");
-    } else {
-        let parsed = parse_response(&response);
-        let backend_name = format!("{:?}", config.backend).to_lowercase();
-        let output = serde_json::json!({
-            "status": "success",
-            "message": message,
-            "type": parsed.type_name,
-            "description": parsed.description,
-            "provider": backend_name,
-            "files_analyzed": context.changed_files.len(),
-            "duration_ms": duration_ms,
-        });
-        println!("{}", serde_json::to_string(&output).unwrap());
+    if dry_run {
+        // Dry run: just print the message
+        if text {
+            println!("{message}");
+        } else {
+            let parsed = parse_response(&response);
+            let backend_name = format!("{:?}", config.backend).to_lowercase();
+            let output = serde_json::json!({
+                "status": "success",
+                "message": message,
+                "committed": false,
+                "type": parsed.type_name,
+                "description": parsed.description,
+                "provider": backend_name,
+                "files_analyzed": context.changed_files.len(),
+                "duration_ms": duration_ms,
+            });
+            println!("{}", serde_json::to_string(&output).unwrap());
+        }
+        return;
+    }
+
+    // Actually commit
+    // If nothing was staged (we used unstaged diff), stage everything first
+    if !use_stdin {
+        let staged = git::get_diff(DiffSource::Staged, &repo_root);
+        let had_staged = staged.is_ok() && !staged.as_ref().unwrap().is_empty();
+        if !had_staged {
+            if let Err(e) = git::stage_all(&repo_root) {
+                if text {
+                    eprintln!("error: failed to stage changes: {e}");
+                    process::exit(1);
+                }
+                let output = serde_json::json!({ "status": "error", "error": format!("failed to stage: {e}") });
+                println!("{}", serde_json::to_string(&output).unwrap());
+                process::exit(3);
+            }
+        }
+    }
+
+    match git::git_commit(&repo_root, &message) {
+        Ok(git_output) => {
+            if text {
+                println!("{message}");
+                eprintln!("Committed: {}", git_output.lines().next().unwrap_or(&git_output));
+            } else {
+                let parsed = parse_response(&response);
+                let backend_name = format!("{:?}", config.backend).to_lowercase();
+                let output = serde_json::json!({
+                    "status": "success",
+                    "message": message,
+                    "committed": true,
+                    "git_output": git_output,
+                    "type": parsed.type_name,
+                    "description": parsed.description,
+                    "provider": backend_name,
+                    "files_analyzed": context.changed_files.len(),
+                    "duration_ms": duration_ms,
+                });
+                println!("{}", serde_json::to_string(&output).unwrap());
+            }
+        }
+        Err(e) => {
+            if text {
+                eprintln!("error: commit failed: {e}");
+                process::exit(1);
+            }
+            let output = serde_json::json!({ "status": "error", "error": format!("commit failed: {e}") });
+            println!("{}", serde_json::to_string(&output).unwrap());
+            process::exit(3);
+        }
     }
 }
 
-fn run_branch(config: &Config, description: Option<&str>, text: bool) {
+fn run_branch(config: &Config, description: Option<&str>, text: bool, dry_run: bool, branch_mode: opencodecommit::config::BranchMode) {
     let repo_root = match git::get_repo_root() {
         Ok(r) => r,
         Err(e) => {
@@ -500,6 +589,7 @@ fn run_branch(config: &Config, description: Option<&str>, text: bool) {
         }
     };
 
+    // Resolve diff context (same logic as commit: staged first, then unstaged)
     let diff = if description.is_none() {
         match git::get_diff(config.diff_source, &repo_root) {
             Ok(d) => Some(d),
@@ -514,8 +604,15 @@ fn run_branch(config: &Config, description: Option<&str>, text: bool) {
         None
     };
 
+    // Get existing branches for adaptive mode
+    let existing_branches = if branch_mode == opencodecommit::config::BranchMode::Adaptive {
+        git::get_recent_branch_names(&repo_root, 20).unwrap_or_default()
+    } else {
+        vec![]
+    };
+
     let desc = description.unwrap_or("");
-    let prompt = build_branch_prompt(desc, diff.as_deref(), config);
+    let prompt = build_branch_prompt(desc, diff.as_deref(), config, branch_mode, &existing_branches);
 
     let cli_path = match detect_cli(config.backend, config.backend_cli_path()) {
         Ok(p) => p,
@@ -539,11 +636,36 @@ fn run_branch(config: &Config, description: Option<&str>, text: bool) {
 
     let name = format_branch_name(&response);
 
-    if text {
-        println!("{name}");
-    } else {
-        let output = serde_json::json!({ "status": "success", "name": name });
-        println!("{}", serde_json::to_string(&output).unwrap());
+    if dry_run {
+        if text {
+            println!("{name}");
+        } else {
+            let output = serde_json::json!({ "status": "success", "name": name, "created": false });
+            println!("{}", serde_json::to_string(&output).unwrap());
+        }
+        return;
+    }
+
+    // Actually create and checkout branch
+    match git::create_and_checkout_branch(&repo_root, &name) {
+        Ok(()) => {
+            if text {
+                println!("{name}");
+                eprintln!("Switched to new branch '{name}'");
+            } else {
+                let output = serde_json::json!({ "status": "success", "name": name, "created": true });
+                println!("{}", serde_json::to_string(&output).unwrap());
+            }
+        }
+        Err(e) => {
+            if text {
+                eprintln!("error: failed to create branch: {e}");
+                process::exit(1);
+            }
+            let output = serde_json::json!({ "status": "error", "error": format!("failed to create branch: {e}") });
+            println!("{}", serde_json::to_string(&output).unwrap());
+            process::exit(3);
+        }
     }
 }
 
@@ -766,6 +888,7 @@ fn main() {
             text,
             allow_sensitive,
             stdin: use_stdin,
+            dry_run,
         } => {
             let config_path = config.as_deref().map(Path::new);
             let mut cfg = match Config::load_or_default(config_path) {
@@ -799,7 +922,7 @@ fn main() {
                 &custom_message_rules,
             );
 
-            run_commit(&cfg, &refine, &feedback, text, use_stdin, allow_sensitive);
+            run_commit(&cfg, &refine, &feedback, text, use_stdin, allow_sensitive, dry_run);
         }
         Commands::Branch {
             description,
@@ -809,6 +932,8 @@ fn main() {
             cli_path,
             config,
             text,
+            dry_run,
+            mode,
         } => {
             let config_path = config.as_deref().map(Path::new);
             let mut cfg = match Config::load_or_default(config_path) {
@@ -838,7 +963,7 @@ fn main() {
                     CliBackend::Gemini => cfg.gemini_path = p,
                 }
             }
-            run_branch(&cfg, description.as_deref(), text);
+            run_branch(&cfg, description.as_deref(), text, dry_run, mode.to_config());
         }
         Commands::Pr {
             backend,

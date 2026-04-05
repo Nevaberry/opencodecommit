@@ -89,6 +89,32 @@ pub fn get_branch_name(repo: &Path) -> Result<String> {
     git(repo, &["rev-parse", "--abbrev-ref", "HEAD"])
 }
 
+/// Stage all changes.
+pub fn stage_all(repo: &Path) -> Result<()> {
+    git(repo, &["add", "-A"])?;
+    Ok(())
+}
+
+/// Commit staged changes with the given message.
+pub fn git_commit(repo: &Path, message: &str) -> Result<String> {
+    git(repo, &["commit", "-m", message])
+}
+
+/// Create and checkout a new branch.
+pub fn create_and_checkout_branch(repo: &Path, name: &str) -> Result<()> {
+    git(repo, &["checkout", "-b", name])?;
+    Ok(())
+}
+
+/// Get the N most recent branch names sorted by committer date.
+pub fn get_recent_branch_names(repo: &Path, count: usize) -> Result<Vec<String>> {
+    let output = git(repo, &["branch", "--sort=-committerdate", "--format=%(refname:short)"])?;
+    if output.is_empty() {
+        return Ok(vec![]);
+    }
+    Ok(output.lines().take(count).map(|l| l.to_owned()).collect())
+}
+
 /// Get the list of changed file paths.
 pub fn get_changed_files(source: DiffSource, repo: &Path) -> Result<Vec<String>> {
     let output = match source {
@@ -249,6 +275,88 @@ mod tests {
         assert_eq!(files.len(), 2);
         assert!(files.contains(&"a.txt".to_owned()));
         assert!(files.contains(&"b.txt".to_owned()));
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn stage_all_stages_files() {
+        let dir = setup_repo("stage-all");
+        fs::write(dir.join("new.txt"), "new content").unwrap();
+        stage_all(&dir).unwrap();
+        let status = git(&dir, &["diff", "--cached", "--name-only"]).unwrap();
+        assert!(status.contains("new.txt"));
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn git_commit_succeeds() {
+        let dir = setup_repo("commit-ok");
+        fs::write(dir.join("file.txt"), "content").unwrap();
+        stage_all(&dir).unwrap();
+        let output = git_commit(&dir, "test: add file").unwrap();
+        assert!(output.contains("test: add file"));
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn git_commit_fails_with_nothing_staged() {
+        let dir = setup_repo("commit-empty");
+        let result = git_commit(&dir, "empty");
+        assert!(result.is_err());
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn create_and_checkout_branch_works() {
+        let dir = setup_repo("branch-create");
+        create_and_checkout_branch(&dir, "feat/test-branch").unwrap();
+        let branch = get_branch_name(&dir).unwrap();
+        assert_eq!(branch, "feat/test-branch");
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn create_and_checkout_branch_fails_on_duplicate() {
+        let dir = setup_repo("branch-dup");
+        create_and_checkout_branch(&dir, "feat/dup").unwrap();
+        // Switch back and try again
+        Command::new("git").args(["checkout", "-"]).current_dir(&dir).output().unwrap();
+        let result = create_and_checkout_branch(&dir, "feat/dup");
+        assert!(result.is_err());
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn get_recent_branch_names_returns_sorted() {
+        let dir = setup_repo("branch-names");
+        create_and_checkout_branch(&dir, "feat/first").unwrap();
+        fs::write(dir.join("a.txt"), "a").unwrap();
+        Command::new("git").args(["add", "-A"]).current_dir(&dir).output().unwrap();
+        Command::new("git").args(["commit", "-m", "a"])
+            .current_dir(&dir)
+            .env("GIT_AUTHOR_NAME", "Test").env("GIT_AUTHOR_EMAIL", "test@test.com")
+            .env("GIT_COMMITTER_NAME", "Test").env("GIT_COMMITTER_EMAIL", "test@test.com")
+            .env("GIT_COMMITTER_DATE", "2025-01-01T00:00:00+00:00")
+            .output().unwrap();
+        create_and_checkout_branch(&dir, "fix/second").unwrap();
+        fs::write(dir.join("b.txt"), "b").unwrap();
+        Command::new("git").args(["add", "-A"]).current_dir(&dir).output().unwrap();
+        Command::new("git").args(["commit", "-m", "b"])
+            .current_dir(&dir)
+            .env("GIT_AUTHOR_NAME", "Test").env("GIT_AUTHOR_EMAIL", "test@test.com")
+            .env("GIT_COMMITTER_NAME", "Test").env("GIT_COMMITTER_EMAIL", "test@test.com")
+            .env("GIT_COMMITTER_DATE", "2025-06-01T00:00:00+00:00")
+            .output().unwrap();
+        let branches = get_recent_branch_names(&dir, 10).unwrap();
+        // Should include master/main, feat/first, fix/second (at least 3)
+        assert!(branches.len() >= 3);
+        // fix/second has the latest committer date, so it should come before feat/first
+        let pos_second = branches.iter().position(|b| b == "fix/second").unwrap();
+        let pos_first = branches.iter().position(|b| b == "feat/first").unwrap();
+        assert!(pos_second < pos_first, "fix/second should come before feat/first, got: {branches:?}");
+        // Count limiting works
+        let limited = get_recent_branch_names(&dir, 2).unwrap();
+        assert_eq!(limited.len(), 2);
         cleanup(&dir);
     }
 }

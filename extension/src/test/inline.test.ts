@@ -4,12 +4,14 @@ import { detectSensitiveContent } from "../inline/context"
 import {
   buildPrompt,
   buildRefinePrompt,
+  buildBranchPrompt,
+  formatBranchName,
   formatCommitMessage,
   parseResponse,
   sanitizeResponse,
 } from "../inline/generator"
 import type { CommitContext } from "../inline/context"
-import type { ExtensionConfig } from "../inline/types"
+import type { BranchMode, ExtensionConfig } from "../inline/types"
 
 function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
   return {
@@ -50,6 +52,7 @@ function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
     codexProvider: "",
     geminiModel: "",
     backendOrder: ["codex", "opencode", "claude", "gemini"],
+    branchMode: "conventional" as BranchMode,
     ...overrides,
   }
 }
@@ -522,5 +525,78 @@ describe("detectSensitiveContent", () => {
   it("returns false for normal code", () => {
     const diff = `+  const result = await fetchData()`
     assert.strictEqual(detectSensitiveContent(diff, ["app.ts"]), false)
+  })
+})
+
+// --- buildBranchPrompt ---
+
+describe("buildBranchPrompt", () => {
+  it("conventional mode contains type/slug instructions", () => {
+    const config = makeConfig()
+    const prompt = buildBranchPrompt("add login", undefined, config, "conventional", [])
+    assert.ok(prompt.includes("type/short-description-slug"))
+    assert.ok(prompt.includes("feat, fix, docs"))
+    assert.ok(prompt.includes("add login"))
+  })
+
+  it("adaptive mode includes existing branch names", () => {
+    const config = makeConfig()
+    const branches = ["feat/add-login", "fix/auth-bug"]
+    const prompt = buildBranchPrompt("", "diff here", config, "adaptive", branches)
+    assert.ok(prompt.includes("feat/add-login"))
+    assert.ok(prompt.includes("fix/auth-bug"))
+    assert.ok(prompt.includes("Match the naming style"))
+  })
+
+  it("adaptive mode with no branches falls back to conventional", () => {
+    const config = makeConfig()
+    const prompt = buildBranchPrompt("desc", undefined, config, "adaptive", [])
+    assert.ok(prompt.includes("type/short-description-slug"))
+  })
+
+  it("includes diff when provided", () => {
+    const config = makeConfig()
+    const prompt = buildBranchPrompt("", "my diff content", config, "conventional", [])
+    assert.ok(prompt.includes("my diff content"))
+    assert.ok(prompt.includes("Git Diff"))
+  })
+
+  it("includes language instruction", () => {
+    const config = makeConfig({ activeLanguageInstruction: "Write in Finnish." })
+    const prompt = buildBranchPrompt("desc", undefined, config, "conventional", [])
+    assert.ok(prompt.includes("Write in Finnish."))
+  })
+})
+
+// --- formatBranchName ---
+
+describe("formatBranchName", () => {
+  it("preserves valid type/slug format", () => {
+    assert.strictEqual(formatBranchName("feat/add-login"), "feat/add-login")
+  })
+
+  it("lowercases the branch name", () => {
+    assert.strictEqual(formatBranchName("FEAT/Add-Login"), "feat/add-login")
+  })
+
+  it("slugifies spaces and special chars", () => {
+    assert.strictEqual(formatBranchName("feat/add login page!"), "feat/add-login-page")
+  })
+
+  it("handles code block wrapped response", () => {
+    assert.strictEqual(formatBranchName("```\nfeat/add-login\n```"), "feat/add-login")
+  })
+
+  it("returns fallback for empty response", () => {
+    assert.strictEqual(formatBranchName(""), "chore/update")
+  })
+
+  it("handles single word", () => {
+    const result = formatBranchName("feature")
+    assert.strictEqual(result, "feature")
+  })
+
+  it("collapses multiple hyphens", () => {
+    assert.strictEqual(formatBranchName("feat/add---login"), "feat/add-login")
   })
 })
