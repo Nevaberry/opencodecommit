@@ -118,22 +118,22 @@ if $DO_VSCE; then
 fi
 
 # ---------------------------------------------------------------------------
-# npm
-# ---------------------------------------------------------------------------
-if $DO_NPM; then
-  echo "==> npm"
-  echo "    Publishing @nevaberry/opencodecommit"
-  (cd "${REPO_ROOT}/npm/opencodecommit" && npm publish --access public)
-  echo "    ✓ npm published"
-fi
-
-# ---------------------------------------------------------------------------
 # crates.io
 # ---------------------------------------------------------------------------
 if $DO_CARGO; then
   echo "==> crates.io"
   (cd "${REPO_ROOT}/crates/opencodecommit" && cargo publish)
   echo "    ✓ crates.io published"
+fi
+
+# ---------------------------------------------------------------------------
+# npm (last — binaries must be in platforms/ before publishing)
+# ---------------------------------------------------------------------------
+if $DO_NPM; then
+  echo "==> npm"
+  echo "    Publishing @nevaberry/opencodecommit"
+  (cd "${REPO_ROOT}/npm/opencodecommit" && npm publish --access public)
+  echo "    ✓ npm published"
 fi
 
 echo "==> Done: v${VERSION}"

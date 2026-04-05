@@ -1,6 +1,6 @@
 [package]
 name = "opencodecommit"
-version = "0.8.2"
+version = "0.8.3"
 edition = "2024"
 description = "AI-powered git commit message generator that delegates to terminal AI agents"
 license = "MIT"
