@@ -2,7 +2,7 @@
   "name": "opencodecommit",
   "displayName": "OpenCodeCommit",
   "description": "AI commit messages via OpenCode, Claude Code, or Codex CLI — supports every major LLM provider from a single extension",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "publisher": "Nevaberry",
   "license": "MIT",
   "repository": {
