@@ -1,6 +1,6 @@
 [package]
 name = "opencodecommit"
-version = "0.9.0"
+version = "1.0.0"
 edition = "2024"
 description = "AI-powered git commit message generator that delegates to terminal AI agents"
 license = "MIT"
@@ -14,7 +14,7 @@ name = "opencodecommit"
 path = "src/lib.rs"
 
 [[bin]]
-name = "opencodecommit"
+name = "occ"
 path = "src/main.rs"
 required-features = ["cli"]
 

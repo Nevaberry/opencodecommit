@@ -11,7 +11,7 @@ AI commit messages via terminal AI agents. VSCodium / VS Code extension + standa
 
 **Extension:** Search "OpenCodeCommit" in VSCodium / VS Code, or `ext install Nevaberry.opencodecommit`
 
-**CLI:** `cargo install opencodecommit` or `npm i -g @nevaberry/opencodecommit`
+**CLI:** `cargo install opencodecommit` or `npm i -g @nevaberry/opencodecommit` (installs `occ` command)
 
 **Prerequisite:** At least one CLI backend:
 
@@ -33,17 +33,20 @@ Dropdown menu: mode-specific generation, refine, branch name generation, switch 
 ## CLI Usage
 
 ```bash
-opencodecommit commit              # generate message + commit
-opencodecommit commit --dry-run    # preview only, don't commit
-opencodecommit branch              # generate branch name + checkout
-opencodecommit branch --mode adaptive  # match existing branch naming style
-opencodecommit pr                  # generate PR title + body
-opencodecommit changelog           # generate changelog entry
+occ commit                         # generate message + commit
+occ commit --dry-run               # preview only, don't commit
+occ commit --language Suomi        # generate in Finnish
+occ branch                         # generate branch name + checkout
+occ branch --mode adaptive         # match existing branch naming style
+occ pr                             # generate PR title + body
+occ changelog                      # generate changelog entry
 
 # JSON output (default), or --text for human readable plain text
-opencodecommit commit --text
-opencodecommit commit --allow-sensitive  # skip secret scanning
+occ commit --text
+occ commit --allow-sensitive       # skip secret scanning
 ```
+
+`occ` is the short form. `opencodecommit` also works if `occ` clashes with something on your system.
 
 Exit codes: 0 success, 1 no changes, 2 backend error, 3 config error, 5 sensitive content detected
 
@@ -81,6 +84,20 @@ All VSCodium / VS Code settings are prefixed with `opencodecommit.`. Key setting
 | `commitTemplate` | `{{type}}: {{message}}` | Supports `{{type}}`, `{{emoji}}`, `{{message}}` |
 
 CLI config: `~/.config/opencodecommit/config.toml` (TOML with the same fields in kebab-case).
+
+## Languages
+
+Built-in: **English** (default), **Suomi** (Finnish), **Custom (example)** (template for your own).
+
+Each language defines full prompt modules (base, adaptive, conventional, length, sensitive note). Missing modules fall back to English. CLI: `--language Suomi`. Extension: dropdown menu or `opencodecommit.activeLanguage` setting.
+
+Add custom languages in config — only `label` and `instruction` are required:
+
+```toml
+[[languages]]
+label = "Deutsch"
+instruction = "Schreibe die Commit-Nachricht auf Deutsch."
+```
 
 ## License
 

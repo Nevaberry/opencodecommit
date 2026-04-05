@@ -1,6 +1,6 @@
 {
   "name": "@nevaberry/opencodecommit",
-  "version": "0.9.0",
+  "version": "1.0.0",
   "description": "AI-powered git commit message generator that delegates to terminal AI agents",
   "license": "MIT",
   "repository": {
@@ -8,7 +8,8 @@
     "url": "https://github.com/Nevaberry/opencodecommit"
   },
   "bin": {
-    "opencodecommit": "bin/opencodecommit"
+    "occ": "bin/occ",
+    "opencodecommit": "bin/occ"
   },
   "files": [
     "bin",

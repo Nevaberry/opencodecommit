@@ -13,7 +13,7 @@ function getBinaryPath() {
   }
 
   const ext = process.platform === "win32" ? ".exe" : ""
-  return path.join(__dirname, "platforms", platform, `opencodecommit${ext}`)
+  return path.join(__dirname, "platforms", platform, `occ${ext}`)
 }
 
 module.exports = { getBinaryPath, SUPPORTED }

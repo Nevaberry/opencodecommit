@@ -57,8 +57,8 @@ jobs:
         shell: bash
         run: |
           EXT=""; [[ "${{ matrix.target }}" == *windows* ]] && EXT=".exe"
-          cp target/${{ matrix.target }}/release/opencodecommit${EXT} npm/opencodecommit/platforms/${{ matrix.platform }}/
+          cp target/${{ matrix.target }}/release/occ${EXT} npm/opencodecommit/platforms/${{ matrix.platform }}/
       - uses: actions/upload-artifact@v4
         with:
           name: binary-${{ matrix.platform }}
-          path: npm/opencodecommit/platforms/${{ matrix.platform }}/opencodecommit*
+          path: npm/opencodecommit/platforms/${{ matrix.platform }}/occ*

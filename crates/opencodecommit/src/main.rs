@@ -3,7 +3,7 @@ use std::process;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use opencodecommit::backend::{build_invocation, detect_cli, exec_cli};
-use opencodecommit::config::{CliBackend, CommitMode, Config, DiffSource, LanguageConfig};
+use opencodecommit::config::{CliBackend, CommitMode, Config, DiffSource};
 use opencodecommit::context::gather_context;
 use opencodecommit::git;
 use opencodecommit::prompt::{
@@ -15,7 +15,7 @@ use opencodecommit::response::{
 };
 
 #[derive(Parser)]
-#[command(name = "opencodecommit", version, about = "AI-powered git commit message generator")]
+#[command(name = "occ", version, about = "AI-powered git commit message generator")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -49,7 +49,7 @@ enum Commands {
         #[arg(long)]
         max_diff_length: Option<usize>,
 
-        /// Language instruction (e.g. "Write the commit message in English.")
+        /// Language label (e.g. "English", "Suomi", "Custom (example)")
         #[arg(long)]
         language: Option<String>,
 
@@ -313,12 +313,17 @@ fn apply_commit_args(
     if let Some(n) = max_diff_length {
         config.max_diff_length = n;
     }
-    if let Some(lang) = language {
-        config.languages = vec![LanguageConfig {
-            label: "CLI".to_owned(),
-            instruction: lang.clone(),
-        }];
-        config.active_language = "CLI".to_owned();
+    if let Some(label) = language {
+        if config.languages.iter().any(|l| l.label == *label) {
+            config.active_language = label.clone();
+        } else {
+            let available: Vec<&str> = config.languages.iter().map(|l| l.label.as_str()).collect();
+            eprintln!(
+                "error: unknown language \"{label}\". Available: {}",
+                available.join(", ")
+            );
+            process::exit(3);
+        }
     }
     if emoji {
         config.use_emojis = true;

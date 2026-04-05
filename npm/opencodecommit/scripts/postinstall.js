@@ -16,8 +16,8 @@ if (!SUPPORTED.includes(platform)) {
 
 try {
   const ext = process.platform === "win32" ? ".exe" : ""
-  const binaryPath = path.join(__dirname, "..", "platforms", platform, `opencodecommit${ext}`)
-  const binTarget = path.join(__dirname, "..", "bin", `opencodecommit${ext}`)
+  const binaryPath = path.join(__dirname, "..", "platforms", platform, `occ${ext}`)
+  const binTarget = path.join(__dirname, "..", "bin", `occ${ext}`)
 
   if (!fs.existsSync(binaryPath)) {
     console.error(`opencodecommit: binary not found at ${binaryPath}`)

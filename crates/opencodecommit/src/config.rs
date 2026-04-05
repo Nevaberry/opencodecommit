@@ -46,9 +46,34 @@ pub enum BranchMode {
 // --- Config structs ---
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub struct LanguageConfig {
     pub label: String,
     pub instruction: String,
+    #[serde(default)]
+    pub base_module: Option<String>,
+    #[serde(default)]
+    pub adaptive_format: Option<String>,
+    #[serde(default)]
+    pub conventional_format: Option<String>,
+    #[serde(default)]
+    pub multiline_length: Option<String>,
+    #[serde(default)]
+    pub oneliner_length: Option<String>,
+    #[serde(default)]
+    pub sensitive_content_note: Option<String>,
+}
+
+/// Resolved prompt modules for the active language.
+/// Missing fields fall back to the first language in the array.
+#[derive(Debug, Clone)]
+pub struct PromptModules {
+    pub base_module: String,
+    pub adaptive_format: String,
+    pub conventional_format: String,
+    pub multiline_length: String,
+    pub oneliner_length: String,
+    pub sensitive_content_note: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -203,10 +228,7 @@ fn default_commit_template() -> String {
 }
 
 fn default_languages() -> Vec<LanguageConfig> {
-    vec![LanguageConfig {
-        label: "English".to_owned(),
-        instruction: "Write the commit message in English.".to_owned(),
-    }]
+    crate::languages::default_languages()
 }
 
 fn default_active_language() -> String {
@@ -252,6 +274,33 @@ impl Config {
             .find(|l| l.label == self.active_language)
             .map(|l| l.instruction.clone())
             .unwrap_or_else(|| "Write the commit message in English.".to_owned())
+    }
+
+    /// Resolve prompt modules for the active language.
+    /// Missing fields on the active language fall back to the first language.
+    pub fn active_prompt_modules(&self) -> PromptModules {
+        let active = self
+            .languages
+            .iter()
+            .find(|l| l.label == self.active_language);
+        let fallback = self.languages.first();
+
+        let resolve = |getter: fn(&LanguageConfig) -> Option<&str>| -> String {
+            active
+                .and_then(getter)
+                .or_else(|| fallback.and_then(getter))
+                .unwrap_or("")
+                .to_owned()
+        };
+
+        PromptModules {
+            base_module: resolve(|l| l.base_module.as_deref()),
+            adaptive_format: resolve(|l| l.adaptive_format.as_deref()),
+            conventional_format: resolve(|l| l.conventional_format.as_deref()),
+            multiline_length: resolve(|l| l.multiline_length.as_deref()),
+            oneliner_length: resolve(|l| l.oneliner_length.as_deref()),
+            sensitive_content_note: resolve(|l| l.sensitive_content_note.as_deref()),
+        }
     }
 
     /// Return the CLI path for the current backend.
@@ -360,8 +409,10 @@ mod tests {
         assert!(!cfg.use_emojis);
         assert!(cfg.use_lower_case);
         assert_eq!(cfg.commit_template, "{{type}}: {{message}}");
-        assert_eq!(cfg.languages.len(), 1);
+        assert_eq!(cfg.languages.len(), 3);
         assert_eq!(cfg.languages[0].label, "English");
+        assert_eq!(cfg.languages[1].label, "Suomi");
+        assert_eq!(cfg.languages[2].label, "Custom (example)");
         assert_eq!(cfg.active_language, "English");
         assert_eq!(cfg.refine.default_feedback, "make it shorter");
         assert!(cfg.custom.prompt.is_empty());
@@ -376,21 +427,45 @@ mod tests {
             "Write the commit message in English."
         );
 
-        cfg.languages.push(LanguageConfig {
-            label: "Suomi".to_owned(),
-            instruction: "Kirjoita commit-viesti suomeksi.".to_owned(),
-        });
         cfg.active_language = "Suomi".to_owned();
-        assert_eq!(
-            cfg.active_language_instruction(),
-            "Kirjoita commit-viesti suomeksi."
-        );
+        assert!(cfg.active_language_instruction().contains("suomeksi"));
 
         cfg.active_language = "Nonexistent".to_owned();
         assert_eq!(
             cfg.active_language_instruction(),
             "Write the commit message in English."
         );
+    }
+
+    #[test]
+    fn active_prompt_modules_english() {
+        let cfg = Config::default();
+        let mods = cfg.active_prompt_modules();
+        assert!(mods.base_module.contains("expert at writing git commit messages"));
+        assert!(mods.adaptive_format.contains("{recentCommits}"));
+        assert!(mods.conventional_format.contains("conventional commit format"));
+        assert!(mods.multiline_length.contains("72 characters"));
+        assert!(mods.oneliner_length.contains("exactly one line"));
+        assert!(mods.sensitive_content_note.contains("sensitive content"));
+    }
+
+    #[test]
+    fn active_prompt_modules_finnish() {
+        let mut cfg = Config::default();
+        cfg.active_language = "Suomi".to_owned();
+        let mods = cfg.active_prompt_modules();
+        assert!(mods.base_module.contains("Olet asiantuntija"));
+        assert!(mods.adaptive_format.contains("Noudata alla"));
+        assert!(mods.conventional_format.contains("conventional commit -muotoa"));
+    }
+
+    #[test]
+    fn active_prompt_modules_custom_falls_back_to_english() {
+        let mut cfg = Config::default();
+        cfg.active_language = "Custom (example)".to_owned();
+        let mods = cfg.active_prompt_modules();
+        // Custom has no modules → falls back to first language (English)
+        assert!(mods.base_module.contains("expert at writing git commit messages"));
     }
 
     #[test]

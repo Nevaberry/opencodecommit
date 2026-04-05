@@ -2,6 +2,7 @@ pub mod backend;
 pub mod config;
 pub mod context;
 pub mod git;
+pub mod languages;
 pub mod prompt;
 pub mod response;
 

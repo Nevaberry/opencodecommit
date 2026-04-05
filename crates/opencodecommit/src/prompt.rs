@@ -1,59 +1,6 @@
 use crate::config::{BranchMode, CommitMode, Config};
 use crate::context::CommitContext;
-
-// --- Prompt module constants (verbatim from TS generator.ts) ---
-
-const BASE_MODULE: &str = "You are an expert at writing git commit messages.
-Analyze the code changes and generate a specific, descriptive commit message.
-
-Be specific about WHAT changed. Describe the actual functionality, file, or behavior affected.
-Never write vague messages like \"update code\", \"make changes\", or \"update files\".
-
-Respond with ONLY the commit message. No explanations, no code blocks, no markdown.";
-
-const ADAPTIVE_FORMAT: &str = "Match the style of the recent commits shown below. Adapt to whatever conventions
-the project uses — the recent commits are your primary guide.
-
-If the recent commits use conventional commits (type: description), follow that format.
-If they use custom prefixes (e.g. developer initials, dates, version numbers, or
-non-standard categories like private, public, dev, production), match that style.
-If no clear style exists, fall back to: type: description
-
-Common conventional types for reference (use these as defaults when no other style is apparent):
-feat, fix, docs, style, refactor, test, perf, security, revert, chore
-
-Be specific about what changed — do not write vague messages like \"update code\".
-
-Recent commits:
-{recentCommits}";
-
-const CONVENTIONAL_FORMAT: &str = "Use conventional commit format: type(scope): description
-
-Choose the type that best matches the actual changes:
-- feat: new features or capabilities
-- fix: bug fixes, error corrections
-- docs: documentation, README, markdown, comments, JSDoc/rustdoc changes
-- style: formatting, whitespace, semicolons (no logic change)
-- refactor: code restructuring without behavior change
-- test: adding or modifying tests
-- perf: performance improvements
-- security: security fixes, vulnerability patches, auth hardening
-- revert: reverting previous changes
-- chore: build process, dependencies, tooling (only if nothing else fits)
-Scope: derive from the primary area affected (optional, omit if unclear).
-Use imperative mood. No period at end. Lowercase after colon.";
-
-const MULTILINE_LENGTH: &str = "If the change is simple, use a single line under 72 characters.
-If the change is complex with multiple aspects, add a body after a blank line
-with bullet points (prefix each with \"- \"). Wrap at 72 characters.";
-
-const ONELINER_LENGTH: &str = "Write exactly one line, no body. Maximum 72 characters.";
-
-const SENSITIVE_CONTENT_NOTE: &str = "The diff contains sensitive content (API keys, credentials, or env variables).
-Mention this naturally in the first line of the commit message, e.g. \"add API keys for payment service\"
-or \"configure production env variables\". Just acknowledge what is being committed — no warnings or caveats.";
-
-// --- Prompt assembly ---
+use crate::languages;
 
 /// Build the prompt for commit message generation.
 pub fn build_prompt(context: &CommitContext, config: &Config, mode: Option<CommitMode>) -> String {
@@ -63,10 +10,11 @@ pub fn build_prompt(context: &CommitContext, config: &Config, mode: Option<Commi
     }
 
     let active_mode = mode.unwrap_or(config.commit_mode);
+    let mods = config.active_prompt_modules();
     let mut parts: Vec<String> = Vec::new();
 
     // Base (always)
-    parts.push(BASE_MODULE.to_owned());
+    parts.push(mods.base_module);
 
     // Format module
     match active_mode {
@@ -76,10 +24,10 @@ pub fn build_prompt(context: &CommitContext, config: &Config, mode: Option<Commi
             } else {
                 context.recent_commits.join("\n")
             };
-            parts.push(ADAPTIVE_FORMAT.replace("{recentCommits}", &recent_text));
+            parts.push(mods.adaptive_format.replace("{recentCommits}", &recent_text));
         }
         CommitMode::Conventional | CommitMode::ConventionalOneliner => {
-            parts.push(CONVENTIONAL_FORMAT.to_owned());
+            parts.push(mods.conventional_format);
             if !config.custom.type_rules.is_empty() {
                 parts.push(config.custom.type_rules.clone());
             }
@@ -92,16 +40,16 @@ pub fn build_prompt(context: &CommitContext, config: &Config, mode: Option<Commi
     // Length module
     match active_mode {
         CommitMode::AdaptiveOneliner | CommitMode::ConventionalOneliner => {
-            parts.push(ONELINER_LENGTH.to_owned());
+            parts.push(mods.oneliner_length);
         }
         _ => {
-            parts.push(MULTILINE_LENGTH.to_owned());
+            parts.push(mods.multiline_length);
         }
     }
 
     // Sensitive content note
     if context.has_sensitive_content {
-        parts.push(SENSITIVE_CONTENT_NOTE.to_owned());
+        parts.push(mods.sensitive_content_note);
     }
 
     // Language instruction
@@ -131,38 +79,13 @@ pub fn build_refine_prompt(
     diff: &str,
     config: &Config,
 ) -> String {
-    format!(
-        "The following commit message was generated for a git diff:
-
-Current message:
-{current_message}
-
-User feedback: {feedback}
-
-Original diff (first {} characters):
-{diff}
-
-Generate an improved commit message based on the feedback.
-Keep the same type prefix unless the feedback suggests otherwise.
-{}
-
-Respond with ONLY the improved commit message. No markdown, no code blocks, no explanations.",
-        config.max_diff_length,
-        config.active_language_instruction()
-    )
+    languages::REFINE_TEMPLATE
+        .replace("{currentMessage}", current_message)
+        .replace("{feedback}", feedback)
+        .replace("{maxDiffLength}", &config.max_diff_length.to_string())
+        .replace("{diff}", diff)
+        .replace("{languageInstruction}", &config.active_language_instruction())
 }
-
-const ADAPTIVE_BRANCH_FORMAT: &str = "Match the naming style of the existing branches shown below.
-Adapt to whatever conventions the project uses — the existing branches are your primary guide.
-
-If they use type/description (e.g. feat/add-login, fix/auth-bug), follow that format.
-If they use other patterns (e.g. username/description, JIRA-123/description, dates), match that style.
-If no clear pattern exists, fall back to: type/short-description-slug
-
-Be specific about what the branch is for — do not write vague names.
-
-Existing branches:
-{existingBranches}";
 
 /// Build the prompt for branch name generation.
 pub fn build_branch_prompt(
@@ -172,29 +95,26 @@ pub fn build_branch_prompt(
     mode: BranchMode,
     existing_branches: &[String],
 ) -> String {
-    let mut parts = vec![
-        "You are an expert at naming git branches.".to_owned(),
-    ];
+    let mut parts = vec![languages::BRANCH_EXPERT.to_owned()];
 
     match mode {
         BranchMode::Conventional => {
-            parts.push("Generate a branch name in the format: type/short-description-slug".to_owned());
-            parts.push("Types: feat, fix, docs, refactor, test, chore".to_owned());
-            parts.push("Use lowercase, hyphens between words, max 50 characters total.".to_owned());
+            parts.push(languages::BRANCH_CONVENTIONAL.to_owned());
         }
         BranchMode::Adaptive => {
             if existing_branches.is_empty() {
-                parts.push("Generate a branch name in the format: type/short-description-slug".to_owned());
-                parts.push("Types: feat, fix, docs, refactor, test, chore".to_owned());
-                parts.push("Use lowercase, hyphens between words, max 50 characters total.".to_owned());
+                parts.push(languages::BRANCH_CONVENTIONAL.to_owned());
             } else {
                 let branch_text = existing_branches.join("\n");
-                parts.push(ADAPTIVE_BRANCH_FORMAT.replace("{existingBranches}", &branch_text));
+                parts.push(
+                    languages::BRANCH_ADAPTIVE_FORMAT
+                        .replace("{existingBranches}", &branch_text),
+                );
             }
         }
     }
 
-    parts.push("Respond with ONLY the branch name. No explanations.".to_owned());
+    parts.push(languages::BRANCH_RESPOND_ONLY.to_owned());
     parts.push(config.active_language_instruction());
 
     if let Some(diff) = diff {
@@ -211,20 +131,7 @@ pub fn build_branch_prompt(
 
 /// Build the prompt for PR title and body generation.
 pub fn build_pr_prompt(context: &CommitContext, config: &Config) -> String {
-    let mut parts = vec![
-        "You are an expert at writing pull request descriptions.".to_owned(),
-        "Generate a PR title and body from the changes below.".to_owned(),
-        "Format:".to_owned(),
-        "TITLE: <concise title under 70 chars>".to_owned(),
-        "BODY:".to_owned(),
-        "## Summary".to_owned(),
-        "<1-3 bullet points describing the changes>".to_owned(),
-        "".to_owned(),
-        "## Test plan".to_owned(),
-        "<bullet points for testing>".to_owned(),
-        "".to_owned(),
-        "Respond with ONLY the title and body in the format above.".to_owned(),
-    ];
+    let mut parts = vec![languages::PR_EXPERT.to_owned()];
 
     parts.push(config.active_language_instruction());
 
@@ -242,13 +149,7 @@ pub fn build_pr_prompt(context: &CommitContext, config: &Config) -> String {
 
 /// Build the prompt for changelog entry generation.
 pub fn build_changelog_prompt(context: &CommitContext, config: &Config) -> String {
-    let mut parts = vec![
-        "You are an expert at writing changelog entries.".to_owned(),
-        "Generate a changelog entry from the commits and diff below.".to_owned(),
-        "Use Keep a Changelog format with sections: Added, Changed, Fixed, Removed.".to_owned(),
-        "Only include sections that apply. Use bullet points.".to_owned(),
-        "Respond with ONLY the changelog entry. No explanations.".to_owned(),
-    ];
+    let mut parts = vec![languages::CHANGELOG_EXPERT.to_owned()];
 
     parts.push(config.active_language_instruction());
 
@@ -291,7 +192,7 @@ mod tests {
         ctx
     }
 
-    // --- buildPrompt tests (ported from TS) ---
+    // --- buildPrompt tests ---
 
     #[test]
     fn includes_diff_in_prompt() {
@@ -304,15 +205,34 @@ mod tests {
     #[test]
     fn includes_language_instruction() {
         let config = make_config(|c| {
-            c.languages = vec![crate::config::LanguageConfig {
-                label: "Finnish".to_owned(),
-                instruction: "Write in Finnish.".to_owned(),
-            }];
-            c.active_language = "Finnish".to_owned();
+            c.active_language = "Suomi".to_owned();
         });
         let context = make_context(|_| {});
         let prompt = build_prompt(&context, &config, None);
-        assert!(prompt.contains("Write in Finnish."));
+        assert!(prompt.contains("Kirjoita commit-viesti suomeksi"));
+    }
+
+    #[test]
+    fn finnish_uses_finnish_prompt_modules() {
+        let config = make_config(|c| {
+            c.active_language = "Suomi".to_owned();
+        });
+        let context = make_context(|_| {});
+        let prompt = build_prompt(&context, &config, None);
+        assert!(prompt.contains("Olet asiantuntija git-commit-viestien kirjoittamisessa"));
+        assert!(!prompt.contains("You are an expert at writing git commit messages"));
+    }
+
+    #[test]
+    fn custom_language_falls_back_to_english_modules() {
+        let config = make_config(|c| {
+            c.active_language = "Custom (example)".to_owned();
+        });
+        let context = make_context(|_| {});
+        let prompt = build_prompt(&context, &config, None);
+        // Should have English base module (fallback) but Custom instruction
+        assert!(prompt.contains("You are an expert at writing git commit messages"));
+        assert!(prompt.contains("your preferred language and style"));
     }
 
     #[test]
@@ -433,6 +353,38 @@ mod tests {
         let context = make_context(|c| c.has_sensitive_content = false);
         let prompt = build_prompt(&context, &config, None);
         assert!(!prompt.contains("sensitive content"));
+    }
+
+    #[test]
+    fn finnish_sensitive_note() {
+        let config = make_config(|c| {
+            c.active_language = "Suomi".to_owned();
+        });
+        let context = make_context(|c| c.has_sensitive_content = true);
+        let prompt = build_prompt(&context, &config, None);
+        assert!(prompt.contains("arkaluonteista sisältöä"));
+    }
+
+    #[test]
+    fn finnish_conventional_mode() {
+        let config = make_config(|c| {
+            c.active_language = "Suomi".to_owned();
+        });
+        let context = make_context(|_| {});
+        let prompt = build_prompt(&context, &config, Some(CommitMode::Conventional));
+        assert!(prompt.contains("conventional commit -muotoa"));
+    }
+
+    #[test]
+    fn finnish_adaptive_mode() {
+        let config = make_config(|c| {
+            c.active_language = "Suomi".to_owned();
+        });
+        let context = make_context(|c| {
+            c.recent_commits = vec!["abc feat: test".to_owned()];
+        });
+        let prompt = build_prompt(&context, &config, Some(CommitMode::Adaptive));
+        assert!(prompt.contains("Noudata alla näkyvien"));
     }
 
     // --- buildBranchPrompt ---
