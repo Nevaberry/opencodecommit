@@ -1,0 +1,10 @@
+#!/usr/bin/env node
+const os = require("os");
+const platform = os.platform();
+const arch = os.arch();
+console.error(
+  `opencodecommit: pre-built binary not yet available for ${platform}-${arch}.\n` +
+  `Install from source: cargo install opencodecommit\n` +
+  `Track progress: https://github.com/Nevaberry/opencodecommit`
+);
+process.exit(1);

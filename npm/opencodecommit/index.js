@@ -5,11 +5,11 @@
 const path = require("path")
 
 const PLATFORMS = {
-  "linux-x64": "@opencodecommit/linux-x64",
-  "linux-arm64": "@opencodecommit/linux-arm64",
-  "darwin-x64": "@opencodecommit/darwin-x64",
-  "darwin-arm64": "@opencodecommit/darwin-arm64",
-  "win32-x64": "@opencodecommit/win32-x64",
+  "linux-x64": "@nevaberry/opencodecommit-linux-x64",
+  "linux-arm64": "@nevaberry/opencodecommit-linux-arm64",
+  "darwin-x64": "@nevaberry/opencodecommit-darwin-x64",
+  "darwin-arm64": "@nevaberry/opencodecommit-darwin-arm64",
+  "win32-x64": "@nevaberry/opencodecommit-win32-x64",
 }
 
 function getBinaryPath() {

@@ -47,6 +47,8 @@ Desktop.ini
 # Internal / private
 docs/
 research/
+private/
+temp/
 *.xcf
 
 # Rust

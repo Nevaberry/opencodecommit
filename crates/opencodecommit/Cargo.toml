@@ -1,12 +1,13 @@
 [package]
 name = "opencodecommit"
-version = "0.8.1"
+version = "0.8.2"
 edition = "2024"
 description = "AI-powered git commit message generator that delegates to terminal AI agents"
 license = "MIT"
 repository = "https://github.com/Nevaberry/opencodecommit"
 keywords = ["git", "commit", "ai", "cli"]
 categories = ["command-line-utilities", "development-tools"]
+readme = "../../README.md"
 
 [lib]
 name = "opencodecommit"

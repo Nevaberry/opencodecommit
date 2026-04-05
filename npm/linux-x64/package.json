@@ -1,6 +1,6 @@
 {
-  "name": "@opencodecommit/linux-x64",
-  "version": "0.8.1",
+  "name": "@nevaberry/opencodecommit-linux-x64",
+  "version": "0.8.2",
   "description": "opencodecommit binary for linux-x64",
   "license": "MIT",
   "repository": {

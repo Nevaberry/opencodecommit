@@ -2,7 +2,11 @@
 
 AI-powered commit messages for VS Code and VS Codium — delegates to CLI tools you already have installed.
 
+**Built-in security scanning** — diffs are scanned locally for API keys, credentials, and secrets before anything leaves your machine. [Details below.](#sensitive-content-detection)
+
 Pick your CLI, pick your model, click the sparkle button. That's it.
+
+[VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=Nevaberry.opencodecommit) · [npm](https://www.npmjs.com/package/@nevaberry/opencodecommit) · [GitHub](https://github.com/Nevaberry/opencodecommit)
 
 ## Why This Exists
 
@@ -10,6 +14,7 @@ Most AI commit extensions bundle their own API client, force you onto one provid
 
 ## Features
 
+- **Security scanning** — local detection of API keys, credentials, and secrets before sending diffs to any AI backend
 - **Four CLI backends** — [Codex CLI](https://github.com/openai/codex), [OpenCode](https://github.com/nicepkg/opencode), [Gemini CLI](https://github.com/google-gemini/gemini-cli), [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
 - **Configurable fallback order** — tries each backend in sequence until one succeeds
 - **Four commit modes** — adaptive, adaptive-oneliner, conventional, conventional-oneliner
@@ -18,7 +23,6 @@ Most AI commit extensions bundle their own API client, force you onto one provid
 - **Configurable prompts** — every prompt module is editable in VS Code settings
 - **Refine** — iterate on the generated message with natural language feedback
 - **Smart context** — sends file contents alongside the diff with intelligent truncation
-- **Sensitive content detection** — recognizes `.env` files, API keys, credentials in diffs
 - **Customizable** — templates, emoji maps, custom prompts, type/message rule overrides
 - **Codex CLI provider support** — use OpenRouter, Ollama, or any provider via `-c model_provider`
 - **Flatpak support** — works in sandboxed VS Codium via `flatpak-spawn --host`
@@ -83,7 +87,7 @@ Each language entry contains an `instruction` field plus optional prompt modules
 | `commitMode` | `adaptive` | Default commit mode |
 | `sparkleMode` | `adaptive` | Mode used by the sparkle button |
 | `diffSource` | `auto` | Diff source: `auto`, `staged`, or `all` |
-| `maxDiffLength` | `15000` | Max diff characters sent to the AI backend |
+| `maxDiffLength` | `10000` | Max diff characters sent to the AI backend |
 | `useEmojis` | `false` | Include emojis in commit messages |
 | `useLowerCase` | `true` | Lowercase first letter of subject |
 | `commitTemplate` | `{{type}}: {{message}}` | Template with `{{type}}`, `{{emoji}}`, `{{message}}` placeholders |
@@ -157,7 +161,19 @@ The detection is pattern-based and local — nothing is sent to any server until
 
 ## CLI Tool (`occ`)
 
-OpenCodeCommit also ships as a standalone Rust CLI for terminal use:
+OpenCodeCommit also ships as a standalone Rust CLI for terminal use.
+
+### Install
+
+```bash
+# via npm
+npm i -g @nevaberry/opencodecommit
+
+# via cargo
+cargo install opencodecommit
+```
+
+### Usage
 
 ```bash
 # Generate commit message

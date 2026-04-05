@@ -1,53 +1,147 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Navigate to the repo root (parent of scripts/)
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# ---------------------------------------------------------------------------
+# Usage
+# ---------------------------------------------------------------------------
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [targets...]
 
-# Find the main repo root (works in both worktrees and main checkout)
+Targets:
+  --ovsx     Publish extension to Open VSX
+  --vsce     Publish extension to VS Code Marketplace
+  --npm      Publish CLI to npm
+  --cargo    Publish CLI to crates.io
+  --all      All of the above
+
+Extension targets (--ovsx, --vsce) build and package the VSIX automatically.
+
+Examples:
+  $(basename "$0") --all
+  $(basename "$0") --ovsx --vsce
+  $(basename "$0") --npm --cargo
+EOF
+  exit 1
+}
+
+# ---------------------------------------------------------------------------
+# Parse flags
+# ---------------------------------------------------------------------------
+DO_OVSX=false DO_VSCE=false DO_NPM=false DO_CARGO=false
+
+[[ $# -eq 0 ]] && usage
+
+for arg in "$@"; do
+  case "$arg" in
+    --ovsx)  DO_OVSX=true ;;
+    --vsce)  DO_VSCE=true ;;
+    --npm)   DO_NPM=true ;;
+    --cargo) DO_CARGO=true ;;
+    --all)   DO_OVSX=true; DO_VSCE=true; DO_NPM=true; DO_CARGO=true ;;
+    *)       echo "Unknown flag: $arg"; usage ;;
+  esac
+done
+
+# ---------------------------------------------------------------------------
+# Common setup
+# ---------------------------------------------------------------------------
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MAIN_ROOT="$(git -C "${REPO_ROOT}" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | sed 's|/\.git$||')"
 [ -z "${MAIN_ROOT}" ] && MAIN_ROOT="${REPO_ROOT}"
 
-# Extension lives in extension/ subdirectory
-cd "${REPO_ROOT}/extension"
+VERSION=$(node -p "require('${REPO_ROOT}/extension/package.json').version")
+echo "==> Publishing v${VERSION}"
 
-VERSION=$(node -p "require('./package.json').version")
-NAME=$(node -p "require('./package.json').name")
-VSIX="${NAME}-${VERSION}.vsix"
+# Source a token file from MAIN_ROOT or REPO_ROOT, return 1 if missing
+source_token() {
+  local name="$1"
+  if [ -f "${MAIN_ROOT}/${name}" ]; then
+    source "${MAIN_ROOT}/${name}"
+  elif [ -f "${REPO_ROOT}/${name}" ]; then
+    source "${REPO_ROOT}/${name}"
+  else
+    echo "    ⚠ ${name} not found in ${MAIN_ROOT} or ${REPO_ROOT}"
+    return 1
+  fi
+}
 
-echo "==> Installing extension dependencies"
-bun install --frozen-lockfile
+# ---------------------------------------------------------------------------
+# Extension build (shared by --ovsx and --vsce)
+# ---------------------------------------------------------------------------
+VSIX_BUILT=false
+build_vsix() {
+  if $VSIX_BUILT; then return; fi
+  cd "${REPO_ROOT}/extension"
+  NAME=$(node -p "require('./package.json').name")
+  VSIX="${NAME}-${VERSION}.vsix"
 
-echo "==> Building v${VERSION}"
-bunx tsc -p ./
+  echo "==> Installing extension dependencies"
+  bun install --frozen-lockfile
 
-echo "==> Packaging ${VSIX}"
-bunx @vscode/vsce package
+  echo "==> Building extension"
+  bunx tsc -p ./
 
-# Open VSX — check main repo root, then worktree root
-if [ -f "${MAIN_ROOT}/.ovsx-pat" ]; then
-  source "${MAIN_ROOT}/.ovsx-pat"
-  echo "==> Publishing to Open VSX"
-  bunx ovsx publish "${VSIX}"
-elif [ -f "${REPO_ROOT}/.ovsx-pat" ]; then
-  source "${REPO_ROOT}/.ovsx-pat"
-  echo "==> Publishing to Open VSX"
-  bunx ovsx publish "${VSIX}"
-else
-  echo "==> Skipping Open VSX (no .ovsx-pat found in ${MAIN_ROOT} or ${REPO_ROOT})"
+  echo "==> Packaging ${VSIX}"
+  bunx @vscode/vsce package
+
+  VSIX_BUILT=true
+  cd "${REPO_ROOT}"
+}
+
+# ---------------------------------------------------------------------------
+# Open VSX
+# ---------------------------------------------------------------------------
+if $DO_OVSX; then
+  echo "==> Open VSX"
+  if source_token .ovsx-pat; then
+    build_vsix
+    cd "${REPO_ROOT}/extension"
+    bunx ovsx publish "${VSIX}"
+    cd "${REPO_ROOT}"
+    echo "    ✓ Open VSX published"
+  fi
 fi
 
+# ---------------------------------------------------------------------------
 # VS Code Marketplace
-if [ -f "${MAIN_ROOT}/.vsce-pat" ]; then
-  source "${MAIN_ROOT}/.vsce-pat"
-  echo "==> Publishing to VS Code Marketplace"
-  bunx @vscode/vsce publish --pat "${VSCE_PAT}"
-elif [ -f "${REPO_ROOT}/.vsce-pat" ]; then
-  source "${REPO_ROOT}/.vsce-pat"
-  echo "==> Publishing to VS Code Marketplace"
-  bunx @vscode/vsce publish --pat "${VSCE_PAT}"
-else
-  echo "==> Skipping VS Code Marketplace (no .vsce-pat)"
+# ---------------------------------------------------------------------------
+if $DO_VSCE; then
+  echo "==> VS Code Marketplace"
+  if source_token .vsce-pat; then
+    build_vsix
+    cd "${REPO_ROOT}/extension"
+    bunx @vscode/vsce publish --pat "${VSCE_PAT}"
+    cd "${REPO_ROOT}"
+    echo "    ✓ VS Code Marketplace published"
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+# npm
+# ---------------------------------------------------------------------------
+if $DO_NPM; then
+  echo "==> npm"
+  # Platform packages first, then the wrapper
+  for dir in linux-x64 linux-arm64 darwin-x64 darwin-arm64 win32-x64; do
+    pkg="${REPO_ROOT}/npm/${dir}"
+    if [ -d "${pkg}" ]; then
+      echo "    Publishing @nevaberry/opencodecommit-${dir}"
+      (cd "${pkg}" && npm publish --access public) || true
+    fi
+  done
+  echo "    Publishing opencodecommit"
+  (cd "${REPO_ROOT}/npm/opencodecommit" && npm publish --access public)
+  echo "    ✓ npm published"
+fi
+
+# ---------------------------------------------------------------------------
+# crates.io
+# ---------------------------------------------------------------------------
+if $DO_CARGO; then
+  echo "==> crates.io"
+  (cd "${REPO_ROOT}/crates/opencodecommit" && cargo publish)
+  echo "    ✓ crates.io published"
 fi
 
 echo "==> Done: v${VERSION}"

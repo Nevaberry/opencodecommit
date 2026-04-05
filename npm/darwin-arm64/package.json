@@ -1,6 +1,6 @@
 {
-  "name": "@opencodecommit/darwin-arm64",
-  "version": "0.8.1",
+  "name": "@nevaberry/opencodecommit-darwin-arm64",
+  "version": "0.8.2",
   "description": "opencodecommit binary for darwin-arm64",
   "license": "MIT",
   "repository": {

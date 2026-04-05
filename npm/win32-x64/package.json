@@ -1,6 +1,6 @@
 {
-  "name": "@opencodecommit/win32-x64",
-  "version": "0.8.1",
+  "name": "@nevaberry/opencodecommit-win32-x64",
+  "version": "0.8.2",
   "description": "opencodecommit binary for win32-x64",
   "license": "MIT",
   "repository": {
