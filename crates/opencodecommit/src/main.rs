@@ -425,26 +425,20 @@ fn run_commit(
         }
     };
 
-    // Sensitive content handling
-    if context.has_sensitive_content {
-        if dry_run && !allow_sensitive {
-            // In dry-run mode, block on sensitive content (user can review and abort)
-            if text {
-                eprintln!("error: sensitive content detected in diff (API keys, credentials, or tokens)");
-                eprintln!("The diff appears to contain secrets that would be sent to an AI backend.");
-                eprintln!("Use --allow-sensitive to skip this check.");
-                process::exit(1);
-            }
-            let output = serde_json::json!({
-                "status": "error",
-                "error": "sensitive content detected in diff (API keys, credentials, or tokens). Use --allow-sensitive to skip this check."
-            });
-            println!("{}", serde_json::to_string(&output).unwrap());
-            process::exit(5);
-        } else if !allow_sensitive {
-            // In commit mode, warn but proceed
-            eprintln!("warning: sensitive content detected in diff (API keys, credentials, or tokens)");
+    // Sensitive content: always block unless --allow-sensitive
+    if context.has_sensitive_content && !allow_sensitive {
+        if text {
+            eprintln!("error: sensitive content detected in diff (API keys, credentials, or tokens)");
+            eprintln!("The diff appears to contain secrets that would be sent to an AI backend.");
+            eprintln!("Use --allow-sensitive to skip this check.");
+            process::exit(1);
         }
+        let output = serde_json::json!({
+            "status": "error",
+            "error": "sensitive content detected in diff (API keys, credentials, or tokens). Use --allow-sensitive to skip this check."
+        });
+        println!("{}", serde_json::to_string(&output).unwrap());
+        process::exit(5);
     }
 
     // Truncate diff if needed
