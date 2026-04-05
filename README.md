@@ -1,14 +1,15 @@
 # OpenCodeCommit
 
-AI commit messages via terminal AI agents. VS Code extension + standalone Rust CLI.
+AI commit messages via terminal AI agents. VSCodium / VS Code extension + standalone Rust / npm CLI.
 
 **Security scanning built in** — diffs are scanned locally for secrets, source maps, and private keys before anything leaves your machine.
 
+[VSCodium Open VSX registry](https://open-vsx.org/extension/Nevaberry/opencodecommit)<br>
 [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=Nevaberry.opencodecommit) · [npm](https://www.npmjs.com/package/@nevaberry/opencodecommit) · [crates.io](https://crates.io/crates/opencodecommit) · [GitHub](https://github.com/Nevaberry/opencodecommit)
 
 ## Install
 
-**Extension:** Search "OpenCodeCommit" in VS Code / VS Codium, or `ext install Nevaberry.opencodecommit`
+**Extension:** Search "OpenCodeCommit" in VSCodium / VS Code, or `ext install Nevaberry.opencodecommit`
 
 **CLI:** `cargo install opencodecommit` or `npm i -g @nevaberry/opencodecommit`
 
@@ -21,7 +22,7 @@ AI commit messages via terminal AI agents. VS Code extension + standalone Rust C
 | [Gemini CLI](https://github.com/google-gemini/gemini-cli) | `npm i -g @google/gemini-cli` |
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | `npm i -g @anthropic-ai/claude-code` |
 
-## VS Code Usage
+## VSCodium / VS Code Usage
 
 1. Stage changes (or leave unstaged — auto-detected)
 2. Click the **sparkle button** in Source Control
@@ -39,7 +40,7 @@ opencodecommit branch --mode adaptive  # match existing branch naming style
 opencodecommit pr                  # generate PR title + body
 opencodecommit changelog           # generate changelog entry
 
-# JSON output (default), or --text for plain text
+# JSON output (default), or --text for human readable plain text
 opencodecommit commit --text
 opencodecommit commit --allow-sensitive  # skip secret scanning
 ```
@@ -60,8 +61,6 @@ Diffs are scanned locally before being sent to any AI backend. The CLI blocks (e
 | SSH keys | `id_rsa`, `id_ed25519`, `id_ecdsa`, `id_dsa`, `.ssh/*` |
 | Auth files | `.htpasswd` |
 
-**Flagged patterns in added lines** (`+` lines only, not removals):
-
 | Category | Patterns |
 |----------|----------|
 | Generic secrets | `API_KEY`, `SECRET_KEY`, `ACCESS_TOKEN`, `AUTH_TOKEN`, `PRIVATE_KEY`, `PASSWORD`, `DB_PASSWORD`, `DATABASE_URL`, `CLIENT_SECRET`, `CREDENTIALS` |
@@ -70,7 +69,7 @@ Diffs are scanned locally before being sent to any AI backend. The CLI blocks (e
 
 ## Configuration
 
-All VS Code settings are prefixed with `opencodecommit.`. Key settings:
+All VSCodium / VS Code settings are prefixed with `opencodecommit.`. Key settings:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
