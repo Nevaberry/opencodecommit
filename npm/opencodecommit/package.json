@@ -1,0 +1,35 @@
+{
+  "name": "opencodecommit",
+  "version": "0.8.1",
+  "description": "AI-powered git commit message generator that delegates to terminal AI agents",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Nevaberry/opencodecommit"
+  },
+  "bin": {
+    "opencodecommit": "bin/opencodecommit"
+  },
+  "scripts": {
+    "postinstall": "node scripts/postinstall.js"
+  },
+  "optionalDependencies": {
+    "@opencodecommit/linux-x64": "0.8.1",
+    "@opencodecommit/linux-arm64": "0.8.1",
+    "@opencodecommit/darwin-x64": "0.8.1",
+    "@opencodecommit/darwin-arm64": "0.8.1",
+    "@opencodecommit/win32-x64": "0.8.1"
+  },
+  "keywords": [
+    "git",
+    "commit",
+    "ai",
+    "cli",
+    "opencode",
+    "claude",
+    "codex"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}

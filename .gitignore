@@ -1,0 +1,68 @@
+# Build output
+out/
+dist/
+
+# Dependencies
+node_modules/
+extension/node_modules/
+
+# Lockfiles — all committed for supply-chain safety (2-day rule: never update within 48h of publish)
+
+# VS Code extension package
+*.vsix
+
+# TypeScript
+*.tsbuildinfo
+
+# Test output
+.vscode-test/
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editor directories
+.idea/
+*.swp
+*.swo
+*~
+
+# AI agent directories
+.agents/
+.claude/
+!.claude/settings.json
+
+# Environment / secrets
+.env
+.env.*
+.env.local
+*.pem
+*.key
+
+# Marketplace tokens
+.ovsx-pat
+.vsce-pat
+
+# Internal / private
+docs/
+research/
+*.xcf
+
+# Rust
+target/
+
+# npm platform packages (binaries added during release)
+npm/linux-x64/opencodecommit
+npm/linux-arm64/opencodecommit
+npm/darwin-x64/opencodecommit
+npm/darwin-arm64/opencodecommit
+npm/win32-x64/opencodecommit.exe
+
+# Logs
+*.log
+npm-debug.log*
+
+# Coverage
+coverage/
+.nyc_output/

@@ -1,0 +1,526 @@
+import * as assert from "node:assert"
+import { describe, it } from "node:test"
+import { detectSensitiveContent } from "../inline/context"
+import {
+  buildPrompt,
+  buildRefinePrompt,
+  formatCommitMessage,
+  parseResponse,
+  sanitizeResponse,
+} from "../inline/generator"
+import type { CommitContext } from "../inline/context"
+import type { ExtensionConfig } from "../inline/types"
+
+function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
+  return {
+    provider: "openai",
+    model: "gpt-5.4-mini",
+    cliPath: "",
+    diffSource: "auto",
+    maxDiffLength: 10000,
+    useEmojis: false,
+    useLowerCase: true,
+    commitTemplate: "{{type}}: {{message}}",
+    languages: [
+      {
+        label: "English",
+        instruction: "Write the commit message in English.",
+      },
+    ],
+    activeLanguage: "English",
+    activeLanguageInstruction: "Write the commit message in English.",
+    showLanguageSelector: true,
+    refine: { defaultFeedback: "make it shorter" },
+    custom: { emojis: {} },
+    prompt: {
+      baseModule: "You are an expert at writing git commit messages.",
+      adaptiveFormat: "Match the style of the recent commits.\n\nRecent commits:\n{recentCommits}",
+      conventionalFormat: "Use conventional commit format: type(scope): description\n- feat: new features or capabilities",
+      multilineLength: "Add a body after a blank line with bullet points.",
+      onelinerLength: "Write exactly one line, no body. Maximum 72 characters.",
+      sensitiveContentNote: "The diff contains sensitive content. Mention this in the first line of the commit message.",
+    },
+    commitMode: "adaptive",
+    sparkleMode: "adaptive",
+    claudePath: "",
+    codexPath: "",
+    geminiPath: "",
+    claudeModel: "claude-sonnet-4-6",
+    codexModel: "gpt-5.4-mini",
+    codexProvider: "",
+    geminiModel: "",
+    backendOrder: ["codex", "opencode", "claude", "gemini"],
+    ...overrides,
+  }
+}
+
+function makeContext(overrides: Partial<CommitContext> = {}): CommitContext {
+  return {
+    diff: "diff content here",
+    recentCommits: [
+      "abc1234 feat: add login page",
+      "def5678 fix: resolve auth bug",
+    ],
+    branch: "feature/my-branch",
+    fileContents: [],
+    changedFiles: ["src/app.ts"],
+    hasSensitiveContent: false,
+    ...overrides,
+  }
+}
+
+// --- sanitizeResponse ---
+
+describe("sanitizeResponse", () => {
+  it("strips code block wrappers", () => {
+    assert.strictEqual(
+      sanitizeResponse("```\nfeat: add login\n```"),
+      "feat: add login",
+    )
+  })
+
+  it("strips code block with language tag", () => {
+    assert.strictEqual(
+      sanitizeResponse("```text\nfeat: add login\n```"),
+      "feat: add login",
+    )
+  })
+
+  it("strips inline backticks", () => {
+    assert.strictEqual(
+      sanitizeResponse("`feat: add login`"),
+      "feat: add login",
+    )
+  })
+
+  it("strips wrapping double quotes", () => {
+    assert.strictEqual(
+      sanitizeResponse('"feat: add login"'),
+      "feat: add login",
+    )
+  })
+
+  it("strips wrapping single quotes", () => {
+    assert.strictEqual(
+      sanitizeResponse("'feat: add login'"),
+      "feat: add login",
+    )
+  })
+
+  it("strips markdown bold", () => {
+    assert.strictEqual(
+      sanitizeResponse("**feat: add login**"),
+      "feat: add login",
+    )
+  })
+
+  it("strips markdown italic", () => {
+    assert.strictEqual(
+      sanitizeResponse("*feat: add login*"),
+      "feat: add login",
+    )
+  })
+
+  it("trims whitespace", () => {
+    assert.strictEqual(
+      sanitizeResponse("  feat: add login  "),
+      "feat: add login",
+    )
+  })
+
+  it("handles clean input", () => {
+    assert.strictEqual(sanitizeResponse("feat: add login"), "feat: add login")
+  })
+
+  it("strips ANSI escape codes", () => {
+    assert.strictEqual(
+      sanitizeResponse("\x1b[32mfeat: add login\x1b[0m"),
+      "feat: add login",
+    )
+  })
+
+  it("strips preamble text", () => {
+    assert.strictEqual(
+      sanitizeResponse("Here's your commit message:\nfeat: add login"),
+      "feat: add login",
+    )
+  })
+
+  it("strips 'Sure, here is' preamble", () => {
+    assert.strictEqual(
+      sanitizeResponse("Sure, here is the commit message:\nfeat: add login"),
+      "feat: add login",
+    )
+  })
+})
+
+// --- parseResponse ---
+
+describe("parseResponse", () => {
+  it("parses conventional commit format", () => {
+    const result = parseResponse("feat: add login page")
+    assert.strictEqual(result.type, "feat")
+    assert.strictEqual(result.message, "add login page")
+    assert.strictEqual(result.description, undefined)
+  })
+
+  it("parses commit with scope", () => {
+    const result = parseResponse("fix(auth): resolve token expiry")
+    assert.strictEqual(result.type, "fix")
+    assert.strictEqual(result.message, "resolve token expiry")
+  })
+
+  it("parses multiline response", () => {
+    const result = parseResponse(
+      "feat: update authentication\n\n- add JWT tokens\n- remove session cookies",
+    )
+    assert.strictEqual(result.type, "feat")
+    assert.strictEqual(result.message, "update authentication")
+    assert.ok(result.description?.includes("add JWT tokens"))
+    assert.ok(result.description?.includes("remove session cookies"))
+  })
+
+  it("falls back to chore for malformed response", () => {
+    const result = parseResponse("just some random text")
+    assert.strictEqual(result.type, "chore")
+    assert.strictEqual(result.message, "just some random text")
+  })
+
+  it("handles empty response", () => {
+    const result = parseResponse("")
+    assert.strictEqual(result.type, "chore")
+    assert.strictEqual(result.message, "update code")
+  })
+
+  it("handles code block wrapped response", () => {
+    const result = parseResponse("```\nfeat: add login\n```")
+    assert.strictEqual(result.type, "feat")
+    assert.strictEqual(result.message, "add login")
+  })
+
+  it("parses all valid types", () => {
+    const types = [
+      "feat",
+      "fix",
+      "docs",
+      "style",
+      "refactor",
+      "test",
+      "chore",
+      "perf",
+      "security",
+      "revert",
+    ]
+    for (const type of types) {
+      const result = parseResponse(`${type}: some message`)
+      assert.strictEqual(result.type, type)
+    }
+  })
+})
+
+// --- formatCommitMessage ---
+
+describe("formatCommitMessage", () => {
+  it("applies default template", () => {
+    const config = makeConfig()
+    const result = formatCommitMessage(
+      { type: "feat", message: "Add login" },
+      config,
+    )
+    assert.strictEqual(result, "feat: add login")
+  })
+
+  it("applies lowercase", () => {
+    const config = makeConfig({ useLowerCase: true })
+    const result = formatCommitMessage(
+      { type: "feat", message: "Add login" },
+      config,
+    )
+    assert.strictEqual(result, "feat: add login")
+  })
+
+  it("preserves case when useLowerCase is false", () => {
+    const config = makeConfig({ useLowerCase: false })
+    const result = formatCommitMessage(
+      { type: "feat", message: "Add login" },
+      config,
+    )
+    assert.strictEqual(result, "feat: Add login")
+  })
+
+  it("includes emoji when enabled", () => {
+    const config = makeConfig({ useEmojis: true })
+    const result = formatCommitMessage(
+      { type: "feat", message: "add login" },
+      config,
+    )
+    assert.strictEqual(result, "feat: add login")
+  })
+
+  it("includes emoji with custom template", () => {
+    const config = makeConfig({
+      useEmojis: true,
+      commitTemplate: "{{emoji}} {{type}}: {{message}}",
+    })
+    const result = formatCommitMessage(
+      { type: "feat", message: "add login" },
+      config,
+    )
+    assert.strictEqual(result, "\u2728 feat: add login")
+  })
+
+  it("uses custom emoji override", () => {
+    const config = makeConfig({
+      useEmojis: true,
+      commitTemplate: "{{emoji}} {{type}}: {{message}}",
+      custom: {
+        emojis: { feat: "\uD83D\uDE80" },
+      },
+    })
+    const result = formatCommitMessage(
+      { type: "feat", message: "add login" },
+      config,
+    )
+    assert.strictEqual(result, "\uD83D\uDE80 feat: add login")
+  })
+
+  it("appends description", () => {
+    const config = makeConfig()
+    const result = formatCommitMessage(
+      {
+        type: "feat",
+        message: "Update auth",
+        description: "- add JWT\n- remove cookies",
+      },
+      config,
+    )
+    assert.ok(result.startsWith("feat: update auth"))
+    assert.ok(result.includes("- add JWT"))
+    assert.ok(result.includes("- remove cookies"))
+  })
+
+  it("collapses multiple spaces", () => {
+    const config = makeConfig({
+      commitTemplate: "{{type}}:  {{message}}",
+    })
+    const result = formatCommitMessage(
+      { type: "feat", message: "add login" },
+      config,
+    )
+    assert.ok(!result.includes("  "))
+  })
+})
+
+// --- buildPrompt ---
+
+describe("buildPrompt", () => {
+  it("includes diff in prompt", () => {
+    const config = makeConfig()
+    const context = makeContext({ diff: "diff content here" })
+    const prompt = buildPrompt(context, config)
+    assert.ok(prompt.includes("diff content here"))
+  })
+
+  it("includes language instruction", () => {
+    const config = makeConfig({
+      activeLanguageInstruction: "Write in Finnish.",
+    })
+    const context = makeContext()
+    const prompt = buildPrompt(context, config)
+    assert.ok(prompt.includes("Write in Finnish."))
+  })
+
+  it("adaptive mode includes recent commits", () => {
+    const config = makeConfig()
+    const context = makeContext({
+      recentCommits: ["abc1234 feat: add login", "def5678 fix: auth bug"],
+    })
+    const prompt = buildPrompt(context, config, "adaptive")
+    assert.ok(prompt.includes("abc1234 feat: add login"))
+    assert.ok(prompt.includes("def5678 fix: auth bug"))
+    assert.ok(prompt.includes("Match the style"))
+  })
+
+  it("adaptive mode shows placeholder when no recent commits", () => {
+    const config = makeConfig()
+    const context = makeContext({ recentCommits: [] })
+    const prompt = buildPrompt(context, config, "adaptive")
+    assert.ok(prompt.includes("(no recent commits)"))
+  })
+
+  it("conventional mode includes type rules", () => {
+    const config = makeConfig()
+    const context = makeContext()
+    const prompt = buildPrompt(context, config, "conventional")
+    assert.ok(prompt.includes("conventional commit format"))
+    assert.ok(prompt.includes("- feat: new features"))
+  })
+
+  it("oneliner mode includes oneliner instruction", () => {
+    const config = makeConfig()
+    const context = makeContext()
+    const prompt = buildPrompt(context, config, "adaptive-oneliner")
+    assert.ok(prompt.includes("exactly one line"))
+    assert.ok(prompt.includes("Maximum 72 characters"))
+  })
+
+  it("multiline mode includes multiline instruction", () => {
+    const config = makeConfig()
+    const context = makeContext()
+    const prompt = buildPrompt(context, config, "adaptive")
+    assert.ok(prompt.includes("bullet points"))
+    assert.ok(!prompt.includes("exactly one line"))
+  })
+
+  it("includes branch name", () => {
+    const config = makeConfig()
+    const context = makeContext({ branch: "feature/auth" })
+    const prompt = buildPrompt(context, config)
+    assert.ok(prompt.includes("Branch: feature/auth"))
+  })
+
+  it("includes file contents when present", () => {
+    const config = makeConfig()
+    const context = makeContext({
+      fileContents: [
+        {
+          path: "src/app.ts",
+          content: "const x = 1",
+          truncationMode: "full",
+        },
+      ],
+    })
+    const prompt = buildPrompt(context, config)
+    assert.ok(prompt.includes("--- src/app.ts (full) ---"))
+    assert.ok(prompt.includes("const x = 1"))
+  })
+
+  it("uses custom prompt.baseModule when set", () => {
+    const defaults = makeConfig()
+    const config = makeConfig({
+      prompt: {
+        ...defaults.prompt,
+        baseModule: "Custom base module text",
+      },
+    })
+    const context = makeContext()
+    const prompt = buildPrompt(context, config)
+    assert.ok(prompt.includes("Custom base module text"))
+    assert.ok(!prompt.includes("expert at writing git commit messages"))
+  })
+
+  it("includes sensitive content note when detected", () => {
+    const config = makeConfig()
+    const context = makeContext({ hasSensitiveContent: true })
+    const prompt = buildPrompt(context, config)
+    assert.ok(prompt.includes("sensitive content"))
+    assert.ok(prompt.includes("first line"))
+  })
+
+  it("omits sensitive content note when not detected", () => {
+    const config = makeConfig()
+    const context = makeContext({ hasSensitiveContent: false })
+    const prompt = buildPrompt(context, config)
+    assert.ok(!prompt.includes("sensitive content"))
+  })
+})
+
+// --- buildRefinePrompt ---
+
+describe("buildRefinePrompt", () => {
+  it("includes current message and feedback", () => {
+    const config = makeConfig()
+    const prompt = buildRefinePrompt(
+      "feat: add login",
+      "make it shorter",
+      "diff here",
+      config,
+    )
+    assert.ok(prompt.includes("feat: add login"))
+    assert.ok(prompt.includes("make it shorter"))
+    assert.ok(prompt.includes("diff here"))
+  })
+})
+
+// --- detectSensitiveContent ---
+
+describe("detectSensitiveContent", () => {
+  it("detects .env file in changed files", () => {
+    assert.strictEqual(detectSensitiveContent("some diff", [".env"]), true)
+  })
+
+  it("detects .env.production in changed files", () => {
+    assert.strictEqual(
+      detectSensitiveContent("some diff", [".env.production"]),
+      true,
+    )
+  })
+
+  it("detects nested .env file", () => {
+    assert.strictEqual(
+      detectSensitiveContent("some diff", ["config/.env.local"]),
+      true,
+    )
+  })
+
+  it("detects credentials.json", () => {
+    assert.strictEqual(
+      detectSensitiveContent("some diff", ["credentials.json"]),
+      true,
+    )
+  })
+
+  it("detects API_KEY in added lines", () => {
+    const diff = `diff --git a/config.ts b/config.ts
++const API_KEY = "sk-abc123"`
+    assert.strictEqual(detectSensitiveContent(diff, ["config.ts"]), true)
+  })
+
+  it("detects SECRET_KEY in added lines", () => {
+    const diff = `+  SECRET_KEY: "my-secret"`
+    assert.strictEqual(detectSensitiveContent(diff, ["config.ts"]), true)
+  })
+
+  it("detects ACCESS_TOKEN in added lines", () => {
+    const diff = `+export const ACCESS_TOKEN = process.env.TOKEN`
+    assert.strictEqual(detectSensitiveContent(diff, ["auth.ts"]), true)
+  })
+
+  it("detects PASSWORD in added lines", () => {
+    const diff = `+  DB_PASSWORD=hunter2`
+    assert.strictEqual(detectSensitiveContent(diff, ["config.ts"]), true)
+  })
+
+  it("detects sk- prefixed keys", () => {
+    const diff = `+  key: "sk-abcdefghijklmnopqrstuvwxyz"`
+    assert.strictEqual(detectSensitiveContent(diff, ["config.ts"]), true)
+  })
+
+  it("detects ghp_ prefixed tokens", () => {
+    const diff = `+  GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz1234`
+    assert.strictEqual(detectSensitiveContent(diff, ["ci.yml"]), true)
+  })
+
+  it("detects AWS access key IDs", () => {
+    const diff = `+  aws_key = "AKIAIOSFODNN7EXAMPLE"`
+    assert.strictEqual(detectSensitiveContent(diff, ["config.ts"]), true)
+  })
+
+  it("ignores removed lines", () => {
+    const diff = `-  API_KEY = "old-key"`
+    assert.strictEqual(detectSensitiveContent(diff, ["config.ts"]), false)
+  })
+
+  it("ignores diff header lines", () => {
+    const diff = `+++ b/API_KEY_handler.ts`
+    assert.strictEqual(
+      detectSensitiveContent(diff, ["API_KEY_handler.ts"]),
+      false,
+    )
+  })
+
+  it("returns false for normal code", () => {
+    const diff = `+  const result = await fetchData()`
+    assert.strictEqual(detectSensitiveContent(diff, ["app.ts"]), false)
+  })
+})

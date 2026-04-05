@@ -1,0 +1,22 @@
+#!/bin/sh
+# Enforce 2-day package age rule on lockfile changes.
+# Packages published <48h ago are blocked from being committed.
+
+# Ensure ~/.bun/bin is in PATH (hooks get a minimal environment)
+export PATH="$HOME/.bun/bin:$PATH"
+
+LOCKFILES="bun.lock extension/package-lock.json Cargo.lock"
+STAGED=$(git diff --cached --name-only)
+NEED_CHECK=false
+
+for f in $LOCKFILES; do
+  if echo "$STAGED" | grep -qx "$f"; then
+    NEED_CHECK=true
+    break
+  fi
+done
+
+if [ "$NEED_CHECK" = true ]; then
+  bun scripts/check-package-age.mjs
+  exit $?
+fi

@@ -1,0 +1,8 @@
+{
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true,
+    "bun-knowledge-patch@nevaberry-plugins": true,
+    "rust-knowledge-patch@nevaberry-plugins": true,
+    "knowledge-patch@nevaberry-plugins": true
+  }
+}
