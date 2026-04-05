@@ -41,4 +41,12 @@ node -e "
 # Update Cargo.lock
 (cd "${REPO_ROOT}" && cargo check --quiet 2>/dev/null) || true
 
-echo "Done: $(grep -c '"version"' <<< "$(git diff --stat)" 2>/dev/null || echo "all") files updated to v${VERSION}"
+echo "Done: all manifests updated to v${VERSION}"
+
+# Create git tag
+if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
+  echo "Tag v${VERSION} already exists, skipping"
+else
+  git tag "v${VERSION}"
+  echo "Created tag v${VERSION}"
+fi

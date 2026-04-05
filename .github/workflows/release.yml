@@ -1,0 +1,182 @@
+name: Release
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+
+jobs:
+  # ── Tests ──────────────────────────────────────────────────────────
+  rust-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --workspace
+
+  ts-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - working-directory: extension
+        run: bun install --frozen-lockfile
+      - run: bun test extension/src/test/inline.test.ts
+
+  # ── Cross-compile ─────────────────────────────────────────────────
+  cross-compile:
+    needs: [rust-test, ts-test]
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            platform: linux-x64
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            platform: linux-arm64
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            platform: darwin-x64
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            platform: darwin-arm64
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            platform: win32-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo 'CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc' >> $GITHUB_ENV
+      - run: cargo build --release --target ${{ matrix.target }} -p opencodecommit
+      - name: Copy binary
+        shell: bash
+        run: |
+          EXT=""; [[ "${{ matrix.target }}" == *windows* ]] && EXT=".exe"
+          cp target/${{ matrix.target }}/release/occ${EXT} npm/opencodecommit/platforms/${{ matrix.platform }}/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.platform }}
+          path: npm/opencodecommit/platforms/${{ matrix.platform }}/occ*
+
+  # ── Publish npm ────────────────────────────────────────────────────
+  publish-npm:
+    needs: [cross-compile]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: binary-*
+          path: npm/opencodecommit/platforms/
+          merge-multiple: false
+
+      - name: Arrange binaries
+        run: |
+          cd npm/opencodecommit/platforms
+          for dir in binary-*; do
+            platform="${dir#binary-}"
+            cp "$dir"/occ* "$platform"/
+            rm -rf "$dir"
+          done
+          for p in linux-x64 linux-arm64 darwin-x64 darwin-arm64 win32-x64; do
+            ls -lh "$p"/occ* || { echo "Missing binary for $p"; exit 1; }
+          done
+          chmod +x linux-x64/occ linux-arm64/occ darwin-x64/occ darwin-arm64/occ
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Publish to npm
+        working-directory: npm/opencodecommit
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # ── Publish crates.io ─────────────────────────────────────────────
+  publish-cargo:
+    needs: [rust-test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Publish to crates.io
+        working-directory: crates/opencodecommit
+        run: cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  # ── Publish VS Code extension ─────────────────────────────────────
+  publish-extension:
+    needs: [ts-test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - working-directory: extension
+        run: bun install --frozen-lockfile
+      - name: Build extension
+        working-directory: extension
+        run: bunx tsc -p ./
+      - name: Publish to VS Code Marketplace
+        working-directory: extension
+        run: bunx @vscode/vsce publish --pat "$VSCE_PAT"
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      - name: Publish to Open VSX
+        working-directory: extension
+        run: bunx ovsx publish --pat "$OVSX_PAT"
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+
+  # ── GitHub Release ─────────────────────────────────────────────────
+  github-release:
+    needs: [cross-compile]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version
+        id: version
+        run: echo "version=v$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: binary-*
+          path: artifacts/
+
+      - name: Package release assets
+        run: |
+          mkdir -p release
+          for dir in artifacts/binary-*; do
+            platform="${dir#artifacts/binary-}"
+            cd "$dir"
+            if ls occ.exe 2>/dev/null; then
+              zip "../../release/occ-${platform}.zip" occ.exe
+            else
+              tar czf "../../release/occ-${platform}.tar.gz" occ
+            fi
+            cd ../..
+          done
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          files: release/*
