@@ -122,15 +122,7 @@ fi
 # ---------------------------------------------------------------------------
 if $DO_NPM; then
   echo "==> npm"
-  # Platform packages first, then the wrapper
-  for dir in linux-x64 linux-arm64 darwin-x64 darwin-arm64 win32-x64; do
-    pkg="${REPO_ROOT}/npm/${dir}"
-    if [ -d "${pkg}" ]; then
-      echo "    Publishing @nevaberry/opencodecommit-${dir}"
-      (cd "${pkg}" && npm publish --access public) || true
-    fi
-  done
-  echo "    Publishing opencodecommit"
+  echo "    Publishing @nevaberry/opencodecommit"
   (cd "${REPO_ROOT}/npm/opencodecommit" && npm publish --access public)
   echo "    ✓ npm published"
 fi

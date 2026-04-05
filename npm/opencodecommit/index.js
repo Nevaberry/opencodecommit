@@ -4,24 +4,16 @@
 
 const path = require("path")
 
-const PLATFORMS = {
-  "linux-x64": "@nevaberry/opencodecommit-linux-x64",
-  "linux-arm64": "@nevaberry/opencodecommit-linux-arm64",
-  "darwin-x64": "@nevaberry/opencodecommit-darwin-x64",
-  "darwin-arm64": "@nevaberry/opencodecommit-darwin-arm64",
-  "win32-x64": "@nevaberry/opencodecommit-win32-x64",
-}
+const SUPPORTED = ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64", "win32-x64"]
 
 function getBinaryPath() {
   const platform = `${process.platform}-${process.arch}`
-  const pkg = PLATFORMS[platform]
-  if (!pkg) {
+  if (!SUPPORTED.includes(platform)) {
     throw new Error(`opencodecommit: unsupported platform ${platform}`)
   }
 
-  const binaryDir = path.dirname(require.resolve(`${pkg}/package.json`))
   const ext = process.platform === "win32" ? ".exe" : ""
-  return path.join(binaryDir, `opencodecommit${ext}`)
+  return path.join(__dirname, "platforms", platform, `opencodecommit${ext}`)
 }
 
-module.exports = { getBinaryPath, PLATFORMS }
+module.exports = { getBinaryPath, SUPPORTED }

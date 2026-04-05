@@ -30,26 +30,11 @@ node -e "
 # Cargo.toml
 sed -i "s/^version = \".*\"/version = \"${VERSION}\"/" "${REPO_ROOT}/crates/opencodecommit/Cargo.toml"
 
-# npm platform packages
-for dir in linux-x64 linux-arm64 darwin-x64 darwin-arm64 win32-x64; do
-  node -e "
-    const f = '${REPO_ROOT}/npm/${dir}/package.json';
-    const pkg = JSON.parse(require('fs').readFileSync(f, 'utf-8'));
-    pkg.version = '${VERSION}';
-    require('fs').writeFileSync(f, JSON.stringify(pkg, null, 2) + '\n');
-  "
-done
-
-# npm wrapper package + its optionalDependencies
+# npm package
 node -e "
   const f = '${REPO_ROOT}/npm/opencodecommit/package.json';
   const pkg = JSON.parse(require('fs').readFileSync(f, 'utf-8'));
   pkg.version = '${VERSION}';
-  if (pkg.optionalDependencies) {
-    for (const dep of Object.keys(pkg.optionalDependencies)) {
-      pkg.optionalDependencies[dep] = '${VERSION}';
-    }
-  }
   require('fs').writeFileSync(f, JSON.stringify(pkg, null, 2) + '\n');
 "
 

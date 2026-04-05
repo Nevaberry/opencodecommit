@@ -10,15 +10,14 @@
   "bin": {
     "opencodecommit": "bin/opencodecommit"
   },
+  "files": [
+    "bin",
+    "scripts",
+    "platforms",
+    "index.js"
+  ],
   "scripts": {
     "postinstall": "node scripts/postinstall.js"
-  },
-  "optionalDependencies": {
-    "@nevaberry/opencodecommit-linux-x64": "0.8.2",
-    "@nevaberry/opencodecommit-linux-arm64": "0.8.2",
-    "@nevaberry/opencodecommit-darwin-x64": "0.8.2",
-    "@nevaberry/opencodecommit-darwin-arm64": "0.8.2",
-    "@nevaberry/opencodecommit-win32-x64": "0.8.2"
   },
   "keywords": [
     "git",

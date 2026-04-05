@@ -4,28 +4,25 @@
 const fs = require("fs")
 const path = require("path")
 
-const PLATFORMS = {
-  "linux-x64": "@nevaberry/opencodecommit-linux-x64",
-  "linux-arm64": "@nevaberry/opencodecommit-linux-arm64",
-  "darwin-x64": "@nevaberry/opencodecommit-darwin-x64",
-  "darwin-arm64": "@nevaberry/opencodecommit-darwin-arm64",
-  "win32-x64": "@nevaberry/opencodecommit-win32-x64",
-}
+const SUPPORTED = ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64", "win32-x64"]
 
 const platform = `${process.platform}-${process.arch}`
-const pkg = PLATFORMS[platform]
 
-if (!pkg) {
+if (!SUPPORTED.includes(platform)) {
   console.error(`opencodecommit: unsupported platform ${platform}`)
-  console.error(`Supported: ${Object.keys(PLATFORMS).join(", ")}`)
+  console.error(`Supported: ${SUPPORTED.join(", ")}`)
   process.exit(0) // Don't fail install, just warn
 }
 
 try {
-  const binaryDir = path.dirname(require.resolve(`${pkg}/package.json`))
   const ext = process.platform === "win32" ? ".exe" : ""
-  const binaryPath = path.join(binaryDir, `opencodecommit${ext}`)
+  const binaryPath = path.join(__dirname, "..", "platforms", platform, `opencodecommit${ext}`)
   const binTarget = path.join(__dirname, "..", "bin", `opencodecommit${ext}`)
+
+  if (!fs.existsSync(binaryPath)) {
+    console.error(`opencodecommit: binary not found at ${binaryPath}`)
+    process.exit(0)
+  }
 
   // Remove existing symlink/file
   try { fs.unlinkSync(binTarget) } catch { /* ok */ }
