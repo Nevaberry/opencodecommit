@@ -33,6 +33,7 @@ Dropdown menu: mode-specific generation, refine, branch name generation, switch 
 ## CLI Usage
 
 ```bash
+occ tui                            # launch the minimal interactive TUI
 occ commit                         # generate message + commit
 occ commit --dry-run               # preview only, don't commit
 occ commit --language Suomi        # generate in Finnish
@@ -45,6 +46,8 @@ occ changelog                      # generate changelog entry
 occ commit --text
 occ commit --allow-sensitive       # skip secret scanning
 ```
+
+`occ tui` is a small launcher over the existing commands, not a full git dashboard. It lets you generate, shorten, and commit messages, plus preview branch / PR / changelog output from one screen.
 
 `occ` is the short form. `opencodecommit` also works if `occ` clashes with something on your system.
 

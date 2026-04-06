@@ -2,6 +2,7 @@
 name = "opencodecommit"
 version = "1.0.4"
 edition = "2024"
+rust-version = "1.94"
 description = "AI-powered git commit message generator that delegates to terminal AI agents"
 license = "MIT"
 repository = "https://github.com/Nevaberry/opencodecommit"
@@ -20,6 +21,8 @@ required-features = ["cli"]
 
 [dependencies]
 clap = { version = "4", features = ["derive"], optional = true }
+crossterm = "0.29"
+ratatui = "0.30"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.8"
