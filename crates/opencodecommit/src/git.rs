@@ -24,6 +24,28 @@ fn git(repo: &Path, args: &[&str]) -> Result<String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
 }
 
+fn git_global(args: &[&str]) -> Result<(String, i32)> {
+    let output = Command::new("git")
+        .args(args)
+        .output()
+        .map_err(|e| Error::Git(format!("failed to run git: {e}")))?;
+
+    let status = output.status.code().unwrap_or(1);
+    if !output.status.success() && status != 1 && status != 5 {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(Error::Git(format!(
+            "git {} failed: {}",
+            args.join(" "),
+            stderr.trim()
+        )));
+    }
+
+    Ok((
+        String::from_utf8_lossy(&output.stdout).trim().to_owned(),
+        status,
+    ))
+}
+
 /// Find the repository root from the current directory.
 pub fn get_repo_root() -> Result<PathBuf> {
     let output = Command::new("git")
@@ -55,6 +77,34 @@ pub fn get_git_dir(repo: &Path) -> Result<PathBuf> {
     Ok(PathBuf::from(
         String::from_utf8_lossy(&output.stdout).trim(),
     ))
+}
+
+/// Get the globally configured hooks path, with `~` expanded when Git supports it.
+pub fn get_global_hooks_path() -> Result<Option<PathBuf>> {
+    let (output, status) = git_global(&[
+        "config",
+        "--global",
+        "--type=path",
+        "--get",
+        "core.hooksPath",
+    ])?;
+    if status == 1 || output.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(PathBuf::from(output)))
+}
+
+/// Configure the global hooks path.
+pub fn set_global_hooks_path(path: &Path) -> Result<()> {
+    let value = path.to_string_lossy().to_string();
+    let _ = git_global(&["config", "--global", "core.hooksPath", &value])?;
+    Ok(())
+}
+
+/// Remove the global hooks path, if one is configured.
+pub fn unset_global_hooks_path() -> Result<()> {
+    let _ = git_global(&["config", "--global", "--unset", "core.hooksPath"])?;
+    Ok(())
 }
 
 /// Get the diff based on the configured source.

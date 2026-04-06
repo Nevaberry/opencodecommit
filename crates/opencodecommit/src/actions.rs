@@ -13,11 +13,12 @@ use opencodecommit::response::{
     self, ParsedCommit, ParsedPr, format_adaptive_message, format_branch_name,
     format_commit_message, parse_pr_response, parse_response,
 };
+use opencodecommit::sensitive::SensitiveReport;
 
 #[derive(Debug)]
 pub enum ActionError {
     Occ(opencodecommit::Error),
-    SensitiveContent,
+    SensitiveContent(SensitiveReport),
     InvalidInput(String),
     Hook(String),
     NonTty(String),
@@ -27,10 +28,7 @@ impl fmt::Display for ActionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ActionError::Occ(err) => write!(f, "{err}"),
-            ActionError::SensitiveContent => write!(
-                f,
-                "sensitive content detected in diff (API keys, credentials, or tokens). Use --allow-sensitive to skip this check."
-            ),
+            ActionError::SensitiveContent(report) => write!(f, "{report}"),
             ActionError::InvalidInput(msg) => write!(f, "{msg}"),
             ActionError::Hook(msg) => write!(f, "{msg}"),
             ActionError::NonTty(msg) => write!(f, "{msg}"),
@@ -169,7 +167,8 @@ fn load_commit_context(
         }
 
         let changed_files = context::extract_changed_file_paths(diff);
-        let has_sensitive = context::detect_sensitive_content(diff, &changed_files);
+        let sensitive_findings = context::detect_sensitive_findings(diff, &changed_files);
+        let has_sensitive = !sensitive_findings.is_empty();
         let branch = git::get_branch_name(&repo_root).unwrap_or_else(|_| "unknown".to_owned());
         let recent = git::get_recent_commits(&repo_root, 10).unwrap_or_default();
 
@@ -180,6 +179,7 @@ fn load_commit_context(
                 branch,
                 file_contents: vec![],
                 changed_files,
+                sensitive_findings,
                 has_sensitive_content: has_sensitive,
             },
             DiffOrigin::Stdin,
@@ -195,7 +195,9 @@ pub fn generate_commit_preview(config: &Config, request: &CommitRequest) -> Resu
     let (mut context, diff_origin) = load_commit_context(config, request.stdin_diff.as_deref())?;
 
     if context.has_sensitive_content && !request.allow_sensitive {
-        return Err(ActionError::SensitiveContent);
+        return Err(ActionError::SensitiveContent(
+            SensitiveReport::from_findings(context.sensitive_findings.clone()),
+        ));
     }
 
     truncate_diff(&mut context, config.max_diff_length);
@@ -436,9 +438,6 @@ mod tests {
     use super::*;
     use std::fs;
     use std::process::Command;
-    use std::sync::{LazyLock, Mutex};
-
-    static CWD_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
     fn setup_repo(name: &str) -> PathBuf {
         let dir =
@@ -473,7 +472,7 @@ mod tests {
     }
 
     fn with_repo<T>(repo: &std::path::Path, f: impl FnOnce() -> T) -> T {
-        let _lock = CWD_LOCK.lock().unwrap();
+        let _lock = opencodecommit::TEST_CWD_LOCK.lock().unwrap();
         let original = std::env::current_dir().unwrap();
         std::env::set_current_dir(repo).unwrap();
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
@@ -523,7 +522,7 @@ mod tests {
             };
 
             let err = generate_commit_preview(&cfg, &request).unwrap_err();
-            assert!(matches!(err, ActionError::SensitiveContent));
+            assert!(matches!(err, ActionError::SensitiveContent(_)));
         });
 
         cleanup(&repo);

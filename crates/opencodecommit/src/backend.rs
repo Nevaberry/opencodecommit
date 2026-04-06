@@ -420,7 +420,10 @@ mod tests {
         };
         let inv = build_invocation(Path::new("/usr/bin/codex"), "hello", &config);
         assert!(inv.args.contains(&"-c".to_owned()));
-        assert!(inv.args.contains(&"model_provider=\"openrouter\"".to_owned()));
+        assert!(
+            inv.args
+                .contains(&"model_provider=\"openrouter\"".to_owned())
+        );
     }
 
     #[test]

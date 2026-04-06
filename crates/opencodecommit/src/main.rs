@@ -1,4 +1,5 @@
 mod actions;
+mod guard;
 mod tui;
 
 use std::path::Path;
@@ -174,6 +175,12 @@ enum Commands {
         action: HookAction,
     },
 
+    /// Install or uninstall the transparent git commit guard
+    Guard {
+        #[command(subcommand)]
+        action: GuardAction,
+    },
+
     /// Launch the interactive terminal UI
     Tui {
         /// Path to config file
@@ -201,6 +208,12 @@ enum Commands {
         /// Plain text output instead of JSON
         #[arg(long, short)]
         text: bool,
+    },
+
+    #[command(hide = true)]
+    Internal {
+        #[command(subcommand)]
+        action: InternalAction,
     },
 }
 
@@ -289,6 +302,32 @@ impl HookAction {
             HookAction::Uninstall => HookOperation::Uninstall,
         }
     }
+}
+
+#[derive(Clone, Subcommand)]
+enum GuardAction {
+    /// Install the global guard via core.hooksPath
+    Install {
+        /// Install machine-wide
+        #[arg(long)]
+        global: bool,
+    },
+    /// Uninstall the global guard
+    Uninstall {
+        /// Uninstall machine-wide
+        #[arg(long)]
+        global: bool,
+    },
+}
+
+#[derive(Clone, Subcommand)]
+enum InternalAction {
+    #[command(name = "run-managed-hook", hide = true)]
+    RunManagedHook {
+        hook_name: String,
+        #[arg(allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
 }
 
 fn json_error(message: impl ToString) {
@@ -423,7 +462,7 @@ fn apply_commit_args(
 
 fn action_exit_code(err: &ActionError, stdin_mode: bool) -> i32 {
     match err {
-        ActionError::SensitiveContent => 5,
+        ActionError::SensitiveContent(_) => 5,
         ActionError::InvalidInput(_) if stdin_mode => 4,
         ActionError::Occ(
             opencodecommit::Error::BackendNotFound(_)
@@ -654,6 +693,49 @@ fn handle_hook(action: HookAction) {
     }
 }
 
+fn handle_guard(action: GuardAction) {
+    let result = match action {
+        GuardAction::Install { global } => {
+            if !global {
+                Err("only --global is currently supported".to_owned())
+            } else {
+                guard::install_global().map_err(|err| err.to_string())
+            }
+        }
+        GuardAction::Uninstall { global } => {
+            if !global {
+                Err("only --global is currently supported".to_owned())
+            } else {
+                guard::uninstall_global().map_err(|err| err.to_string())
+            }
+        }
+    };
+
+    match result {
+        Ok(message) => println!("{message}"),
+        Err(err) => {
+            eprintln!("error: {err}");
+            process::exit(1);
+        }
+    }
+}
+
+fn handle_internal(action: InternalAction) {
+    let code = match action {
+        InternalAction::RunManagedHook { hook_name, args } => {
+            match guard::run_managed_hook(&hook_name, &args) {
+                Ok(code) => code,
+                Err(err) => {
+                    eprintln!("OpenCodeCommit guard error: {err}");
+                    1
+                }
+            }
+        }
+    };
+
+    process::exit(code);
+}
+
 fn handle_tui(config: Option<String>) {
     let cfg = load_config_or_exit_plain(config.as_deref());
     if let Err(err) = tui::run(cfg) {
@@ -758,6 +840,7 @@ fn main() {
             handle_pr(&cfg, text);
         }
         Commands::Hook { action } => handle_hook(action),
+        Commands::Guard { action } => handle_guard(action),
         Commands::Tui { config } => handle_tui(config),
         Commands::Changelog {
             backend,
@@ -771,5 +854,6 @@ fn main() {
             apply_backend_overrides(&mut cfg, &backend, &provider, &model, &cli_path);
             handle_changelog(&cfg, text);
         }
+        Commands::Internal { action } => handle_internal(action),
     }
 }

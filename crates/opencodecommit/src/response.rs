@@ -11,8 +11,10 @@ pub struct ParsedCommit {
 }
 
 static TYPE_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| {
-    regex::Regex::new(r"^(feat|fix|docs|style|refactor|test|chore|perf|security|revert)(\(.*?\))?:\s*(.+)")
-        .unwrap()
+    regex::Regex::new(
+        r"^(feat|fix|docs|style|refactor|test|chore|perf|security|revert)(\(.*?\))?:\s*(.+)",
+    )
+    .unwrap()
 });
 
 static ANSI_RE: LazyLock<regex::Regex> =
@@ -72,7 +74,11 @@ pub fn parse_response(response: &str) -> ParsedCommit {
     if let Some(caps) = TYPE_PATTERN.captures(first_line) {
         let type_name = caps.get(1).unwrap().as_str().to_owned();
         let message = caps.get(3).unwrap().as_str().to_owned();
-        let remaining: Vec<&str> = lines[1..].iter().filter(|l| !l.trim().is_empty()).copied().collect();
+        let remaining: Vec<&str> = lines[1..]
+            .iter()
+            .filter(|l| !l.trim().is_empty())
+            .copied()
+            .collect();
         let description = if remaining.is_empty() {
             None
         } else {
@@ -99,25 +105,61 @@ pub fn parse_response(response: &str) -> ParsedCommit {
 /// Infer a conventional commit type from an unstructured message.
 fn infer_type(message: &str) -> String {
     let lower = message.to_lowercase();
-    static DOCS_RE: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r"\b(readme|docs?|documentation|changelog|comment|jsdoc|rustdoc)\b").unwrap());
-    static FIX_RE: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r"\b(fix|bug|patch|resolve|issue|error|crash|repair)\b").unwrap());
-    static FEAT_RE: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r"\b(add|implement|feature|new|introduce|support|create)\b").unwrap());
-    static REFACTOR_RE: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r"\b(refactor|restructure|reorganize|rename|move|extract|simplify)\b").unwrap());
-    static TEST_RE: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r"\b(tests?|spec|assert|coverage)\b").unwrap());
-    static STYLE_RE: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r"\b(style|format|whitespace|indent|lint|prettier|biome)\b").unwrap());
-    static PERF_RE: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r"\b(perf|performance|optimiz|speed|faster|cache)\b").unwrap());
-    static REVERT_RE: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r"\b(revert|undo|rollback)\b").unwrap());
+    static DOCS_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+        regex::Regex::new(r"\b(readme|docs?|documentation|changelog|comment|jsdoc|rustdoc)\b")
+            .unwrap()
+    });
+    static FIX_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+        regex::Regex::new(r"\b(fix|bug|patch|resolve|issue|error|crash|repair)\b").unwrap()
+    });
+    static FEAT_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+        regex::Regex::new(r"\b(add|implement|feature|new|introduce|support|create)\b").unwrap()
+    });
+    static REFACTOR_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+        regex::Regex::new(r"\b(refactor|restructure|reorganize|rename|move|extract|simplify)\b")
+            .unwrap()
+    });
+    static TEST_RE: LazyLock<regex::Regex> =
+        LazyLock::new(|| regex::Regex::new(r"\b(tests?|spec|assert|coverage)\b").unwrap());
+    static STYLE_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+        regex::Regex::new(r"\b(style|format|whitespace|indent|lint|prettier|biome)\b").unwrap()
+    });
+    static PERF_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+        regex::Regex::new(r"\b(perf|performance|optimiz|speed|faster|cache)\b").unwrap()
+    });
+    static REVERT_RE: LazyLock<regex::Regex> =
+        LazyLock::new(|| regex::Regex::new(r"\b(revert|undo|rollback)\b").unwrap());
 
-    if DOCS_RE.is_match(&lower) { return "docs".to_owned(); }
-    if FIX_RE.is_match(&lower) { return "fix".to_owned(); }
-    if FEAT_RE.is_match(&lower) { return "feat".to_owned(); }
-    if REFACTOR_RE.is_match(&lower) { return "refactor".to_owned(); }
-    if TEST_RE.is_match(&lower) { return "test".to_owned(); }
-    if STYLE_RE.is_match(&lower) { return "style".to_owned(); }
-    if PERF_RE.is_match(&lower) { return "perf".to_owned(); }
-    static SECURITY_RE: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r"\b(security|vulnerab|auth|cve|xss|csrf|injection|sanitiz)\b").unwrap());
-    if REVERT_RE.is_match(&lower) { return "revert".to_owned(); }
-    if SECURITY_RE.is_match(&lower) { return "security".to_owned(); }
+    if DOCS_RE.is_match(&lower) {
+        return "docs".to_owned();
+    }
+    if FIX_RE.is_match(&lower) {
+        return "fix".to_owned();
+    }
+    if FEAT_RE.is_match(&lower) {
+        return "feat".to_owned();
+    }
+    if REFACTOR_RE.is_match(&lower) {
+        return "refactor".to_owned();
+    }
+    if TEST_RE.is_match(&lower) {
+        return "test".to_owned();
+    }
+    if STYLE_RE.is_match(&lower) {
+        return "style".to_owned();
+    }
+    if PERF_RE.is_match(&lower) {
+        return "perf".to_owned();
+    }
+    static SECURITY_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+        regex::Regex::new(r"\b(security|vulnerab|auth|cve|xss|csrf|injection|sanitiz)\b").unwrap()
+    });
+    if REVERT_RE.is_match(&lower) {
+        return "revert".to_owned();
+    }
+    if SECURITY_RE.is_match(&lower) {
+        return "security".to_owned();
+    }
     "chore".to_owned()
 }
 
@@ -201,7 +243,13 @@ pub fn format_branch_name(response: &str) -> String {
     let slug: String = name
         .to_lowercase()
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '/' || c == '-' { c } else { '-' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '/' || c == '-' {
+                c
+            } else {
+                '-'
+            }
+        })
         .collect();
     static MULTI_HYPHEN: LazyLock<regex::Regex> =
         LazyLock::new(|| regex::Regex::new(r"-{2,}").unwrap());
@@ -300,42 +348,27 @@ mod tests {
 
     #[test]
     fn sanitize_strips_double_quotes() {
-        assert_eq!(
-            sanitize_response("\"feat: add login\""),
-            "feat: add login"
-        );
+        assert_eq!(sanitize_response("\"feat: add login\""), "feat: add login");
     }
 
     #[test]
     fn sanitize_strips_single_quotes() {
-        assert_eq!(
-            sanitize_response("'feat: add login'"),
-            "feat: add login"
-        );
+        assert_eq!(sanitize_response("'feat: add login'"), "feat: add login");
     }
 
     #[test]
     fn sanitize_strips_markdown_bold() {
-        assert_eq!(
-            sanitize_response("**feat: add login**"),
-            "feat: add login"
-        );
+        assert_eq!(sanitize_response("**feat: add login**"), "feat: add login");
     }
 
     #[test]
     fn sanitize_strips_markdown_italic() {
-        assert_eq!(
-            sanitize_response("*feat: add login*"),
-            "feat: add login"
-        );
+        assert_eq!(sanitize_response("*feat: add login*"), "feat: add login");
     }
 
     #[test]
     fn sanitize_trims_whitespace() {
-        assert_eq!(
-            sanitize_response("  feat: add login  "),
-            "feat: add login"
-        );
+        assert_eq!(sanitize_response("  feat: add login  "), "feat: add login");
     }
 
     #[test]
@@ -386,8 +419,9 @@ mod tests {
 
     #[test]
     fn parse_multiline_response() {
-        let result =
-            parse_response("feat: update authentication\n\n- add JWT tokens\n- remove session cookies");
+        let result = parse_response(
+            "feat: update authentication\n\n- add JWT tokens\n- remove session cookies",
+        );
         assert_eq!(result.type_name, "feat");
         assert_eq!(result.message, "update authentication");
         let desc = result.description.unwrap();
@@ -406,7 +440,10 @@ mod tests {
     fn parse_infers_docs_type() {
         let result = parse_response("update README with installation instructions");
         assert_eq!(result.type_name, "docs");
-        assert_eq!(result.message, "update README with installation instructions");
+        assert_eq!(
+            result.message,
+            "update README with installation instructions"
+        );
     }
 
     #[test]
