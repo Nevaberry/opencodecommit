@@ -1,0 +1,36 @@
+{
+  "name": "opencodecommit",
+  "version": "1.0.4",
+  "description": "Official unscoped alias for @nevaberry/opencodecommit",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nevaberry/opencodecommit.git"
+  },
+  "bin": {
+    "occ": "bin/occ",
+    "opencodecommit": "bin/occ"
+  },
+  "files": [
+    "bin",
+    "index.js"
+  ],
+  "scripts": {
+    "prepack": "cp ../../README.md . 2>/dev/null || true"
+  },
+  "keywords": [
+    "git",
+    "commit",
+    "ai",
+    "cli",
+    "opencode",
+    "claude",
+    "codex"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@nevaberry/opencodecommit": "1.0.4"
+  }
+}

@@ -133,7 +133,9 @@ if $DO_NPM; then
   echo "==> npm"
   echo "    Publishing @nevaberry/opencodecommit"
   (cd "${REPO_ROOT}/npm/opencodecommit" && npm publish --access public)
-  echo "    ✓ npm published"
+  echo "    Publishing opencodecommit"
+  (cd "${REPO_ROOT}/npm/opencodecommit-unscoped" && npm publish)
+  echo "    ✓ npm packages published"
 fi
 
 echo "==> Done: v${VERSION}"
