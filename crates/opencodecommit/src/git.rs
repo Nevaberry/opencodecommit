@@ -24,6 +24,28 @@ fn git(repo: &Path, args: &[&str]) -> Result<String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
 }
 
+fn git_global(args: &[&str]) -> Result<(String, i32)> {
+    let output = Command::new("git")
+        .args(args)
+        .output()
+        .map_err(|e| Error::Git(format!("failed to run git: {e}")))?;
+
+    let status = output.status.code().unwrap_or(1);
+    if !output.status.success() && status != 1 && status != 5 {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(Error::Git(format!(
+            "git {} failed: {}",
+            args.join(" "),
+            stderr.trim()
+        )));
+    }
+
+    Ok((
+        String::from_utf8_lossy(&output.stdout).trim().to_owned(),
+        status,
+    ))
+}
+
 /// Find the repository root from the current directory.
 pub fn get_repo_root() -> Result<PathBuf> {
     let output = Command::new("git")
@@ -38,6 +60,51 @@ pub fn get_repo_root() -> Result<PathBuf> {
     Ok(PathBuf::from(
         String::from_utf8_lossy(&output.stdout).trim(),
     ))
+}
+
+/// Find the resolved `.git` directory for the given repository.
+pub fn get_git_dir(repo: &Path) -> Result<PathBuf> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--absolute-git-dir"])
+        .current_dir(repo)
+        .output()
+        .map_err(|e| Error::Git(format!("failed to run git: {e}")))?;
+
+    if !output.status.success() {
+        return Err(Error::Git("not a git repository".to_owned()));
+    }
+
+    Ok(PathBuf::from(
+        String::from_utf8_lossy(&output.stdout).trim(),
+    ))
+}
+
+/// Get the globally configured hooks path, with `~` expanded when Git supports it.
+pub fn get_global_hooks_path() -> Result<Option<PathBuf>> {
+    let (output, status) = git_global(&[
+        "config",
+        "--global",
+        "--type=path",
+        "--get",
+        "core.hooksPath",
+    ])?;
+    if status == 1 || output.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(PathBuf::from(output)))
+}
+
+/// Configure the global hooks path.
+pub fn set_global_hooks_path(path: &Path) -> Result<()> {
+    let value = path.to_string_lossy().to_string();
+    let _ = git_global(&["config", "--global", "core.hooksPath", &value])?;
+    Ok(())
+}
+
+/// Remove the global hooks path, if one is configured.
+pub fn unset_global_hooks_path() -> Result<()> {
+    let _ = git_global(&["config", "--global", "--unset", "core.hooksPath"])?;
+    Ok(())
 }
 
 /// Get the diff based on the configured source.
@@ -108,7 +175,14 @@ pub fn create_and_checkout_branch(repo: &Path, name: &str) -> Result<()> {
 
 /// Get the N most recent branch names sorted by committer date.
 pub fn get_recent_branch_names(repo: &Path, count: usize) -> Result<Vec<String>> {
-    let output = git(repo, &["branch", "--sort=-committerdate", "--format=%(refname:short)"])?;
+    let output = git(
+        repo,
+        &[
+            "branch",
+            "--sort=-committerdate",
+            "--format=%(refname:short)",
+        ],
+    )?;
     if output.is_empty() {
         return Ok(vec![]);
     }
@@ -129,6 +203,15 @@ pub fn get_changed_files(source: DiffSource, repo: &Path) -> Result<Vec<String>>
             }
         }
     };
+    if output.is_empty() {
+        return Ok(vec![]);
+    }
+    Ok(output.lines().map(|l| l.to_owned()).collect())
+}
+
+/// Get the list of unstaged file paths.
+pub fn get_unstaged_files(repo: &Path) -> Result<Vec<String>> {
+    let output = git(repo, &["diff", "--name-only"])?;
     if output.is_empty() {
         return Ok(vec![]);
     }
@@ -261,6 +344,14 @@ mod tests {
     }
 
     #[test]
+    fn git_dir_resolves_for_repo() {
+        let dir = setup_repo("git-dir");
+        let git_dir = get_git_dir(&dir).unwrap();
+        assert!(git_dir.ends_with(".git"));
+        cleanup(&dir);
+    }
+
+    #[test]
     fn changed_files_staged() {
         let dir = setup_repo("changed-files");
         fs::write(dir.join("a.txt"), "a").unwrap();
@@ -275,6 +366,31 @@ mod tests {
         assert_eq!(files.len(), 2);
         assert!(files.contains(&"a.txt".to_owned()));
         assert!(files.contains(&"b.txt".to_owned()));
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn unstaged_files_returns_only_worktree_changes() {
+        let dir = setup_repo("unstaged-files");
+        fs::write(dir.join("tracked.txt"), "initial").unwrap();
+        Command::new("git")
+            .args(["add", "tracked.txt"])
+            .current_dir(&dir)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "add tracked file"])
+            .current_dir(&dir)
+            .env("GIT_AUTHOR_NAME", "Test")
+            .env("GIT_AUTHOR_EMAIL", "test@test.com")
+            .env("GIT_COMMITTER_NAME", "Test")
+            .env("GIT_COMMITTER_EMAIL", "test@test.com")
+            .output()
+            .unwrap();
+        fs::write(dir.join("tracked.txt"), "changed").unwrap();
+
+        let files = get_unstaged_files(&dir).unwrap();
+        assert_eq!(files, vec!["tracked.txt".to_owned()]);
         cleanup(&dir);
     }
 
@@ -320,7 +436,11 @@ mod tests {
         let dir = setup_repo("branch-dup");
         create_and_checkout_branch(&dir, "feat/dup").unwrap();
         // Switch back and try again
-        Command::new("git").args(["checkout", "-"]).current_dir(&dir).output().unwrap();
+        Command::new("git")
+            .args(["checkout", "-"])
+            .current_dir(&dir)
+            .output()
+            .unwrap();
         let result = create_and_checkout_branch(&dir, "feat/dup");
         assert!(result.is_err());
         cleanup(&dir);
@@ -331,29 +451,48 @@ mod tests {
         let dir = setup_repo("branch-names");
         create_and_checkout_branch(&dir, "feat/first").unwrap();
         fs::write(dir.join("a.txt"), "a").unwrap();
-        Command::new("git").args(["add", "-A"]).current_dir(&dir).output().unwrap();
-        Command::new("git").args(["commit", "-m", "a"])
+        Command::new("git")
+            .args(["add", "-A"])
             .current_dir(&dir)
-            .env("GIT_AUTHOR_NAME", "Test").env("GIT_AUTHOR_EMAIL", "test@test.com")
-            .env("GIT_COMMITTER_NAME", "Test").env("GIT_COMMITTER_EMAIL", "test@test.com")
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "a"])
+            .current_dir(&dir)
+            .env("GIT_AUTHOR_NAME", "Test")
+            .env("GIT_AUTHOR_EMAIL", "test@test.com")
+            .env("GIT_COMMITTER_NAME", "Test")
+            .env("GIT_COMMITTER_EMAIL", "test@test.com")
             .env("GIT_COMMITTER_DATE", "2025-01-01T00:00:00+00:00")
-            .output().unwrap();
+            .output()
+            .unwrap();
         create_and_checkout_branch(&dir, "fix/second").unwrap();
         fs::write(dir.join("b.txt"), "b").unwrap();
-        Command::new("git").args(["add", "-A"]).current_dir(&dir).output().unwrap();
-        Command::new("git").args(["commit", "-m", "b"])
+        Command::new("git")
+            .args(["add", "-A"])
             .current_dir(&dir)
-            .env("GIT_AUTHOR_NAME", "Test").env("GIT_AUTHOR_EMAIL", "test@test.com")
-            .env("GIT_COMMITTER_NAME", "Test").env("GIT_COMMITTER_EMAIL", "test@test.com")
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "b"])
+            .current_dir(&dir)
+            .env("GIT_AUTHOR_NAME", "Test")
+            .env("GIT_AUTHOR_EMAIL", "test@test.com")
+            .env("GIT_COMMITTER_NAME", "Test")
+            .env("GIT_COMMITTER_EMAIL", "test@test.com")
             .env("GIT_COMMITTER_DATE", "2025-06-01T00:00:00+00:00")
-            .output().unwrap();
+            .output()
+            .unwrap();
         let branches = get_recent_branch_names(&dir, 10).unwrap();
         // Should include master/main, feat/first, fix/second (at least 3)
         assert!(branches.len() >= 3);
         // fix/second has the latest committer date, so it should come before feat/first
         let pos_second = branches.iter().position(|b| b == "fix/second").unwrap();
         let pos_first = branches.iter().position(|b| b == "feat/first").unwrap();
-        assert!(pos_second < pos_first, "fix/second should come before feat/first, got: {branches:?}");
+        assert!(
+            pos_second < pos_first,
+            "fix/second should come before feat/first, got: {branches:?}"
+        );
         // Count limiting works
         let limited = get_recent_branch_names(&dir, 2).unwrap();
         assert_eq!(limited.len(), 2);

@@ -1,6 +1,6 @@
 {
   "name": "@nevaberry/opencodecommit",
-  "version": "1.0.4",
+  "version": "1.1.0",
   "description": "AI-powered git commit message generator that delegates to terminal AI agents",
   "license": "MIT",
   "repository": {

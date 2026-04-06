@@ -267,6 +267,22 @@ impl Default for Config {
 }
 
 impl Config {
+    /// Default config directory: `$XDG_CONFIG_HOME/opencodecommit`
+    /// or `$HOME/.config/opencodecommit`.
+    pub fn default_config_dir() -> Option<PathBuf> {
+        if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME") {
+            return Some(PathBuf::from(xdg).join("opencodecommit"));
+        }
+        if let Ok(home) = std::env::var("HOME") {
+            return Some(PathBuf::from(home).join(".config/opencodecommit"));
+        }
+        #[cfg(target_os = "windows")]
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            return Some(PathBuf::from(appdata).join("opencodecommit"));
+        }
+        None
+    }
+
     /// Resolve the language instruction for the active language.
     pub fn active_language_instruction(&self) -> String {
         self.languages
@@ -326,21 +342,8 @@ impl Config {
     /// Default config file path: `$XDG_CONFIG_HOME/opencodecommit/config.toml`
     /// or `$HOME/.config/opencodecommit/config.toml`.
     pub fn default_config_path() -> Option<PathBuf> {
-        if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME") {
-            let p = PathBuf::from(xdg).join("opencodecommit/config.toml");
-            if p.exists() {
-                return Some(p);
-            }
-        }
-        if let Ok(home) = std::env::var("HOME") {
-            let p = PathBuf::from(home).join(".config/opencodecommit/config.toml");
-            if p.exists() {
-                return Some(p);
-            }
-        }
-        #[cfg(target_os = "windows")]
-        if let Ok(appdata) = std::env::var("APPDATA") {
-            let p = PathBuf::from(appdata).join("opencodecommit\\config.toml");
+        if let Some(dir) = Self::default_config_dir() {
+            let p = dir.join("config.toml");
             if p.exists() {
                 return Some(p);
             }
@@ -351,7 +354,10 @@ impl Config {
     /// Load config from a TOML file. Missing fields get defaults.
     pub fn load(path: &Path) -> crate::Result<Self> {
         let content = std::fs::read_to_string(path).map_err(|e| {
-            Error::Config(format!("failed to read config file {}: {e}", path.display()))
+            Error::Config(format!(
+                "failed to read config file {}: {e}",
+                path.display()
+            ))
         })?;
         toml::from_str(&content)
             .map_err(|e| Error::Config(format!("failed to parse config file: {e}")))
@@ -371,16 +377,16 @@ impl Config {
 
 /// Default emoji map matching the TypeScript extension.
 pub const DEFAULT_EMOJIS: &[(&str, &str)] = &[
-    ("feat", "\u{2728}"),    // ✨
-    ("fix", "\u{1f41b}"),    // 🐛
-    ("docs", "\u{1f4dd}"),   // 📝
-    ("style", "\u{1f48e}"),  // 💎
+    ("feat", "\u{2728}"),             // ✨
+    ("fix", "\u{1f41b}"),             // 🐛
+    ("docs", "\u{1f4dd}"),            // 📝
+    ("style", "\u{1f48e}"),           // 💎
     ("refactor", "\u{267b}\u{fe0f}"), // ♻️
-    ("test", "\u{1f9ea}"),   // 🧪
-    ("chore", "\u{1f4e6}"),  // 📦
-    ("perf", "\u{26a1}"),    // ⚡
-    ("security", "\u{1f512}"), // 🔒
-    ("revert", "\u{23ea}"),  // ⏪
+    ("test", "\u{1f9ea}"),            // 🧪
+    ("chore", "\u{1f4e6}"),           // 📦
+    ("perf", "\u{26a1}"),             // ⚡
+    ("security", "\u{1f512}"),        // 🔒
+    ("revert", "\u{23ea}"),           // ⏪
 ];
 
 #[cfg(test)]
@@ -441,9 +447,15 @@ mod tests {
     fn active_prompt_modules_english() {
         let cfg = Config::default();
         let mods = cfg.active_prompt_modules();
-        assert!(mods.base_module.contains("expert at writing git commit messages"));
+        assert!(
+            mods.base_module
+                .contains("expert at writing git commit messages")
+        );
         assert!(mods.adaptive_format.contains("{recentCommits}"));
-        assert!(mods.conventional_format.contains("conventional commit format"));
+        assert!(
+            mods.conventional_format
+                .contains("conventional commit format")
+        );
         assert!(mods.multiline_length.contains("72 characters"));
         assert!(mods.oneliner_length.contains("exactly one line"));
         assert!(mods.sensitive_content_note.contains("sensitive content"));
@@ -456,7 +468,10 @@ mod tests {
         let mods = cfg.active_prompt_modules();
         assert!(mods.base_module.contains("Olet asiantuntija"));
         assert!(mods.adaptive_format.contains("Noudata alla"));
-        assert!(mods.conventional_format.contains("conventional commit -muotoa"));
+        assert!(
+            mods.conventional_format
+                .contains("conventional commit -muotoa")
+        );
     }
 
     #[test]
@@ -465,7 +480,10 @@ mod tests {
         cfg.active_language = "Custom (example)".to_owned();
         let mods = cfg.active_prompt_modules();
         // Custom has no modules → falls back to first language (English)
-        assert!(mods.base_module.contains("expert at writing git commit messages"));
+        assert!(
+            mods.base_module
+                .contains("expert at writing git commit messages")
+        );
     }
 
     #[test]

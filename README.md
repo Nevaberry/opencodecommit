@@ -33,6 +33,7 @@ Dropdown menu: mode-specific generation, refine, branch name generation, switch 
 ## CLI Usage
 
 ```bash
+occ tui                            # launch the minimal interactive TUI
 occ commit                         # generate message + commit
 occ commit --dry-run               # preview only, don't commit
 occ commit --language Suomi        # generate in Finnish
@@ -46,13 +47,32 @@ occ commit --text
 occ commit --allow-sensitive       # skip secret scanning
 ```
 
+`occ tui` is a small launcher over the existing commands, not a full git dashboard. It lets you generate, shorten, and commit messages, plus preview branch / PR / changelog output from one screen.
+
 `occ` is the short form. `opencodecommit` also works if `occ` clashes with something on your system.
 
 Exit codes: 0 success, 1 no changes, 2 backend error, 3 config error, 5 sensitive content detected
 
+## Transparent Git Guard
+
+Use OpenCodeCommit as a background safety layer for normal `git commit` usage:
+
+```bash
+occ guard install --global         # install a machine-wide commit guard
+occ guard uninstall --global       # remove the machine-wide guard
+```
+
+This installs a managed global hooks directory via `core.hooksPath`. `pre-commit` scans the staged diff for sensitive content, and other hook names are chained through so existing repo hooks still run.
+
 ## Sensitive Content Detection
 
-Diffs are scanned locally before being sent to any AI backend. The CLI blocks (exit 5) and the extension shows a warning dialog.
+Diffs are scanned locally before being sent to any AI backend. `occ commit` blocks with exit code 5, and the global guard blocks normal `git commit` before the commit is created.
+
+Guard warnings include the file, line number when available, rule, and a redacted snippet preview. If a hook-mode block is an intentional false positive, bypass only OpenCodeCommit for that one command:
+
+```bash
+OCC_ALLOW_SENSITIVE=1 git commit ...
+```
 
 **Flagged file names:**
 

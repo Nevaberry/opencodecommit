@@ -5,8 +5,10 @@ pub mod git;
 pub mod languages;
 pub mod prompt;
 pub mod response;
+pub mod sensitive;
 
 use std::fmt;
+use std::sync::{LazyLock, Mutex};
 
 /// Crate-level error type.
 #[derive(Debug)]
@@ -33,7 +35,10 @@ impl fmt::Display for Error {
             Error::Git(msg) => write!(f, "git error: {msg}"),
             Error::NoChanges => write!(f, "no changes found — stage some changes first"),
             Error::BackendNotFound(backend) => {
-                write!(f, "{backend} CLI not found — install it or set the path in config")
+                write!(
+                    f,
+                    "{backend} CLI not found — install it or set the path in config"
+                )
             }
             Error::BackendExecution(msg) => write!(f, "backend error: {msg}"),
             Error::BackendTimeout(secs) => write!(f, "backend timed out after {secs} seconds"),
@@ -53,6 +58,8 @@ impl From<std::io::Error> for Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+pub static TEST_CWD_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
 // --- High-level public API ---
 
 /// Generate a commit message from the current git repo state.
@@ -64,10 +71,7 @@ pub fn generate_commit_message(cfg: &config::Config) -> Result<String> {
     let mut context = context::gather_context(&repo_root, cfg.diff_source)?;
 
     if context.diff.len() > cfg.max_diff_length {
-        context.diff = format!(
-            "{}\n... (truncated)",
-            &context.diff[..cfg.max_diff_length]
-        );
+        context.diff = format!("{}\n... (truncated)", &context.diff[..cfg.max_diff_length]);
     }
 
     let prompt = prompt::build_prompt(&context, cfg, Some(cfg.commit_mode));
@@ -98,10 +102,7 @@ pub fn refine_commit_message(
     let mut context = context::gather_context(&repo_root, cfg.diff_source)?;
 
     if context.diff.len() > cfg.max_diff_length {
-        context.diff = format!(
-            "{}\n... (truncated)",
-            &context.diff[..cfg.max_diff_length]
-        );
+        context.diff = format!("{}\n... (truncated)", &context.diff[..cfg.max_diff_length]);
     }
 
     let prompt = prompt::build_refine_prompt(current_message, feedback, &context.diff, cfg);
@@ -125,7 +126,13 @@ pub fn generate_branch_name(cfg: &config::Config) -> Result<String> {
         vec![]
     };
 
-    let prompt = prompt::build_branch_prompt("", diff.as_deref(), cfg, cfg.branch_mode, &existing_branches);
+    let prompt = prompt::build_branch_prompt(
+        "",
+        diff.as_deref(),
+        cfg,
+        cfg.branch_mode,
+        &existing_branches,
+    );
     let cli_path = backend::detect_cli(cfg.backend, cfg.backend_cli_path())?;
     let invocation = backend::build_invocation(&cli_path, &prompt, cfg);
     let response = backend::exec_cli(&invocation)?;

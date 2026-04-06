@@ -24,7 +24,10 @@ pub fn build_prompt(context: &CommitContext, config: &Config, mode: Option<Commi
             } else {
                 context.recent_commits.join("\n")
             };
-            parts.push(mods.adaptive_format.replace("{recentCommits}", &recent_text));
+            parts.push(
+                mods.adaptive_format
+                    .replace("{recentCommits}", &recent_text),
+            );
         }
         CommitMode::Conventional | CommitMode::ConventionalOneliner => {
             parts.push(mods.conventional_format);
@@ -84,7 +87,10 @@ pub fn build_refine_prompt(
         .replace("{feedback}", feedback)
         .replace("{maxDiffLength}", &config.max_diff_length.to_string())
         .replace("{diff}", diff)
-        .replace("{languageInstruction}", &config.active_language_instruction())
+        .replace(
+            "{languageInstruction}",
+            &config.active_language_instruction(),
+        )
 }
 
 /// Build the prompt for branch name generation.
@@ -107,8 +113,7 @@ pub fn build_branch_prompt(
             } else {
                 let branch_text = existing_branches.join("\n");
                 parts.push(
-                    languages::BRANCH_ADAPTIVE_FORMAT
-                        .replace("{existingBranches}", &branch_text),
+                    languages::BRANCH_ADAPTIVE_FORMAT.replace("{existingBranches}", &branch_text),
                 );
             }
         }
@@ -186,6 +191,7 @@ mod tests {
             branch: "feature/my-branch".to_owned(),
             file_contents: vec![],
             changed_files: vec!["src/app.ts".to_owned()],
+            sensitive_findings: vec![],
             has_sensitive_content: false,
         };
         f(&mut ctx);
@@ -392,7 +398,13 @@ mod tests {
     #[test]
     fn branch_prompt_conventional_contains_type_slug() {
         let config = Config::default();
-        let prompt = build_branch_prompt("add login feature", None, &config, BranchMode::Conventional, &[]);
+        let prompt = build_branch_prompt(
+            "add login feature",
+            None,
+            &config,
+            BranchMode::Conventional,
+            &[],
+        );
         assert!(prompt.contains("type/short-description-slug"));
         assert!(prompt.contains("feat, fix, docs"));
         assert!(prompt.contains("add login feature"));
@@ -402,7 +414,13 @@ mod tests {
     fn branch_prompt_adaptive_includes_branches() {
         let config = Config::default();
         let branches = vec!["feat/add-login".to_owned(), "fix/auth-bug".to_owned()];
-        let prompt = build_branch_prompt("", Some("diff here"), &config, BranchMode::Adaptive, &branches);
+        let prompt = build_branch_prompt(
+            "",
+            Some("diff here"),
+            &config,
+            BranchMode::Adaptive,
+            &branches,
+        );
         assert!(prompt.contains("feat/add-login"));
         assert!(prompt.contains("fix/auth-bug"));
         assert!(prompt.contains("Match the naming style"));
@@ -420,7 +438,8 @@ mod tests {
     #[test]
     fn refine_prompt_includes_all_fields() {
         let config = Config::default();
-        let prompt = build_refine_prompt("feat: add login", "make it shorter", "diff here", &config);
+        let prompt =
+            build_refine_prompt("feat: add login", "make it shorter", "diff here", &config);
         assert!(prompt.contains("feat: add login"));
         assert!(prompt.contains("make it shorter"));
         assert!(prompt.contains("diff here"));

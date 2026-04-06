@@ -1,9 +1,10 @@
 use std::path::Path;
 use std::sync::LazyLock;
 
+use crate::Result;
 use crate::config::DiffSource;
 use crate::git;
-use crate::Result;
+use crate::sensitive::{SensitiveFinding, scan_diff_for_sensitive_content};
 
 /// Truncation strategy applied to a file.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,6 +42,7 @@ pub struct CommitContext {
     pub branch: String,
     pub file_contents: Vec<FileContext>,
     pub changed_files: Vec<String>,
+    pub sensitive_findings: Vec<SensitiveFinding>,
     pub has_sensitive_content: bool,
 }
 
@@ -81,86 +83,14 @@ static SKIP_PATTERNS: LazyLock<Vec<regex::Regex>> = LazyLock::new(|| {
     .collect()
 });
 
-// --- Sensitive content detection ---
-
-static SENSITIVE_FILE_PATTERNS: LazyLock<Vec<regex::Regex>> = LazyLock::new(|| {
-    [
-        r"(?:^|/)\.env(?:\.\w+)?$",
-        r"(?:^|/)credentials\.json$",
-        r"(?:^|/)secrets?\.\w+$",
-        r"(?:^|/)\.netrc$",
-        r"(?:^|/)service[-_]?account.*\.json$",
-        // Source maps — can expose full unminified source code
-        r"\.(?:js|css)\.map$",
-        r"(?:^|/)[^/]+\.map$",
-        // Private keys and certificates
-        r"\.pem$",
-        r"\.p12$",
-        r"\.pfx$",
-        r"\.key$",
-        r"\.keystore$",
-        r"\.jks$",
-        // SSH private keys (not .pub)
-        r"(?:^|/)id_(?:rsa|ed25519|ecdsa|dsa)$",
-        r"(?:^|/)\.ssh/",
-        // Auth files
-        r"(?:^|/)\.htpasswd$",
-    ]
-    .iter()
-    .map(|p| regex::Regex::new(p).unwrap())
-    .collect()
-});
-
-static SENSITIVE_LINE_PATTERNS: LazyLock<Vec<regex::Regex>> = LazyLock::new(|| {
-    [
-        r"(?i)\bAPI[_-]?KEY\b",
-        r"(?i)\bSECRET[_-]?KEY\b",
-        r"(?i)\bACCESS[_-]?TOKEN\b",
-        r"(?i)\bAUTH[_-]?TOKEN\b",
-        r"(?i)\bPRIVATE[_-]?KEY\b",
-        r"(?i)\bPASSWORD\b",
-        r"(?i)\bPASSWD\b",
-        r"(?i)\bDB[_-]?PASSWORD\b",
-        r"(?i)\bDATABASE[_-]?URL\b",
-        r"(?i)\bCLIENT[_-]?SECRET\b",
-        r"(?i)\bAWS[_-]?SECRET",
-        r"(?i)\bGH[_-]?TOKEN\b",
-        r"(?i)\bNPM[_-]?TOKEN\b",
-        r"(?i)\bSLACK[_-]?TOKEN\b",
-        r"(?i)\bSTRIPE[_-]?(?:SECRET|KEY)\b",
-        r"(?i)\bSENDGRID[_-]?(?:API)?[_-]?KEY\b",
-        r"(?i)\bTWILIO[_-]?(?:AUTH|SID)\b",
-        r"(?i)\bCREDENTIALS?\b",
-        r"(?i)\bBEARER\s+[A-Za-z0-9_.~+/\-]{20,}",
-        r"\bsk-[A-Za-z0-9]{20,}",
-        r"\bghp_[A-Za-z0-9]{20,}",
-        r"\bAKIA[A-Z0-9]{12,}",
-    ]
-    .iter()
-    .map(|p| regex::Regex::new(p).unwrap())
-    .collect()
-});
-
 /// Detect if the diff or changed files contain sensitive content.
 pub fn detect_sensitive_content(diff: &str, changed_files: &[String]) -> bool {
-    // Check filenames
-    for file in changed_files {
-        if SENSITIVE_FILE_PATTERNS.iter().any(|p| p.is_match(file)) {
-            return true;
-        }
-    }
+    !detect_sensitive_findings(diff, changed_files).is_empty()
+}
 
-    // Check added lines (not removed, not diff headers)
-    for line in diff.lines() {
-        if !line.starts_with('+') || line.starts_with("+++") {
-            continue;
-        }
-        if SENSITIVE_LINE_PATTERNS.iter().any(|p| p.is_match(line)) {
-            return true;
-        }
-    }
-
-    false
+/// Return structured findings for sensitive content matches.
+pub fn detect_sensitive_findings(diff: &str, changed_files: &[String]) -> Vec<SensitiveFinding> {
+    scan_diff_for_sensitive_content(diff, changed_files).findings
 }
 
 /// Check if a file should be skipped for context reading.
@@ -350,7 +280,8 @@ pub fn gather_context(repo_root: &Path, diff_source: DiffSource) -> Result<Commi
     let recent_commits = git::get_recent_commits(repo_root, 10).unwrap_or_default();
     let branch = git::get_branch_name(repo_root).unwrap_or_else(|_| "unknown".to_owned());
     let changed_files = extract_changed_file_paths(&diff);
-    let has_sensitive_content = detect_sensitive_content(&diff, &changed_files);
+    let sensitive_findings = detect_sensitive_findings(&diff, &changed_files);
+    let has_sensitive_content = !sensitive_findings.is_empty();
     let file_contents = get_file_contents(&changed_files, repo_root, &diff);
 
     Ok(CommitContext {
@@ -359,6 +290,7 @@ pub fn gather_context(repo_root: &Path, diff_source: DiffSource) -> Result<Commi
         branch,
         file_contents,
         changed_files,
+        sensitive_findings,
         has_sensitive_content,
     })
 }
@@ -443,10 +375,7 @@ mod tests {
     #[test]
     fn ignores_removed_lines() {
         let diff = "-  API_KEY = \"old-key\"";
-        assert!(!detect_sensitive_content(
-            diff,
-            &["config.ts".to_owned()]
-        ));
+        assert!(!detect_sensitive_content(diff, &["config.ts".to_owned()]));
     }
 
     #[test]
@@ -466,9 +395,18 @@ mod tests {
 
     #[test]
     fn detects_source_map_files() {
-        assert!(detect_sensitive_content("diff", &["bundle.js.map".to_owned()]));
-        assert!(detect_sensitive_content("diff", &["styles.css.map".to_owned()]));
-        assert!(detect_sensitive_content("diff", &["dist/app.map".to_owned()]));
+        assert!(detect_sensitive_content(
+            "diff",
+            &["bundle.js.map".to_owned()]
+        ));
+        assert!(detect_sensitive_content(
+            "diff",
+            &["styles.css.map".to_owned()]
+        ));
+        assert!(detect_sensitive_content(
+            "diff",
+            &["dist/app.map".to_owned()]
+        ));
     }
 
     #[test]
@@ -476,14 +414,20 @@ mod tests {
         assert!(detect_sensitive_content("diff", &["server.pem".to_owned()]));
         assert!(detect_sensitive_content("diff", &["cert.p12".to_owned()]));
         assert!(detect_sensitive_content("diff", &["ssl.key".to_owned()]));
-        assert!(detect_sensitive_content("diff", &["app.keystore".to_owned()]));
+        assert!(detect_sensitive_content(
+            "diff",
+            &["app.keystore".to_owned()]
+        ));
     }
 
     #[test]
     fn detects_ssh_private_keys() {
         assert!(detect_sensitive_content("diff", &["id_rsa".to_owned()]));
         assert!(detect_sensitive_content("diff", &["id_ed25519".to_owned()]));
-        assert!(detect_sensitive_content("diff", &[".ssh/config".to_owned()]));
+        assert!(detect_sensitive_content(
+            "diff",
+            &[".ssh/config".to_owned()]
+        ));
     }
 
     #[test]
