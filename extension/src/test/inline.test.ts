@@ -1,6 +1,7 @@
 import * as assert from "node:assert"
 import { describe, it } from "node:test"
 import { detectSensitiveContent } from "../inline/context"
+import { detectSensitiveReport, formatSensitiveWarningMessage } from "../inline/sensitive"
 import {
   buildPrompt,
   buildRefinePrompt,
@@ -67,6 +68,7 @@ function makeContext(overrides: Partial<CommitContext> = {}): CommitContext {
     branch: "feature/my-branch",
     fileContents: [],
     changedFiles: ["src/app.ts"],
+    sensitiveReport: { findings: [] },
     hasSensitiveContent: false,
     ...overrides,
   }
@@ -548,6 +550,78 @@ describe("detectSensitiveContent", () => {
 
   it("detects htpasswd", () => {
     assert.strictEqual(detectSensitiveContent("diff", [".htpasswd"]), true)
+  })
+})
+
+describe("detectSensitiveReport", () => {
+  it("ignores deleted sensitive filenames", () => {
+    const diff = `diff --git a/.env b/.env
+deleted file mode 100644
+index 1234567..0000000
+--- a/.env
++++ /dev/null
+@@ -1 +0,0 @@
+-API_KEY=secret`
+    const report = detectSensitiveReport(diff, [".env"])
+    assert.deepStrictEqual(report, { findings: [] })
+  })
+
+  it("records line numbers and redacts long secrets", () => {
+    const diff = `diff --git a/src/config.ts b/src/config.ts
+index 1234567..89abcde 100644
+--- a/src/config.ts
++++ b/src/config.ts
+@@ -10,0 +11,2 @@
++const API_KEY = "sk-abcdefghijklmnopqrstuvwxyz";
++const safe = true;`
+    const report = detectSensitiveReport(diff, ["src/config.ts"])
+    assert.strictEqual(report.findings.length, 1)
+    assert.strictEqual(report.findings[0].filePath, "src/config.ts")
+    assert.strictEqual(report.findings[0].lineNumber, 11)
+    assert.ok(report.findings[0].preview.includes("<redacted>"))
+  })
+
+  it("detects non-example IPv4 literals", () => {
+    const diff = `diff --git a/src/app.ts b/src/app.ts
+--- a/src/app.ts
++++ b/src/app.ts
+@@ -1 +1,2 @@
++const host = "10.24.8.12";`
+    const report = detectSensitiveReport(diff, ["src/app.ts"])
+    assert.strictEqual(report.findings.length, 1)
+    assert.strictEqual(report.findings[0].rule, "ipv4-address")
+    assert.ok(report.findings[0].preview.includes("<redacted-ip>"))
+  })
+
+  it("allows documentation example IPv4 literals", () => {
+    const diff = `diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -1 +1,2 @@
++Example server: 203.0.113.10`
+    const report = detectSensitiveReport(diff, ["README.md"])
+    assert.deepStrictEqual(report, { findings: [] })
+  })
+})
+
+describe("formatSensitiveWarningMessage", () => {
+  it("formats the full warning block for the popup", () => {
+    const message = formatSensitiveWarningMessage({
+      findings: [
+        {
+          category: "credential",
+          rule: "api-key-marker",
+          filePath: "src/config.ts",
+          lineNumber: 18,
+          preview: "const API_KEY = <redacted>",
+        },
+      ],
+    })
+
+    assert.ok(message.includes("Sensitive findings:"))
+    assert.ok(message.includes("src/config.ts:18"))
+    assert.ok(message.includes("[credential / api-key-marker]"))
+    assert.ok(message.includes("The diff will be sent to an AI backend if you continue."))
   })
 })
 

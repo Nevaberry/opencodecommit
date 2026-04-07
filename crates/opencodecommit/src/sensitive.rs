@@ -505,4 +505,20 @@ diff --git a/README.md b/README.md
         assert!(message.contains("src/config.ts:18"));
         assert!(message.contains("OCC_ALLOW_SENSITIVE=1 git commit"));
     }
+
+    #[test]
+    fn formats_occ_commit_message_with_allow_sensitive_instruction() {
+        let report = SensitiveReport::from_findings(vec![SensitiveFinding {
+            category: "credential",
+            rule: "api-key-marker",
+            file_path: "src/config.ts".to_owned(),
+            line_number: Some(18),
+            preview: "const API_KEY = <redacted>".to_owned(),
+        }]);
+
+        let message = report.format_occ_commit_message();
+        assert!(message.contains("Sensitive findings:"));
+        assert!(message.contains("src/config.ts:18"));
+        assert!(message.contains("--allow-sensitive"));
+    }
 }

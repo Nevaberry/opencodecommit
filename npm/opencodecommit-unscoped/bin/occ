@@ -1,11 +1,10 @@
 #!/usr/bin/env node
-const { execFileSync } = require("child_process")
-const { getBinaryPath } = require("@nevaberry/opencodecommit")
-
+const { execFileSync } = require("child_process");
+const { getBinaryPath } = require("../index.js");
 try {
-  execFileSync(getBinaryPath(), process.argv.slice(2), { stdio: "inherit" })
+  execFileSync(getBinaryPath(), process.argv.slice(2), { stdio: "inherit" });
 } catch (err) {
-  if (err.status) process.exit(err.status)
-  console.error(err.message)
-  process.exit(1)
+  if (err.status) process.exit(err.status);
+  console.error(err.message);
+  process.exit(1);
 }

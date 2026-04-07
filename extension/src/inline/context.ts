@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process"
 import * as fs from "node:fs"
 import * as path from "node:path"
+import { detectSensitiveReport } from "./sensitive"
+import type { SensitiveReport } from "./sensitive"
 
 export interface FileContext {
   path: string
@@ -14,6 +16,7 @@ export interface CommitContext {
   branch: string
   fileContents: FileContext[]
   changedFiles: string[]
+  sensitiveReport: SensitiveReport
   hasSensitiveContent: boolean
 }
 
@@ -47,68 +50,11 @@ const SKIP_PATTERNS = [
   /(?:^|\/)__pycache__\//,
 ]
 
-const SENSITIVE_FILE_PATTERNS = [
-  /(?:^|\/)\.env(?:\.\w+)?$/,
-  /(?:^|\/)credentials\.json$/,
-  /(?:^|\/)secrets?\.\w+$/,
-  /(?:^|\/)\.netrc$/,
-  /(?:^|\/)service[-_]?account.*\.json$/,
-  // Source maps — can expose full unminified source code
-  /\.(?:js|css)\.map$/,
-  /(?:^|\/)[^/]+\.map$/,
-  // Private keys and certificates
-  /\.pem$/,
-  /\.p12$/,
-  /\.pfx$/,
-  /\.key$/,
-  /\.keystore$/,
-  /\.jks$/,
-  // SSH private keys (not .pub)
-  /(?:^|\/)id_(?:rsa|ed25519|ecdsa|dsa)$/,
-  /(?:^|\/)\.ssh\//,
-  // Auth files
-  /(?:^|\/)\.htpasswd$/,
-]
-
-const SENSITIVE_LINE_PATTERNS = [
-  /\bAPI[_-]?KEY\b/i,
-  /\bSECRET[_-]?KEY\b/i,
-  /\bACCESS[_-]?TOKEN\b/i,
-  /\bAUTH[_-]?TOKEN\b/i,
-  /\bPRIVATE[_-]?KEY\b/i,
-  /\bPASSWORD\b/i,
-  /\bPASSWD\b/i,
-  /\bDB[_-]?PASSWORD\b/i,
-  /\bDATABASE[_-]?URL\b/i,
-  /\bCLIENT[_-]?SECRET\b/i,
-  /\bAWS[_-]?SECRET/i,
-  /\bGH[_-]?TOKEN\b/i,
-  /\bNPM[_-]?TOKEN\b/i,
-  /\bSLACK[_-]?TOKEN\b/i,
-  /\bSTRIPE[_-]?(?:SECRET|KEY)\b/i,
-  /\bSENDGRID[_-]?(?:API)?[_-]?KEY\b/i,
-  /\bTWILIO[_-]?(?:AUTH|SID)\b/i,
-  /\bCREDENTIALS?\b/i,
-  /\bBEARER\s+[A-Za-z0-9_.~+/-]{20,}/i,
-  /\bsk-[A-Za-z0-9]{20,}/,
-  /\bghp_[A-Za-z0-9]{20,}/,
-  /\bAKIA[A-Z0-9]{12,}/,
-]
-
 export function detectSensitiveContent(
   diff: string,
   changedFiles: string[],
 ): boolean {
-  for (const file of changedFiles) {
-    if (SENSITIVE_FILE_PATTERNS.some((p) => p.test(file))) return true
-  }
-
-  for (const line of diff.split("\n")) {
-    if (!line.startsWith("+") || line.startsWith("+++")) continue
-    if (SENSITIVE_LINE_PATTERNS.some((p) => p.test(line))) return true
-  }
-
-  return false
+  return detectSensitiveReport(diff, changedFiles).findings.length > 0
 }
 
 const TOTAL_CONTEXT_BUDGET = 30_000
@@ -322,7 +268,8 @@ export async function gatherContext(
   const changedFiles = extractChangedFilePaths(diff)
   const recentCommits = await getRecentCommits(repoRoot)
   const fileContents = getFileContents(changedFiles, repoRoot, diff)
-  const hasSensitiveContent = detectSensitiveContent(diff, changedFiles)
+  const sensitiveReport = detectSensitiveReport(diff, changedFiles)
+  const hasSensitiveContent = sensitiveReport.findings.length > 0
 
   return {
     diff,
@@ -330,6 +277,7 @@ export async function gatherContext(
     branch: branchName,
     fileContents,
     changedFiles,
+    sensitiveReport,
     hasSensitiveContent,
   }
 }

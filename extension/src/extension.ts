@@ -3,6 +3,7 @@ import * as vscode from "vscode"
 import { getConfig as getInlineConfig } from "./inline/config"
 import { gatherContext, getRecentBranchNames } from "./inline/context"
 import { generateCommitMessage, refineCommitMessage, generateBranchName } from "./inline/generator"
+import { formatSensitiveWarningMessage } from "./inline/sensitive"
 import type { BranchMode, Change, CommitMode, GitExtension, Repository } from "./inline/types"
 
 // Diagnostic output channel
@@ -107,8 +108,11 @@ async function generateMessageInline(mode: CommitMode, repo: Repository) {
   log(`Context: branch=${context.branch}, files=${context.changedFiles.length}, recentCommits=${context.recentCommits.length}`)
 
   if (context.hasSensitiveContent) {
+    const warningMessage = formatSensitiveWarningMessage(context.sensitiveReport)
+    log(`Sensitive warning:\n${warningMessage}`)
     const choice = await vscode.window.showWarningMessage(
-      "Sensitive content detected in diff (API keys, credentials, or tokens). The diff will be sent to an AI backend.",
+      "Sensitive content detected in diff.",
+      { modal: true, detail: warningMessage },
       "Continue Anyway",
       "Cancel",
     )
@@ -116,6 +120,7 @@ async function generateMessageInline(mode: CommitMode, repo: Repository) {
       log("Aborted: user declined to send sensitive content")
       return
     }
+    log("Sensitive warning acknowledged: continuing with AI backend")
   }
 
   const message = await generateCommitMessage(context, config, mode, log)
