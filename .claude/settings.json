@@ -3,6 +3,9 @@
     "superpowers@claude-plugins-official": true,
     "bun-knowledge-patch@nevaberry-plugins": true,
     "rust-knowledge-patch@nevaberry-plugins": true,
-    "knowledge-patch@nevaberry-plugins": true
+    "knowledge-patch@nevaberry-plugins": true,
+    "ratatui-knowledge-patch@nevaberry-plugins": true,
+    "axum-knowledge-patch@nevaberry-plugins": true,
+    "typescript-knowledge-patch@nevaberry-plugins": true
   }
 }
