@@ -178,6 +178,7 @@ enum WorkerMessage {
     PrGenerated(actions::Result<PrPreview>),
     HookRan(actions::Result<String>),
     PrSubmitted(Result<String, String>),
+    UpdateAvailable(Option<String>),
 }
 
 // ── App state ──
@@ -199,6 +200,7 @@ struct App {
     hook_installed: bool,
     sensitive_blocked: bool,
     should_quit: bool,
+    update_notice: Option<String>,
 }
 
 impl App {
@@ -219,6 +221,7 @@ impl App {
             hook_installed,
             sensitive_blocked: false,
             should_quit: false,
+            update_notice: None,
         }
     }
 
@@ -436,7 +439,33 @@ pub fn run(config: Config) -> Result<(), ActionError> {
         .map_err(|err| ActionError::InvalidInput(format!("failed to clear terminal: {err}")))?;
 
     let (tx, rx) = mpsc::channel();
+    let auto_update = config.auto_update;
     let mut app = App::new(config, repo, diff_text, hook_installed);
+
+    if auto_update {
+        let tx = tx.clone();
+        std::thread::spawn(move || {
+            let (needs_check, cached) = crate::update::should_check();
+            if needs_check {
+                let source = crate::update::detect_install_source();
+                match crate::update::check_latest_version(source) {
+                    Ok(latest) => {
+                        crate::update::write_cache(&latest);
+                        let current = env!("CARGO_PKG_VERSION");
+                        if crate::update::is_newer(current, &latest) {
+                            let _ = tx.send(WorkerMessage::UpdateAvailable(Some(latest)));
+                        }
+                    }
+                    Err(_) => {}
+                }
+            } else if let Some(latest) = cached {
+                let current = env!("CARGO_PKG_VERSION");
+                if crate::update::is_newer(current, &latest) {
+                    let _ = tx.send(WorkerMessage::UpdateAvailable(Some(latest)));
+                }
+            }
+        });
+    }
 
     let result = event_loop(&mut terminal, &mut app, &tx, &rx);
     let _ = terminal.show_cursor();
@@ -952,6 +981,11 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
                 Err(msg) => app.set_error(msg),
             }
         }
+        WorkerMessage::UpdateAvailable(version) => {
+            if let Some(v) = version {
+                app.update_notice = Some(format!("v{v} available \u{2014} run `occ update`"));
+            }
+        }
     }
 }
 
@@ -1029,7 +1063,7 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
         (None, Some(err)) => format!("missing ({err})"),
         (None, None) => "missing".to_owned(),
     };
-    let spans = vec![
+    let mut spans = vec![
         Span::styled(
             "OpenCodeCommit",
             Style::default()
@@ -1052,6 +1086,15 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
             backend_status
         )),
     ];
+    if let Some(notice) = &app.update_notice {
+        spans.push(Span::raw("  "));
+        spans.push(Span::styled(
+            notice.as_str(),
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ));
+    }
     frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 

@@ -1,6 +1,7 @@
 mod actions;
 mod guard;
 mod tui;
+mod update;
 
 use std::path::Path;
 use std::process;
@@ -187,6 +188,10 @@ enum Commands {
         #[arg(long)]
         config: Option<String>,
     },
+
+    /// Update occ to the latest version
+    #[command(alias = "upgrade")]
+    Update,
 
     /// Generate a changelog entry
     Changelog {
@@ -748,6 +753,16 @@ fn handle_tui(config: Option<String>) {
     }
 }
 
+fn handle_update() {
+    let source = update::detect_install_source();
+    eprintln!("Detected installation source: {source}");
+
+    if let Err(err) = update::run_update(source) {
+        eprintln!("error: {err}");
+        process::exit(1);
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -842,6 +857,7 @@ fn main() {
         Commands::Hook { action } => handle_hook(action),
         Commands::Guard { action } => handle_guard(action),
         Commands::Tui { config } => handle_tui(config),
+        Commands::Update => handle_update(),
         Commands::Changelog {
             backend,
             provider,
