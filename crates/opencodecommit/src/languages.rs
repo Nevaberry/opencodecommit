@@ -233,3 +233,19 @@ Generate a changelog entry from the commits and diff below.
 Use Keep a Changelog format with sections: Added, Changed, Fixed, Removed.
 Only include sections that apply. Use bullet points.
 Respond with ONLY the changelog entry. No explanations.";
+
+pub const PR_SUMMARIZER: &str = "\
+You are an expert code reviewer. Summarize the following changes for a pull request.
+Focus on:
+- What was changed and why (infer intent from commit messages and code)
+- Key architectural decisions
+- Breaking changes or notable side effects
+- Files and components affected
+
+Commits:
+{commits}
+
+--- Diff ---
+{diff}
+
+Respond with a structured summary. No markdown code blocks.";

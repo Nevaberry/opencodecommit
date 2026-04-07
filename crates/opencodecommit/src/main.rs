@@ -634,8 +634,8 @@ fn handle_branch(
     }
 }
 
-fn handle_pr(config: &Config, text: bool) {
-    let preview = match actions::generate_pr_preview(config) {
+fn handle_pr(config: &Config, text: bool, base: Option<&str>) {
+    let preview = match actions::generate_pr_preview(config, base) {
         Ok(preview) => preview,
         Err(err) => {
             if text {
@@ -832,12 +832,13 @@ fn main() {
             model,
             cli_path,
             config,
-            base: _,
+            base,
             text,
         } => {
             let mut cfg = load_config_or_exit(config.as_deref(), text);
             apply_backend_overrides(&mut cfg, &backend, &provider, &model, &cli_path);
-            handle_pr(&cfg, text);
+            let base_ref = if base == "main" { None } else { Some(base.as_str()) };
+            handle_pr(&cfg, text, base_ref);
         }
         Commands::Hook { action } => handle_hook(action),
         Commands::Guard { action } => handle_guard(action),

@@ -276,6 +276,85 @@ pub fn build_invocation(cli_path: &Path, prompt: &str, config: &Config) -> Invoc
     }
 }
 
+/// Build the command invocation with explicit model and provider overrides.
+/// Used by the two-stage PR pipeline to invoke different models for each stage.
+pub fn build_invocation_with_model(
+    cli_path: &Path,
+    prompt: &str,
+    config: &Config,
+    model: &str,
+    provider: Option<&str>,
+) -> Invocation {
+    match config.backend {
+        CliBackend::Opencode => {
+            let prov = provider.unwrap_or(&config.provider);
+            Invocation {
+                command: cli_path.to_owned(),
+                args: vec![
+                    "run".to_owned(),
+                    "-m".to_owned(),
+                    format!("{prov}/{model}"),
+                    prompt.to_owned(),
+                ],
+                stdin: None,
+            }
+        }
+        CliBackend::Claude => Invocation {
+            command: cli_path.to_owned(),
+            args: vec![
+                "-p".to_owned(),
+                "--model".to_owned(),
+                model.to_owned(),
+                "--output-format".to_owned(),
+                "text".to_owned(),
+                "--max-turns".to_owned(),
+                "1".to_owned(),
+            ],
+            stdin: Some(prompt.to_owned()),
+        },
+        CliBackend::Codex => {
+            let mut args = vec![
+                "exec".to_owned(),
+                "--ephemeral".to_owned(),
+                "-s".to_owned(),
+                "read-only".to_owned(),
+                "-m".to_owned(),
+                model.to_owned(),
+                "--dangerously-bypass-approvals-and-sandbox".to_owned(),
+            ];
+            let prov = provider.unwrap_or(if !config.codex_provider.is_empty() {
+                &config.codex_provider
+            } else {
+                ""
+            });
+            if !prov.is_empty() {
+                args.push("-c".to_owned());
+                args.push(format!("model_provider=\"{prov}\""));
+            }
+            args.push("-".to_owned());
+            Invocation {
+                command: cli_path.to_owned(),
+                args,
+                stdin: Some(prompt.to_owned()),
+            }
+        }
+        CliBackend::Gemini => {
+            let mut args = vec!["-p".to_owned()];
+            if !model.is_empty() {
+                args.push("-m".to_owned());
+                args.push(model.to_owned());
+            }
+            args.push("--output-format".to_owned());
+            args.push("text".to_owned());
+            Invocation {
+                command: cli_path.to_owned(),
+                args,
+                stdin: Some(prompt.to_owned()),
+            }
+        }
+    }
+}
+
 /// Strip ANSI escape codes from text.
 pub fn strip_ansi(text: &str) -> String {
     static RE: LazyLock<regex::Regex> =
@@ -453,6 +532,73 @@ mod tests {
         assert_eq!(inv.args[1], "--output-format");
         assert_eq!(inv.args[2], "text");
         assert_eq!(inv.stdin.as_deref(), Some("hello"));
+    }
+
+    #[test]
+    fn build_invocation_with_model_opencode() {
+        let config = Config {
+            backend: CliBackend::Opencode,
+            provider: "openai".to_owned(),
+            ..Config::default()
+        };
+        let inv = build_invocation_with_model(
+            Path::new("/usr/bin/opencode"),
+            "hello",
+            &config,
+            "gpt-5.4",
+            Some("anthropic"),
+        );
+        assert_eq!(inv.args[2], "anthropic/gpt-5.4");
+    }
+
+    #[test]
+    fn build_invocation_with_model_claude() {
+        let config = Config {
+            backend: CliBackend::Claude,
+            ..Config::default()
+        };
+        let inv = build_invocation_with_model(
+            Path::new("/usr/bin/claude"),
+            "hello",
+            &config,
+            "claude-opus-4-6",
+            None,
+        );
+        assert_eq!(inv.args[2], "claude-opus-4-6");
+        assert_eq!(inv.stdin.as_deref(), Some("hello"));
+    }
+
+    #[test]
+    fn build_invocation_with_model_codex_provider() {
+        let config = Config {
+            backend: CliBackend::Codex,
+            ..Config::default()
+        };
+        let inv = build_invocation_with_model(
+            Path::new("/usr/bin/codex"),
+            "hello",
+            &config,
+            "gpt-5.4",
+            Some("openrouter"),
+        );
+        assert_eq!(inv.args[5], "gpt-5.4");
+        assert!(inv.args.contains(&"model_provider=\"openrouter\"".to_owned()));
+    }
+
+    #[test]
+    fn build_invocation_with_model_gemini() {
+        let config = Config {
+            backend: CliBackend::Gemini,
+            ..Config::default()
+        };
+        let inv = build_invocation_with_model(
+            Path::new("/usr/bin/gemini"),
+            "hello",
+            &config,
+            "gemini-3-flash-preview",
+            None,
+        );
+        assert_eq!(inv.args[2], "gemini-3-flash-preview");
     }
 
     #[test]

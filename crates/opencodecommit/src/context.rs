@@ -98,6 +98,48 @@ pub fn should_skip(file_path: &str) -> bool {
     SKIP_PATTERNS.iter().any(|p| p.is_match(file_path))
 }
 
+/// Filter a unified diff, removing file sections that match skip patterns.
+/// Reuses the existing SKIP_PATTERNS (lock files, binaries, minified, generated).
+pub fn filter_diff(diff: &str) -> String {
+    if diff.is_empty() {
+        return String::new();
+    }
+
+    let mut result = String::new();
+    let mut current_section = String::new();
+    let mut skip_current = false;
+
+    for line in diff.lines() {
+        if line.starts_with("diff --git ") {
+            // Flush previous section if not skipped
+            if !skip_current && !current_section.is_empty() {
+                result.push_str(&current_section);
+            }
+
+            // Start new section
+            current_section = String::new();
+            current_section.push_str(line);
+            current_section.push('\n');
+
+            // Extract b/ path and check if we should skip
+            skip_current = line
+                .rsplit_once(" b/")
+                .map(|(_, path)| should_skip(path))
+                .unwrap_or(false);
+        } else {
+            current_section.push_str(line);
+            current_section.push('\n');
+        }
+    }
+
+    // Flush last section
+    if !skip_current && !current_section.is_empty() {
+        result.push_str(&current_section);
+    }
+
+    result
+}
+
 // --- Signature pattern for outline mode ---
 
 static SIGNATURE_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| {
@@ -479,5 +521,60 @@ mod tests {
         let diff = "diff --git a/src/app.ts b/src/app.ts\nindex abc..def 100644\n--- a/src/app.ts\n+++ b/src/app.ts\n@@ -1,3 +1,4 @@\n+import something\ndiff --git a/lib/utils.ts b/lib/utils.ts\n";
         let paths = extract_changed_file_paths(diff);
         assert_eq!(paths, vec!["src/app.ts", "lib/utils.ts"]);
+    }
+
+    // --- filter_diff ---
+
+    #[test]
+    fn filter_diff_removes_lock_files() {
+        let diff = "\
+diff --git a/src/main.rs b/src/main.rs
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -1,3 +1,4 @@
++new line
+diff --git a/package-lock.json b/package-lock.json
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,100 +1,200 @@
++huge lock file changes
+diff --git a/src/utils.rs b/src/utils.rs
+--- a/src/utils.rs
++++ b/src/utils.rs
+@@ -1,2 +1,3 @@
++another line
+";
+        let filtered = filter_diff(diff);
+        assert!(filtered.contains("src/main.rs"), "should keep source files");
+        assert!(filtered.contains("src/utils.rs"), "should keep source files");
+        assert!(!filtered.contains("package-lock.json"), "should remove lock files");
+    }
+
+    #[test]
+    fn filter_diff_removes_binary_and_minified() {
+        let diff = "\
+diff --git a/app.js b/app.js
++code
+diff --git a/dist/bundle.min.js b/dist/bundle.min.js
++minified
+diff --git a/logo.png b/logo.png
+Binary files differ
+";
+        let filtered = filter_diff(diff);
+        assert!(filtered.contains("app.js"));
+        assert!(!filtered.contains("bundle.min.js"));
+        assert!(!filtered.contains("logo.png"));
+    }
+
+    #[test]
+    fn filter_diff_empty_input() {
+        assert_eq!(filter_diff(""), "");
+    }
+
+    #[test]
+    fn filter_diff_no_skippable_files() {
+        let diff = "diff --git a/src/lib.rs b/src/lib.rs\n+code\n";
+        let filtered = filter_diff(diff);
+        assert_eq!(filtered, diff);
     }
 }

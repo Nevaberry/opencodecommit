@@ -218,6 +218,108 @@ pub fn get_unstaged_files(repo: &Path) -> Result<Vec<String>> {
     Ok(output.lines().map(|l| l.to_owned()).collect())
 }
 
+/// Run a git command allowing exit code 1 (not found / empty result).
+fn git_allow_not_found(repo: &Path, args: &[&str]) -> Result<(String, i32)> {
+    let output = Command::new("git")
+        .args(args)
+        .current_dir(repo)
+        .output()
+        .map_err(|e| Error::Git(format!("failed to run git: {e}")))?;
+
+    let status = output.status.code().unwrap_or(1);
+    if !output.status.success() && status != 1 && status != 128 {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(Error::Git(format!(
+            "git {} failed: {}",
+            args.join(" "),
+            stderr.trim()
+        )));
+    }
+
+    Ok((
+        String::from_utf8_lossy(&output.stdout).trim().to_owned(),
+        status,
+    ))
+}
+
+/// Detect the base branch for PR-style diffs.
+///
+/// Priority: explicit flag > upstream tracking branch > main > master.
+pub fn detect_base_branch(repo: &Path, explicit_base: Option<&str>) -> Result<String> {
+    if let Some(base) = explicit_base {
+        return Ok(base.to_owned());
+    }
+
+    // Try upstream tracking branch
+    if let Ok((upstream, code)) =
+        git_allow_not_found(repo, &["rev-parse", "--abbrev-ref", "@{upstream}"])
+        && code == 0
+        && !upstream.is_empty()
+    {
+        // e.g. "origin/main" -> "main"
+        if let Some(branch) = upstream.rsplit_once('/') {
+            return Ok(branch.1.to_owned());
+        }
+    }
+
+    // Try main
+    if let Ok((_, code)) = git_allow_not_found(repo, &["rev-parse", "--verify", "main"])
+        && code == 0
+    {
+        return Ok("main".to_owned());
+    }
+
+    // Try master
+    if let Ok((_, code)) = git_allow_not_found(repo, &["rev-parse", "--verify", "master"])
+        && code == 0
+    {
+        return Ok("master".to_owned());
+    }
+
+    Err(Error::Git(
+        "could not detect base branch — use --base".to_owned(),
+    ))
+}
+
+/// Get the unified diff between the base branch and HEAD (three-dot diff).
+pub fn get_branch_diff(repo: &Path, base: &str) -> Result<String> {
+    let arg = format!("{base}...HEAD");
+    let diff = git(repo, &["diff", &arg])?;
+    if diff.is_empty() {
+        return Err(Error::NoChanges);
+    }
+    Ok(diff)
+}
+
+/// Get the commit messages between base and HEAD.
+pub fn get_commits_ahead(repo: &Path, base: &str) -> Result<Vec<String>> {
+    let range = format!("{base}..HEAD");
+    let output = git(repo, &["log", &range, "--format=%H%n%s%n%n%b%n---"])?;
+    Ok(output
+        .split("---\n")
+        .chain(std::iter::once(output.rsplit_once("---").map_or("", |(_, r)| r)))
+        .map(|s| s.trim().to_owned())
+        .filter(|s| !s.is_empty())
+        .collect())
+}
+
+/// Get the list of files changed between the base branch and HEAD.
+pub fn get_branch_changed_files(repo: &Path, base: &str) -> Result<Vec<String>> {
+    let arg = format!("{base}...HEAD");
+    let output = git(repo, &["diff", &arg, "--name-only"])?;
+    if output.is_empty() {
+        return Ok(vec![]);
+    }
+    Ok(output.lines().filter(|l| !l.is_empty()).map(|l| l.to_owned()).collect())
+}
+
+/// Count the number of commits HEAD is ahead of the base branch.
+pub fn count_commits_ahead(repo: &Path, base: &str) -> Result<usize> {
+    let range = format!("{base}..HEAD");
+    let output = git(repo, &["rev-list", "--count", &range])?;
+    Ok(output.parse::<usize>().unwrap_or(0))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -496,6 +598,116 @@ mod tests {
         // Count limiting works
         let limited = get_recent_branch_names(&dir, 2).unwrap();
         assert_eq!(limited.len(), 2);
+        cleanup(&dir);
+    }
+
+    /// Create a temporary git repo with an explicit "main" branch.
+    fn setup_repo_with_main(name: &str) -> PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("occ-git-test-{}-{}", std::process::id(), name));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+
+        let run = |args: &[&str]| {
+            Command::new("git")
+                .args(args)
+                .current_dir(&dir)
+                .env("GIT_AUTHOR_NAME", "Test")
+                .env("GIT_AUTHOR_EMAIL", "test@test.com")
+                .env("GIT_COMMITTER_NAME", "Test")
+                .env("GIT_COMMITTER_EMAIL", "test@test.com")
+                .output()
+                .unwrap()
+        };
+
+        run(&["init", "-b", "main"]);
+        run(&["config", "user.email", "test@test.com"]);
+        run(&["config", "user.name", "Test"]);
+        fs::write(dir.join("README.md"), "# Hello").unwrap();
+        run(&["add", "README.md"]);
+        run(&["commit", "-m", "initial commit"]);
+
+        dir
+    }
+
+    fn setup_feature_branch(dir: &Path) {
+        let run = |args: &[&str]| {
+            Command::new("git")
+                .args(args)
+                .current_dir(dir)
+                .env("GIT_AUTHOR_NAME", "Test")
+                .env("GIT_AUTHOR_EMAIL", "test@test.com")
+                .env("GIT_COMMITTER_NAME", "Test")
+                .env("GIT_COMMITTER_EMAIL", "test@test.com")
+                .output()
+                .unwrap()
+        };
+
+        run(&["checkout", "-b", "feature/test"]);
+        fs::write(dir.join("feature.txt"), "feature content").unwrap();
+        run(&["add", "feature.txt"]);
+        run(&["commit", "-m", "feat: add feature file"]);
+        fs::write(dir.join("another.txt"), "another file").unwrap();
+        run(&["add", "another.txt"]);
+        run(&["commit", "-m", "feat: add another file"]);
+    }
+
+    #[test]
+    fn detect_base_branch_explicit() {
+        let dir = setup_repo_with_main("detect-explicit");
+        let base = detect_base_branch(&dir, Some("develop")).unwrap();
+        assert_eq!(base, "develop");
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn detect_base_branch_fallback_main() {
+        let dir = setup_repo_with_main("detect-main");
+        setup_feature_branch(&dir);
+        let base = detect_base_branch(&dir, None).unwrap();
+        assert_eq!(base, "main");
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn count_commits_ahead_basic() {
+        let dir = setup_repo_with_main("count-ahead");
+        setup_feature_branch(&dir);
+        let count = count_commits_ahead(&dir, "main").unwrap();
+        assert_eq!(count, 2);
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn get_branch_diff_shows_changes() {
+        let dir = setup_repo_with_main("branch-diff");
+        setup_feature_branch(&dir);
+        let diff = get_branch_diff(&dir, "main").unwrap();
+        assert!(diff.contains("feature content"));
+        assert!(diff.contains("another file"));
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn get_commits_ahead_returns_messages() {
+        let dir = setup_repo_with_main("commits-ahead");
+        setup_feature_branch(&dir);
+        let commits = get_commits_ahead(&dir, "main").unwrap();
+        assert!(!commits.is_empty());
+        let joined = commits.join("\n");
+        assert!(joined.contains("feat: add feature file"));
+        assert!(joined.contains("feat: add another file"));
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn get_branch_changed_files_lists_files() {
+        let dir = setup_repo_with_main("branch-files");
+        setup_feature_branch(&dir);
+        let files = get_branch_changed_files(&dir, "main").unwrap();
+        assert!(files.contains(&"feature.txt".to_owned()));
+        assert!(files.contains(&"another.txt".to_owned()));
+        assert_eq!(files.len(), 2);
         cleanup(&dir);
     }
 }

@@ -152,6 +152,51 @@ pub fn build_pr_prompt(context: &CommitContext, config: &Config) -> String {
     parts.join("\n\n")
 }
 
+/// Build stage-1 summarization prompt for the two-stage PR pipeline.
+pub fn build_pr_summary_prompt(
+    diff: &str,
+    commits: &[String],
+    config: &Config,
+) -> String {
+    let commit_text = if commits.is_empty() {
+        "(no commit messages available)".to_owned()
+    } else {
+        commits.join("\n---\n")
+    };
+
+    let mut prompt = languages::PR_SUMMARIZER
+        .replace("{commits}", &commit_text)
+        .replace("{diff}", diff);
+
+    prompt.push_str("\n\n");
+    prompt.push_str(&config.active_language_instruction());
+
+    prompt
+}
+
+/// Build stage-2 PR generation prompt from a stage-1 summary.
+pub fn build_pr_final_prompt(
+    summary: &str,
+    branch: &str,
+    commit_onelines: &[String],
+    config: &Config,
+) -> String {
+    let mut parts = vec![languages::PR_EXPERT.to_owned()];
+
+    parts.push(config.active_language_instruction());
+
+    if !commit_onelines.is_empty() {
+        parts.push("Commits in this branch:".to_owned());
+        parts.push(commit_onelines.join("\n"));
+    }
+
+    parts.push(format!("Branch: {branch}"));
+    parts.push("--- Change Summary (from code review) ---".to_owned());
+    parts.push(summary.to_owned());
+
+    parts.join("\n\n")
+}
+
 /// Build the prompt for changelog entry generation.
 pub fn build_changelog_prompt(context: &CommitContext, config: &Config) -> String {
     let mut parts = vec![languages::CHANGELOG_EXPERT.to_owned()];
@@ -443,5 +488,37 @@ mod tests {
         assert!(prompt.contains("feat: add login"));
         assert!(prompt.contains("make it shorter"));
         assert!(prompt.contains("diff here"));
+    }
+
+    #[test]
+    fn pr_summary_prompt_includes_commits_and_diff() {
+        let config = Config::default();
+        let commits = vec![
+            "feat: add login page".to_owned(),
+            "fix: handle edge case".to_owned(),
+        ];
+        let prompt = build_pr_summary_prompt("diff content", &commits, &config);
+        assert!(prompt.contains("feat: add login page"));
+        assert!(prompt.contains("fix: handle edge case"));
+        assert!(prompt.contains("diff content"));
+        assert!(prompt.contains("expert code reviewer"));
+    }
+
+    #[test]
+    fn pr_summary_prompt_empty_commits() {
+        let config = Config::default();
+        let prompt = build_pr_summary_prompt("diff", &[], &config);
+        assert!(prompt.contains("no commit messages available"));
+    }
+
+    #[test]
+    fn pr_final_prompt_includes_summary_and_branch() {
+        let config = Config::default();
+        let onelines = vec!["abc123 feat: add login".to_owned()];
+        let prompt = build_pr_final_prompt("summary text", "feature/login", &onelines, &config);
+        assert!(prompt.contains("summary text"));
+        assert!(prompt.contains("feature/login"));
+        assert!(prompt.contains("abc123 feat: add login"));
+        assert!(prompt.contains("Change Summary"));
     }
 }

@@ -17,8 +17,8 @@ use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 use ratatui::{Frame, Terminal};
 
 use crate::actions::{
-    self, ActionError, BranchPreview, CommitPreview, CommitRequest, HookOperation, PrPreview,
-    RepoSummary,
+    self, ActionError, BranchPreview, CommitPreview, CommitRequest, HookOperation, PrContext,
+    PrPreview, RepoSummary,
 };
 
 type TuiTerminal = Terminal<CrosstermBackend<io::Stdout>>;
@@ -113,13 +113,22 @@ impl ButtonId {
     }
 }
 
+// ── File sidebar types ──
+
+#[derive(Debug, Clone)]
+struct CommitGroup {
+    subject: String,
+    files: Vec<String>,
+}
+
 // ── Focus tracking ──
 //
-// Focus can be in the output panel (on one of its buttons) or on the bottom bar.
-// Tab cycles: panel button 0, 1, 2, ... → bar button 0, 1, 2, ... → wrap.
+// Focus can be in the sidebar, output panel, or on the bottom bar.
+// Tab cycles: sidebar → panel buttons → bar buttons → wrap.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FocusArea {
+    Sidebar,
     Panel,
     Bar,
 }
@@ -175,7 +184,7 @@ enum WorkerMessage {
     CommitApplied(actions::Result<actions::CommitResult>),
     BranchGenerated(actions::Result<BranchPreview>),
     BranchCreated(actions::Result<actions::BranchResult>),
-    PrGenerated(actions::Result<PrPreview>),
+    PrGenerated(actions::Result<PrPreview>, Option<PrContext>),
     HookRan(actions::Result<String>),
     PrSubmitted(Result<String, String>),
 }
@@ -199,6 +208,12 @@ struct App {
     hook_installed: bool,
     sensitive_blocked: bool,
     should_quit: bool,
+    // File sidebar state
+    file_groups: Vec<CommitGroup>,
+    selected_file: usize,     // 0 = [All], then indexed into flattened list
+    file_sidebar_scroll: usize,
+    base_branch: String,
+    commit_count: usize,
 }
 
 impl App {
@@ -219,6 +234,11 @@ impl App {
             hook_installed,
             sensitive_blocked: false,
             should_quit: false,
+            file_groups: vec![],
+            selected_file: 0,
+            file_sidebar_scroll: 0,
+            base_branch: String::new(),
+            commit_count: 0,
         }
     }
 
@@ -229,10 +249,94 @@ impl App {
         }
     }
 
+    fn has_sidebar(&self) -> bool {
+        !self.file_groups.is_empty()
+    }
+
+    /// Total number of entries in the sidebar (1 for [All] + all files).
+    fn sidebar_entry_count(&self) -> usize {
+        if self.file_groups.is_empty() {
+            return 0;
+        }
+        1 + self.file_groups.iter().map(|g| g.files.len()).sum::<usize>()
+    }
+
+    /// Get the file path for the currently selected sidebar entry.
+    /// Returns None for [All] (index 0) or if sidebar is empty.
+    fn selected_file_path(&self) -> Option<&str> {
+        if self.selected_file == 0 || self.file_groups.is_empty() {
+            return None;
+        }
+        let mut idx = self.selected_file - 1;
+        for group in &self.file_groups {
+            if idx < group.files.len() {
+                return Some(&group.files[idx]);
+            }
+            idx -= group.files.len();
+        }
+        None
+    }
+
+    /// Populate file groups from a PrContext.
+    fn populate_file_groups(&mut self, pr_ctx: &PrContext) {
+        self.base_branch = pr_ctx.base_branch.clone();
+        self.commit_count = pr_ctx.commit_count;
+
+        if !pr_ctx.from_branch_diff {
+            // Working tree diff mode: single group
+            if !pr_ctx.changed_files.is_empty() {
+                self.file_groups = vec![CommitGroup {
+                    subject: "Working changes".to_owned(),
+                    files: pr_ctx.changed_files.clone(),
+                }];
+            }
+            return;
+        }
+
+        // Build commit-grouped file list from commit messages
+        // Each commit message from get_commits_ahead has format: hash\nsubject\n\nbody\n
+        let mut groups = Vec::new();
+        for commit in &pr_ctx.commits {
+            let mut lines = commit.lines();
+            let _hash = lines.next().unwrap_or("");
+            let subject = lines.next().unwrap_or("(no message)").to_owned();
+            groups.push(CommitGroup {
+                subject,
+                files: vec![],
+            });
+        }
+
+        // Assign files to groups (approximate: just distribute evenly since
+        // we don't have per-commit file info from git log)
+        // For a better approach, we'd need `git diff-tree` per commit.
+        // For now, list all files under the last group.
+        if groups.is_empty() {
+            groups.push(CommitGroup {
+                subject: "Changes".to_owned(),
+                files: pr_ctx.changed_files.clone(),
+            });
+        } else if let Some(last) = groups.last_mut() {
+            last.files = pr_ctx.changed_files.clone();
+        }
+
+        self.file_groups = groups;
+        self.selected_file = 0;
+    }
+
     /// Advance focus forward by one position, wrapping around.
     fn focus_next(&mut self) {
         let panel_count = self.panel_button_count();
+        let has_sidebar = self.has_sidebar();
         match self.focus_area {
+            FocusArea::Sidebar => {
+                if panel_count > 0 {
+                    self.focus_area = FocusArea::Panel;
+                    self.focused_panel_btn = 0;
+                } else {
+                    self.focus_area = FocusArea::Bar;
+                    self.focused_bar_btn = 0;
+                }
+            }
             FocusArea::Panel => {
                 if self.focused_panel_btn + 1 < panel_count {
                     self.focused_panel_btn += 1;
@@ -244,6 +348,8 @@ impl App {
             FocusArea::Bar => {
                 if self.focused_bar_btn + 1 < ButtonId::ALL.len() {
                     self.focused_bar_btn += 1;
+                } else if has_sidebar {
+                    self.focus_area = FocusArea::Sidebar;
                 } else if panel_count > 0 {
                     self.focus_area = FocusArea::Panel;
                     self.focused_panel_btn = 0;
@@ -257,10 +363,17 @@ impl App {
     /// Move focus backward by one position, wrapping around.
     fn focus_prev(&mut self) {
         let panel_count = self.panel_button_count();
+        let has_sidebar = self.has_sidebar();
         match self.focus_area {
+            FocusArea::Sidebar => {
+                self.focus_area = FocusArea::Bar;
+                self.focused_bar_btn = ButtonId::ALL.len() - 1;
+            }
             FocusArea::Panel => {
                 if self.focused_panel_btn > 0 {
                     self.focused_panel_btn -= 1;
+                } else if has_sidebar {
+                    self.focus_area = FocusArea::Sidebar;
                 } else {
                     self.focus_area = FocusArea::Bar;
                     self.focused_bar_btn = ButtonId::ALL.len() - 1;
@@ -272,6 +385,8 @@ impl App {
                 } else if panel_count > 0 {
                     self.focus_area = FocusArea::Panel;
                     self.focused_panel_btn = panel_count - 1;
+                } else if has_sidebar {
+                    self.focus_area = FocusArea::Sidebar;
                 } else {
                     self.focused_bar_btn = ButtonId::ALL.len() - 1;
                 }
@@ -315,6 +430,7 @@ impl App {
 
     fn focused_description(&self) -> &'static str {
         match self.focus_area {
+            FocusArea::Sidebar => "Navigate files. Up/Down to select, Tab to switch focus.",
             FocusArea::Panel => {
                 if let Some(content) = &self.output {
                     let btns = panel_buttons(content);
@@ -422,6 +538,9 @@ pub fn run(config: Config) -> Result<(), ActionError> {
         opencodecommit::git::get_diff(config.diff_source, &repo.repo_root).unwrap_or_default();
     let hook_installed = detect_hook_installed(&repo);
 
+    // Try loading PR context for file sidebar (branch diff fallback)
+    let pr_ctx = actions::load_pr_context(&config, None).ok();
+
     install_panic_cleanup_hook();
 
     let _guard = TerminalGuard::enter().map_err(|err| {
@@ -436,7 +555,16 @@ pub fn run(config: Config) -> Result<(), ActionError> {
         .map_err(|err| ActionError::InvalidInput(format!("failed to clear terminal: {err}")))?;
 
     let (tx, rx) = mpsc::channel();
-    let mut app = App::new(config, repo, diff_text, hook_installed);
+    let mut app = App::new(config, repo, diff_text.clone(), hook_installed);
+
+    // Populate file sidebar and use branch diff if available
+    if let Some(ctx) = &pr_ctx {
+        app.populate_file_groups(ctx);
+        if ctx.from_branch_diff && diff_text.is_empty() {
+            // Use the branch diff for the diff panel
+            app.diff_text = ctx.diff.clone();
+        }
+    }
 
     let result = event_loop(&mut terminal, &mut app, &tx, &rx);
     let _ = terminal.show_cursor();
@@ -497,16 +625,29 @@ fn handle_key(app: &mut App, key: KeyEvent, tx: &Sender<WorkerMessage>) {
             app.notice = None;
         }
 
-        // Up/Down: scroll output panel if content exists, otherwise scroll diff
+        // Up/Down: depends on focus area
         KeyCode::Up | KeyCode::Char('k') => {
-            if app.output.is_some() {
+            if app.focus_area == FocusArea::Sidebar {
+                if app.selected_file > 0 {
+                    app.selected_file -= 1;
+                    // Keep sidebar scroll in view
+                    if app.selected_file < app.file_sidebar_scroll {
+                        app.file_sidebar_scroll = app.selected_file;
+                    }
+                }
+            } else if app.output.is_some() {
                 app.output_scroll = app.output_scroll.saturating_sub(1);
             } else {
                 app.diff_scroll = app.diff_scroll.saturating_sub(1);
             }
         }
         KeyCode::Down | KeyCode::Char('j') => {
-            if app.output.is_some() {
+            if app.focus_area == FocusArea::Sidebar {
+                let max = app.sidebar_entry_count().saturating_sub(1);
+                if app.selected_file < max {
+                    app.selected_file += 1;
+                }
+            } else if app.output.is_some() {
                 app.output_scroll = app.output_scroll.saturating_add(1);
             } else {
                 app.diff_scroll = app.diff_scroll.saturating_add(1);
@@ -546,6 +687,9 @@ fn handle_key(app: &mut App, key: KeyEvent, tx: &Sender<WorkerMessage>) {
 
 fn activate_focused(app: &mut App, tx: &Sender<WorkerMessage>) {
     match app.focus_area {
+        FocusArea::Sidebar => {
+            // Enter on sidebar just keeps the file selected (navigation is via up/down)
+        }
         FocusArea::Panel => activate_panel_button(app, app.focused_panel_btn, tx),
         FocusArea::Bar => {
             let btn = ButtonId::ALL[app.focused_bar_btn];
@@ -775,9 +919,10 @@ fn spawn_generate_pr(app: &mut App, tx: &Sender<WorkerMessage>) {
     let config = app.config.clone();
     let tx = tx.clone();
     std::thread::spawn(move || {
-        let _ = tx.send(WorkerMessage::PrGenerated(actions::generate_pr_preview(
-            &config,
-        )));
+        // Load PR context for sidebar population
+        let pr_ctx = actions::load_pr_context(&config, None).ok();
+        let result = actions::generate_pr_preview(&config, None);
+        let _ = tx.send(WorkerMessage::PrGenerated(result, pr_ctx));
     });
 }
 
@@ -925,10 +1070,16 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
                 Err(err) => app.set_error(err.to_string()),
             }
         }
-        WorkerMessage::PrGenerated(result) => {
+        WorkerMessage::PrGenerated(result, pr_ctx) => {
             app.pending = None;
             match result {
                 Ok(preview) => {
+                    if let Some(ctx) = &pr_ctx {
+                        app.populate_file_groups(ctx);
+                        if ctx.from_branch_diff && app.diff_text.is_empty() {
+                            app.diff_text = ctx.diff.clone();
+                        }
+                    }
                     app.set_info("Generated PR preview.");
                     app.set_output(OutputContent::PrPreview { preview });
                 }
@@ -981,7 +1132,7 @@ fn render(frame: &mut Frame, app: &App) {
 
     let chunks = Layout::vertical([
         Constraint::Length(1),             // header
-        Constraint::Min(5),                // diff viewer
+        Constraint::Min(5),                // main content area
         Constraint::Length(output_height), // output panel (0 when empty)
         Constraint::Length(1),             // button bar
         Constraint::Length(1),             // description line
@@ -989,7 +1140,20 @@ fn render(frame: &mut Frame, app: &App) {
     .split(area);
 
     render_header(frame, chunks[0], app);
-    render_diff(frame, chunks[1], app);
+
+    // Three-panel layout when sidebar is available
+    if app.has_sidebar() {
+        let cols = Layout::horizontal([
+            Constraint::Percentage(20), // file sidebar
+            Constraint::Percentage(80), // diff viewer
+        ])
+        .split(chunks[1]);
+        render_file_sidebar(frame, cols[0], app);
+        render_diff(frame, cols[1], app);
+    } else {
+        render_diff(frame, chunks[1], app);
+    }
+
     if output_height > 0 {
         render_output_panel(frame, chunks[2], app);
     }
@@ -1029,7 +1193,7 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
         (None, Some(err)) => format!("missing ({err})"),
         (None, None) => "missing".to_owned(),
     };
-    let spans = vec![
+    let mut spans = vec![
         Span::styled(
             "OpenCodeCommit",
             Style::default()
@@ -1038,35 +1202,139 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
         ),
         Span::raw("  "),
         Span::styled(
-            format!("{} @ {}", app.repo.repo_name, app.repo.repo_root.display()),
+            &app.repo.repo_name,
             Style::default().fg(Color::DarkGray),
         ),
         Span::raw("  branch: "),
         Span::styled(&app.repo.branch, Style::default().fg(Color::Green)),
-        Span::raw(format!(
-            "  staged: {}  unstaged: {}  lang: {}  backend: {} [{}]",
-            app.repo.staged_files,
-            app.repo.unstaged_files,
-            app.repo.active_language,
-            app.repo.backend_label,
-            backend_status
-        )),
     ];
+
+    // Show base branch comparison if available
+    if !app.base_branch.is_empty() {
+        spans.push(Span::raw("  "));
+        spans.push(Span::styled("<->", Style::default().fg(Color::DarkGray)));
+        spans.push(Span::raw("  "));
+        spans.push(Span::styled(&app.base_branch, Style::default().fg(Color::Cyan)));
+        spans.push(Span::styled(
+            format!("  ({} commits ahead)", app.commit_count),
+            Style::default().fg(Color::DarkGray),
+        ));
+    }
+
+    spans.push(Span::raw(format!(
+        "  backend: {} [{}]",
+        app.repo.backend_label, backend_status
+    )));
     frame.render_widget(Paragraph::new(Line::from(spans)), area);
+}
+
+fn render_file_sidebar(frame: &mut Frame, area: Rect, app: &App) {
+    let is_focused = app.focus_area == FocusArea::Sidebar;
+    let border_style = if is_focused {
+        Style::default().fg(Color::Cyan)
+    } else {
+        Style::default().fg(Color::DarkGray)
+    };
+
+    let title = if app.commit_count > 0 {
+        format!("Files ({})", app.commit_count)
+    } else {
+        "Files".to_owned()
+    };
+
+    let mut lines = Vec::new();
+    let mut flat_idx = 0usize;
+
+    // [All] entry
+    let all_style = if app.selected_file == 0 && is_focused {
+        Style::default().fg(Color::Black).bg(Color::Cyan)
+    } else if app.selected_file == 0 {
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(Color::White)
+    };
+    lines.push(Line::styled(" [All]", all_style));
+
+    for group in &app.file_groups {
+        // Commit subject as header
+        lines.push(Line::styled(
+            format!(" {}", &group.subject),
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ));
+
+        for file in &group.files {
+            flat_idx += 1;
+            let file_style = if app.selected_file == flat_idx && is_focused {
+                Style::default().fg(Color::Black).bg(Color::Cyan)
+            } else if app.selected_file == flat_idx {
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::White)
+            };
+            // Show just the filename, truncated to fit
+            let display = if file.len() > (area.width as usize).saturating_sub(4) {
+                format!("  …{}", &file[file.len().saturating_sub(area.width as usize - 5)..])
+            } else {
+                format!("  {file}")
+            };
+            lines.push(Line::styled(display, file_style));
+        }
+    }
+
+    let scroll_offset = app.file_sidebar_scroll as u16;
+    let widget = Paragraph::new(lines)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(border_style)
+                .title(Line::from(title)),
+        )
+        .scroll((scroll_offset, 0));
+    frame.render_widget(widget, area);
+}
+
+/// Filter diff text to show only the section for a specific file.
+fn filter_diff_for_file(diff: &str, file_path: &str) -> String {
+    let mut result = String::new();
+    let mut in_target = false;
+
+    for line in diff.lines() {
+        if line.starts_with("diff --git ") {
+            in_target = line.contains(&format!("b/{file_path}"));
+        }
+        if in_target {
+            result.push_str(line);
+            result.push('\n');
+        }
+    }
+    result
 }
 
 fn render_diff(frame: &mut Frame, area: Rect, app: &App) {
     if app.diff_text.is_empty() {
         let msg = Paragraph::new("No changes detected.")
             .style(Style::default().fg(Color::DarkGray))
-            .block(Block::default().borders(Borders::ALL).title("Diff"));
+            .block(Block::default().borders(Borders::ALL).title(Line::from("Diff")));
         frame.render_widget(msg, area);
         return;
     }
 
-    let lines: Vec<Line> = app.diff_text.lines().map(style_diff_line).collect();
+    // Filter diff to selected file if sidebar has a selection
+    let display_diff = if let Some(file_path) = app.selected_file_path() {
+        filter_diff_for_file(&app.diff_text, file_path)
+    } else {
+        app.diff_text.clone()
+    };
+
+    let lines: Vec<Line> = display_diff.lines().map(style_diff_line).collect();
     let diff = Paragraph::new(lines)
-        .block(Block::default().borders(Borders::ALL).title("Diff"))
+        .block(Block::default().borders(Borders::ALL).title(Line::from("Diff")))
         .scroll((app.diff_scroll, 0));
     frame.render_widget(diff, area);
 }
@@ -1471,7 +1739,7 @@ mod tests {
         let app = test_app();
         let text = render_text(&app, 100, 24);
         assert!(text.contains("OpenCodeCommit"), "missing header");
-        assert!(text.contains("/tmp/demo"), "missing repo path");
+        assert!(text.contains("demo"), "missing repo name");
         assert!(text.contains("main"), "missing branch");
         assert!(text.contains("1 Commit"), "missing Commit button");
         assert!(text.contains("2 Branch"), "missing Branch button");
@@ -1681,5 +1949,92 @@ mod tests {
             text.contains("Commit with the generated message"),
             "should show panel button 0 description"
         );
+    }
+
+    #[test]
+    fn sidebar_renders_when_file_groups_present() {
+        let mut app = test_app();
+        app.file_groups = vec![CommitGroup {
+            subject: "feat: add login".to_owned(),
+            files: vec!["src/login.rs".to_owned(), "src/auth.rs".to_owned()],
+        }];
+        app.base_branch = "main".to_owned();
+        app.commit_count = 1;
+        let text = render_text(&app, 120, 24);
+        assert!(text.contains("Files"), "missing Files title");
+        assert!(text.contains("[All]"), "missing All entry");
+        assert!(text.contains("login.rs"), "missing file entry");
+    }
+
+    #[test]
+    fn sidebar_does_not_render_when_empty() {
+        let app = test_app();
+        assert!(!app.has_sidebar());
+        let text = render_text(&app, 120, 24);
+        assert!(!text.contains("Files ("), "should not show sidebar");
+    }
+
+    #[test]
+    fn header_shows_base_branch_when_set() {
+        let mut app = test_app();
+        app.base_branch = "main".to_owned();
+        app.commit_count = 3;
+        let text = render_text(&app, 120, 24);
+        assert!(text.contains("<->"), "missing base branch separator");
+        assert!(text.contains("3 commits ahead"), "missing commit count");
+    }
+
+    #[test]
+    fn sidebar_navigation_changes_selected_file() {
+        let mut app = test_app();
+        app.file_groups = vec![CommitGroup {
+            subject: "test".to_owned(),
+            files: vec!["a.rs".to_owned(), "b.rs".to_owned()],
+        }];
+        app.focus_area = FocusArea::Sidebar;
+        let (tx, _rx) = mpsc::channel();
+
+        assert_eq!(app.selected_file, 0); // [All]
+        handle_key(&mut app, KeyEvent::from(KeyCode::Down), &tx);
+        assert_eq!(app.selected_file, 1);
+        handle_key(&mut app, KeyEvent::from(KeyCode::Down), &tx);
+        assert_eq!(app.selected_file, 2);
+        handle_key(&mut app, KeyEvent::from(KeyCode::Up), &tx);
+        assert_eq!(app.selected_file, 1);
+    }
+
+    #[test]
+    fn focus_cycles_through_sidebar() {
+        let mut app = test_app();
+        app.file_groups = vec![CommitGroup {
+            subject: "test".to_owned(),
+            files: vec!["a.rs".to_owned()],
+        }];
+        app.set_output(OutputContent::PrPreview {
+            preview: PrPreview {
+                title: "PR title".to_owned(),
+                body: "PR body".to_owned(),
+            },
+        });
+        // With sidebar + panel + bar, tab should eventually reach sidebar
+        let (tx, _rx) = mpsc::channel();
+
+        // Start at panel (set_output puts focus there)
+        assert_eq!(app.focus_area, FocusArea::Panel);
+
+        // Tab through panel buttons (3 for PR: Submit, Copy, Regenerate)
+        handle_key(&mut app, KeyEvent::from(KeyCode::Tab), &tx);
+        handle_key(&mut app, KeyEvent::from(KeyCode::Tab), &tx);
+        // Now at bar
+        handle_key(&mut app, KeyEvent::from(KeyCode::Tab), &tx);
+        assert_eq!(app.focus_area, FocusArea::Bar);
+
+        // Tab through all 5 bar buttons
+        for _ in 0..4 {
+            handle_key(&mut app, KeyEvent::from(KeyCode::Tab), &tx);
+        }
+        // Should wrap to sidebar
+        handle_key(&mut app, KeyEvent::from(KeyCode::Tab), &tx);
+        assert_eq!(app.focus_area, FocusArea::Sidebar);
     }
 }

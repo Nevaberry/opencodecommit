@@ -151,6 +151,47 @@ pub struct Config {
     #[serde(default)]
     pub gemini_model: String,
 
+    // --- PR pipeline models ---
+
+    #[serde(default = "default_opencode_pr_provider")]
+    pub opencode_pr_provider: String,
+
+    #[serde(default = "default_opencode_pr_model")]
+    pub opencode_pr_model: String,
+
+    #[serde(default = "default_opencode_cheap_provider")]
+    pub opencode_cheap_provider: String,
+
+    #[serde(default = "default_opencode_cheap_model")]
+    pub opencode_cheap_model: String,
+
+    #[serde(default = "default_claude_pr_model")]
+    pub claude_pr_model: String,
+
+    #[serde(default = "default_claude_cheap_model")]
+    pub claude_cheap_model: String,
+
+    #[serde(default = "default_codex_pr_model")]
+    pub codex_pr_model: String,
+
+    #[serde(default = "default_codex_cheap_model")]
+    pub codex_cheap_model: String,
+
+    #[serde(default)]
+    pub codex_pr_provider: String,
+
+    #[serde(default)]
+    pub codex_cheap_provider: String,
+
+    #[serde(default = "default_gemini_pr_model")]
+    pub gemini_pr_model: String,
+
+    #[serde(default = "default_gemini_cheap_model")]
+    pub gemini_cheap_model: String,
+
+    #[serde(default)]
+    pub pr_base_branch: String,
+
     #[serde(default)]
     pub branch_mode: BranchMode,
 
@@ -235,6 +276,46 @@ fn default_active_language() -> String {
     "English".to_owned()
 }
 
+fn default_opencode_pr_provider() -> String {
+    "openai".to_owned()
+}
+
+fn default_opencode_pr_model() -> String {
+    "gpt-5.4".to_owned()
+}
+
+fn default_opencode_cheap_provider() -> String {
+    "openai".to_owned()
+}
+
+fn default_opencode_cheap_model() -> String {
+    "gpt-5.4-mini".to_owned()
+}
+
+fn default_claude_pr_model() -> String {
+    "claude-opus-4-6".to_owned()
+}
+
+fn default_claude_cheap_model() -> String {
+    "claude-haiku-4-5".to_owned()
+}
+
+fn default_codex_pr_model() -> String {
+    "gpt-5.4".to_owned()
+}
+
+fn default_codex_cheap_model() -> String {
+    "gpt-5.4-mini".to_owned()
+}
+
+fn default_gemini_pr_model() -> String {
+    "gemini-3-flash-preview".to_owned()
+}
+
+fn default_gemini_cheap_model() -> String {
+    "gemini-3.1-flash-lite-preview".to_owned()
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -251,6 +332,19 @@ impl Default for Config {
             codex_provider: String::new(),
             gemini_path: String::new(),
             gemini_model: String::new(),
+            opencode_pr_provider: default_opencode_pr_provider(),
+            opencode_pr_model: default_opencode_pr_model(),
+            opencode_cheap_provider: default_opencode_cheap_provider(),
+            opencode_cheap_model: default_opencode_cheap_model(),
+            claude_pr_model: default_claude_pr_model(),
+            claude_cheap_model: default_claude_cheap_model(),
+            codex_pr_model: default_codex_pr_model(),
+            codex_cheap_model: default_codex_cheap_model(),
+            codex_pr_provider: String::new(),
+            codex_cheap_provider: String::new(),
+            gemini_pr_model: default_gemini_pr_model(),
+            gemini_cheap_model: default_gemini_cheap_model(),
+            pr_base_branch: String::new(),
             branch_mode: BranchMode::default(),
             diff_source: default_diff_source(),
             max_diff_length: default_max_diff_length(),
@@ -336,6 +430,44 @@ impl Config {
             CliBackend::Claude => &self.claude_model,
             CliBackend::Codex => &self.codex_model,
             CliBackend::Gemini => &self.gemini_model,
+        }
+    }
+
+    /// Return the PR model for the current backend.
+    pub fn backend_pr_model(&self) -> &str {
+        match self.backend {
+            CliBackend::Opencode => &self.opencode_pr_model,
+            CliBackend::Claude => &self.claude_pr_model,
+            CliBackend::Codex => &self.codex_pr_model,
+            CliBackend::Gemini => &self.gemini_pr_model,
+        }
+    }
+
+    /// Return the cheap model for the current backend.
+    pub fn backend_cheap_model(&self) -> &str {
+        match self.backend {
+            CliBackend::Opencode => &self.opencode_cheap_model,
+            CliBackend::Claude => &self.claude_cheap_model,
+            CliBackend::Codex => &self.codex_cheap_model,
+            CliBackend::Gemini => &self.gemini_cheap_model,
+        }
+    }
+
+    /// Return the PR provider for the current backend (OpenCode/Codex only).
+    pub fn backend_pr_provider(&self) -> &str {
+        match self.backend {
+            CliBackend::Opencode => &self.opencode_pr_provider,
+            CliBackend::Codex => &self.codex_pr_provider,
+            _ => "",
+        }
+    }
+
+    /// Return the cheap provider for the current backend (OpenCode/Codex only).
+    pub fn backend_cheap_provider(&self) -> &str {
+        match self.backend {
+            CliBackend::Opencode => &self.opencode_cheap_provider,
+            CliBackend::Codex => &self.codex_cheap_provider,
+            _ => "",
         }
     }
 
@@ -572,6 +704,47 @@ prompt = "Generate: {{{{diff}}}}"
         let cfg = Config::load_or_default(None).unwrap();
         assert_eq!(cfg.backend, CliBackend::Opencode);
         assert_eq!(cfg.model, "gpt-5.4-mini");
+    }
+
+    #[test]
+    fn backend_pr_and_cheap_models() {
+        let mut cfg = Config::default();
+        assert_eq!(cfg.backend_pr_model(), "gpt-5.4");
+        assert_eq!(cfg.backend_cheap_model(), "gpt-5.4-mini");
+        assert_eq!(cfg.backend_pr_provider(), "openai");
+        assert_eq!(cfg.backend_cheap_provider(), "openai");
+
+        cfg.backend = CliBackend::Claude;
+        assert_eq!(cfg.backend_pr_model(), "claude-opus-4-6");
+        assert_eq!(cfg.backend_cheap_model(), "claude-haiku-4-5");
+        assert_eq!(cfg.backend_pr_provider(), "");
+        assert_eq!(cfg.backend_cheap_provider(), "");
+
+        cfg.backend = CliBackend::Codex;
+        assert_eq!(cfg.backend_pr_model(), "gpt-5.4");
+        assert_eq!(cfg.backend_cheap_model(), "gpt-5.4-mini");
+
+        cfg.backend = CliBackend::Gemini;
+        assert_eq!(cfg.backend_pr_model(), "gemini-3-flash-preview");
+        assert_eq!(cfg.backend_cheap_model(), "gemini-3.1-flash-lite-preview");
+    }
+
+    #[test]
+    fn pr_base_branch_defaults_empty() {
+        let cfg = Config::default();
+        assert_eq!(cfg.pr_base_branch, "");
+    }
+
+    #[test]
+    fn pr_model_fields_deserialize() {
+        let cfg: Config = toml::from_str(r#"
+claude-pr-model = "claude-sonnet-4-6"
+claude-cheap-model = "claude-haiku-4-5"
+pr-base-branch = "develop"
+"#).unwrap();
+        assert_eq!(cfg.claude_pr_model, "claude-sonnet-4-6");
+        assert_eq!(cfg.claude_cheap_model, "claude-haiku-4-5");
+        assert_eq!(cfg.pr_base_branch, "develop");
     }
 
     #[test]
