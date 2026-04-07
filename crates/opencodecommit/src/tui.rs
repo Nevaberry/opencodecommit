@@ -1,4 +1,4 @@
-use std::io::{self, IsTerminal};
+use std::io::{self, IsTerminal, Write as _};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::Duration;
 
@@ -8,72 +8,178 @@ use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
 use opencodecommit::config::Config;
+use opencodecommit::sensitive::SensitiveReport;
 use ratatui::backend::CrosstermBackend;
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
-use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Wrap};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 use ratatui::{Frame, Terminal};
 
 use crate::actions::{
-    self, ActionError, BranchPreview, ChangelogPreview, CommitPreview, CommitRequest,
-    HookOperation, PrPreview, RepoSummary,
+    self, ActionError, BranchPreview, CommitPreview, CommitRequest, HookOperation, PrPreview,
+    RepoSummary,
 };
 
 type TuiTerminal = Terminal<CrosstermBackend<io::Stdout>>;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum HomeItem {
-    Commit,
-    Branch,
-    Pr,
-    Changelog,
-    Hook,
-    Quit,
+// ── Output panel content ──
+
+#[derive(Debug, Clone)]
+enum OutputContent {
+    CommitMessage { preview: CommitPreview },
+    SensitiveWarning { report: SensitiveReport },
+    BranchPreview { preview: BranchPreview },
+    PrPreview { preview: PrPreview },
+    HookConfirm { operation: HookOperation },
 }
 
-impl HomeItem {
-    const ALL: [HomeItem; 6] = [
-        HomeItem::Commit,
-        HomeItem::Branch,
-        HomeItem::Pr,
-        HomeItem::Changelog,
-        HomeItem::Hook,
-        HomeItem::Quit,
+// ── Button definitions ──
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ButtonId {
+    Generate,      // 1
+    Shorten,       // 2
+    Commit,        // 3
+    Branch,        // 4
+    Pr,            // 5
+    InstallHook,   // 6
+    UninstallHook, // 7
+    Quit,          // 0
+}
+
+impl ButtonId {
+    const ALL: [ButtonId; 8] = [
+        ButtonId::Generate,
+        ButtonId::Shorten,
+        ButtonId::Commit,
+        ButtonId::Branch,
+        ButtonId::Pr,
+        ButtonId::InstallHook,
+        ButtonId::UninstallHook,
+        ButtonId::Quit,
     ];
 
-    fn title(self) -> &'static str {
+    fn number(self) -> char {
         match self {
-            HomeItem::Commit => "Commit",
-            HomeItem::Branch => "Branch",
-            HomeItem::Pr => "PR",
-            HomeItem::Changelog => "Changelog",
-            HomeItem::Hook => "Hook",
-            HomeItem::Quit => "Quit",
+            ButtonId::Generate => '1',
+            ButtonId::Shorten => '2',
+            ButtonId::Commit => '3',
+            ButtonId::Branch => '4',
+            ButtonId::Pr => '5',
+            ButtonId::InstallHook => '6',
+            ButtonId::UninstallHook => '7',
+            ButtonId::Quit => '0',
         }
     }
 
-    fn summary(self) -> &'static str {
+    fn label(self) -> &'static str {
         match self {
-            HomeItem::Commit => "Generate, shorten, and commit one message.",
-            HomeItem::Branch => "Preview and create one branch name.",
-            HomeItem::Pr => "Preview a PR title and body.",
-            HomeItem::Changelog => "Preview a changelog entry.",
-            HomeItem::Hook => "Install or uninstall the prepare-commit-msg hook.",
-            HomeItem::Quit => "Leave the TUI.",
+            ButtonId::Generate => "Generate",
+            ButtonId::Shorten => "Shorten",
+            ButtonId::Commit => "Commit",
+            ButtonId::Branch => "Branch",
+            ButtonId::Pr => "PR",
+            ButtonId::InstallHook => "Install Hook",
+            ButtonId::UninstallHook => "Uninstall Hook",
+            ButtonId::Quit => "Quit",
+        }
+    }
+
+    fn description(self, app: &App) -> &'static str {
+        match self {
+            ButtonId::Generate => {
+                if app.sensitive_blocked {
+                    "Sensitive content found. Allow to continue or remove secrets."
+                } else {
+                    "Generate a commit message from the current diff using AI"
+                }
+            }
+            ButtonId::Shorten => {
+                if app.has_commit_message() {
+                    "Shorten the commit message using AI"
+                } else {
+                    "Shorten the commit message. Generate a message first."
+                }
+            }
+            ButtonId::Commit => {
+                if app.has_commit_message() {
+                    "Commit with the generated message"
+                } else {
+                    "Commit with the generated message. Generate a message first."
+                }
+            }
+            ButtonId::Branch => "Generate a branch name from the current diff",
+            ButtonId::Pr => "Generate a PR title and body from the current diff",
+            ButtonId::InstallHook => {
+                if app.hook_installed {
+                    "Hook is already installed"
+                } else {
+                    "Install the prepare-commit-msg hook to auto-generate commit messages"
+                }
+            }
+            ButtonId::UninstallHook => {
+                if app.hook_installed {
+                    "Remove the prepare-commit-msg hook"
+                } else {
+                    "Hook is not installed"
+                }
+            }
+            ButtonId::Quit => "Exit the TUI",
+        }
+    }
+
+    /// Whether this button should show its label (expanded) or just the number (collapsed).
+    fn is_expanded(self, app: &App) -> bool {
+        match self {
+            ButtonId::Generate | ButtonId::Branch | ButtonId::Pr | ButtonId::Quit => true,
+            ButtonId::Shorten | ButtonId::Commit => app.has_commit_message(),
+            ButtonId::InstallHook | ButtonId::UninstallHook => false, // always collapsed
+        }
+    }
+
+    /// Whether this button can be activated.
+    fn is_available(self, app: &App) -> bool {
+        match self {
+            ButtonId::Generate => !app.sensitive_blocked,
+            ButtonId::Shorten | ButtonId::Commit => app.has_commit_message(),
+            ButtonId::Branch | ButtonId::Pr | ButtonId::Quit => true,
+            ButtonId::InstallHook => !app.hook_installed,
+            ButtonId::UninstallHook => app.hook_installed,
         }
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Screen {
-    Home,
-    Commit,
-    Branch,
-    Pr,
-    Changelog,
-    Hook,
+// ── Pending jobs ──
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PendingJob {
+    GeneratingCommit,
+    ShorteningCommit,
+    ApplyingCommit,
+    GeneratingBranch,
+    CreatingBranch,
+    GeneratingPr,
+    RunningHook,
+    SubmittingPr,
 }
+
+impl PendingJob {
+    fn label(self) -> &'static str {
+        match self {
+            PendingJob::GeneratingCommit => "Generating commit message",
+            PendingJob::ShorteningCommit => "Shortening commit message",
+            PendingJob::ApplyingCommit => "Committing changes",
+            PendingJob::GeneratingBranch => "Generating branch name",
+            PendingJob::CreatingBranch => "Creating branch",
+            PendingJob::GeneratingPr => "Generating PR preview",
+            PendingJob::RunningHook => "Updating git hook",
+            PendingJob::SubmittingPr => "Submitting pull request",
+        }
+    }
+}
+
+// ── Notice ──
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum NoticeKind {
@@ -87,94 +193,59 @@ struct Notice {
     message: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum PendingJob {
-    GeneratingCommit,
-    ShorteningCommit,
-    ApplyingCommit,
-    GeneratingBranch,
-    CreatingBranch,
-    GeneratingPr,
-    GeneratingChangelog,
-    RunningHook,
+// ── Worker messages ──
+
+enum WorkerMessage {
+    CommitGenerated(actions::Result<CommitPreview>),
+    CommitShortened(actions::Result<CommitPreview>),
+    CommitApplied(actions::Result<actions::CommitResult>),
+    BranchGenerated(actions::Result<BranchPreview>),
+    BranchCreated(actions::Result<actions::BranchResult>),
+    PrGenerated(actions::Result<PrPreview>),
+    HookRan(actions::Result<String>),
+    PrSubmitted(Result<String, String>),
 }
 
-impl PendingJob {
-    fn label(self) -> &'static str {
-        match self {
-            PendingJob::GeneratingCommit => "Generating commit message",
-            PendingJob::ShorteningCommit => "Shortening commit message",
-            PendingJob::ApplyingCommit => "Committing changes",
-            PendingJob::GeneratingBranch => "Generating branch name",
-            PendingJob::CreatingBranch => "Creating branch",
-            PendingJob::GeneratingPr => "Generating PR preview",
-            PendingJob::GeneratingChangelog => "Generating changelog entry",
-            PendingJob::RunningHook => "Updating git hook",
-        }
-    }
-}
-
-#[derive(Debug, Default)]
-struct CommitView {
-    preview: Option<CommitPreview>,
-    scroll: u16,
-}
-
-#[derive(Debug, Default)]
-struct BranchView {
-    preview: Option<BranchPreview>,
-}
-
-#[derive(Debug, Default)]
-struct PrView {
-    preview: Option<PrPreview>,
-    scroll: u16,
-}
-
-#[derive(Debug, Default)]
-struct ChangelogView {
-    preview: Option<ChangelogPreview>,
-    scroll: u16,
-}
+// ── App state ──
 
 #[derive(Debug)]
 struct App {
     config: Config,
     repo: RepoSummary,
-    screen: Screen,
-    home_index: usize,
-    commit: CommitView,
-    branch: BranchView,
-    pr: PrView,
-    changelog: ChangelogView,
-    hook_index: usize,
+    diff_text: String,
+    diff_scroll: u16,
+    output: Option<OutputContent>,
+    output_scroll: u16,
+    focused_button: usize,
     pending: Option<PendingJob>,
     spinner_tick: usize,
     notice: Option<Notice>,
+    hook_installed: bool,
+    sensitive_blocked: bool,
     should_quit: bool,
 }
 
 impl App {
-    fn new(config: Config, repo: RepoSummary) -> Self {
+    fn new(config: Config, repo: RepoSummary, diff_text: String, hook_installed: bool) -> Self {
         Self {
             config,
             repo,
-            screen: Screen::Home,
-            home_index: 0,
-            commit: CommitView::default(),
-            branch: BranchView::default(),
-            pr: PrView::default(),
-            changelog: ChangelogView::default(),
-            hook_index: 0,
+            diff_text,
+            diff_scroll: 0,
+            output: None,
+            output_scroll: 0,
+            focused_button: 0,
             pending: None,
             spinner_tick: 0,
             notice: None,
+            hook_installed,
+            sensitive_blocked: false,
             should_quit: false,
         }
     }
 
-    fn selected_home_item(&self) -> HomeItem {
-        HomeItem::ALL[self.home_index]
+    fn has_commit_message(&self) -> bool {
+        matches!(self.output, Some(OutputContent::CommitMessage { .. }))
     }
 
     fn set_info(&mut self, message: impl Into<String>) {
@@ -196,18 +267,13 @@ impl App {
             self.repo = summary;
         }
     }
+
+    fn focused_button_id(&self) -> ButtonId {
+        ButtonId::ALL[self.focused_button]
+    }
 }
 
-enum WorkerMessage {
-    CommitGenerated(actions::Result<CommitPreview>),
-    CommitShortened(actions::Result<CommitPreview>),
-    CommitApplied(actions::Result<actions::CommitResult>),
-    BranchGenerated(actions::Result<BranchPreview>),
-    BranchCreated(actions::Result<actions::BranchResult>),
-    PrGenerated(actions::Result<PrPreview>),
-    ChangelogGenerated(actions::Result<ChangelogPreview>),
-    HookRan(actions::Result<String>),
-}
+// ── Terminal guard ──
 
 struct TerminalGuard;
 
@@ -239,14 +305,32 @@ fn install_panic_cleanup_hook() {
     }));
 }
 
+fn detect_hook_installed(repo: &RepoSummary) -> bool {
+    let git_dir = repo.repo_root.join(".git");
+    let hook_path = git_dir.join("hooks").join("prepare-commit-msg");
+    if let Ok(content) = std::fs::read_to_string(&hook_path) {
+        content.contains("opencodecommit")
+    } else {
+        false
+    }
+}
+
+// ── Entry point ──
+
 pub fn run(config: Config) -> Result<(), ActionError> {
     if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
         return Err(ActionError::NonTty(
-            "`occ tui` requires an interactive terminal. Use the existing text subcommands when piping or scripting.".to_owned(),
+            "`occ tui` requires an interactive terminal.".to_owned(),
         ));
     }
 
     let repo = actions::load_repo_summary(&config)?;
+    let diff_text = match opencodecommit::git::get_diff(config.diff_source, &repo.repo_root) {
+        Ok(diff) => diff,
+        Err(_) => String::new(),
+    };
+    let hook_installed = detect_hook_installed(&repo);
+
     install_panic_cleanup_hook();
 
     let _guard = TerminalGuard::enter().map_err(|err| {
@@ -261,7 +345,7 @@ pub fn run(config: Config) -> Result<(), ActionError> {
         .map_err(|err| ActionError::InvalidInput(format!("failed to clear terminal: {err}")))?;
 
     let (tx, rx) = mpsc::channel();
-    let mut app = App::new(config, repo);
+    let mut app = App::new(config, repo, diff_text, hook_installed);
 
     let result = event_loop(&mut terminal, &mut app, &tx, &rx);
     let _ = terminal.show_cursor();
@@ -296,120 +380,181 @@ fn event_loop(
     Ok(())
 }
 
+// ── Key handling ──
+
 fn handle_key(app: &mut App, key: KeyEvent, tx: &Sender<WorkerMessage>) {
-    if matches!(key.code, KeyCode::Char('q'))
+    // Global quit
+    if key.code == KeyCode::Char('q')
         || (key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL))
     {
         app.should_quit = true;
         return;
     }
 
+    // Block input while a job is running
     if app.pending.is_some() {
         return;
     }
 
-    match app.screen {
-        Screen::Home => handle_home_key(app, key),
-        Screen::Commit => handle_commit_key(app, key, tx),
-        Screen::Branch => handle_branch_key(app, key, tx),
-        Screen::Pr => handle_pr_key(app, key, tx),
-        Screen::Changelog => handle_changelog_key(app, key, tx),
-        Screen::Hook => handle_hook_key(app, key, tx),
+    // Handle output-panel-specific keys first
+    if handle_output_panel_key(app, key, tx) {
+        return;
     }
-}
 
-fn handle_home_key(app: &mut App, key: KeyEvent) {
     match key.code {
-        KeyCode::Down | KeyCode::Char('j') => {
-            app.home_index = (app.home_index + 1) % HomeItem::ALL.len();
-        }
-        KeyCode::Up | KeyCode::Char('k') => {
-            if app.home_index == 0 {
-                app.home_index = HomeItem::ALL.len() - 1;
-            } else {
-                app.home_index -= 1;
+        // Number key direct activation
+        KeyCode::Char(ch @ '0'..='7') => {
+            if let Some(btn) = ButtonId::ALL.iter().find(|b| b.number() == ch) {
+                activate_button(app, *btn, tx);
             }
         }
-        KeyCode::Enter => match app.selected_home_item() {
-            HomeItem::Commit => app.screen = Screen::Commit,
-            HomeItem::Branch => app.screen = Screen::Branch,
-            HomeItem::Pr => app.screen = Screen::Pr,
-            HomeItem::Changelog => app.screen = Screen::Changelog,
-            HomeItem::Hook => app.screen = Screen::Hook,
-            HomeItem::Quit => app.should_quit = true,
-        },
-        _ => {}
-    }
-}
 
-fn handle_commit_key(app: &mut App, key: KeyEvent, tx: &Sender<WorkerMessage>) {
-    match key.code {
-        KeyCode::Esc | KeyCode::Char('b') => app.screen = Screen::Home,
-        KeyCode::Char('g') => spawn_generate_commit(app, tx),
-        KeyCode::Char('s') => spawn_shorten_commit(app, tx),
-        KeyCode::Char('c') => spawn_apply_commit(app, tx),
-        KeyCode::Down | KeyCode::Char('j') => {
-            app.commit.scroll = app.commit.scroll.saturating_add(1);
+        // Tab / Shift-Tab to cycle focus
+        KeyCode::Tab => {
+            app.focused_button = (app.focused_button + 1) % ButtonId::ALL.len();
+            app.notice = None;
         }
+        KeyCode::BackTab => {
+            if app.focused_button == 0 {
+                app.focused_button = ButtonId::ALL.len() - 1;
+            } else {
+                app.focused_button -= 1;
+            }
+            app.notice = None;
+        }
+
+        // Left/Right to move focus
+        KeyCode::Left => {
+            if app.focused_button == 0 {
+                app.focused_button = ButtonId::ALL.len() - 1;
+            } else {
+                app.focused_button -= 1;
+            }
+            app.notice = None;
+        }
+        KeyCode::Right => {
+            app.focused_button = (app.focused_button + 1) % ButtonId::ALL.len();
+            app.notice = None;
+        }
+
+        // Up/Down: scroll output panel if content exists, otherwise scroll diff
         KeyCode::Up | KeyCode::Char('k') => {
-            app.commit.scroll = app.commit.scroll.saturating_sub(1);
+            if app.output.is_some() {
+                app.output_scroll = app.output_scroll.saturating_sub(1);
+            } else {
+                app.diff_scroll = app.diff_scroll.saturating_sub(1);
+            }
         }
-        _ => {}
-    }
-}
-
-fn handle_branch_key(app: &mut App, key: KeyEvent, tx: &Sender<WorkerMessage>) {
-    match key.code {
-        KeyCode::Esc | KeyCode::Char('b') => app.screen = Screen::Home,
-        KeyCode::Char('g') => spawn_generate_branch(app, tx),
-        KeyCode::Char('c') | KeyCode::Enter => spawn_create_branch(app, tx),
-        _ => {}
-    }
-}
-
-fn handle_pr_key(app: &mut App, key: KeyEvent, tx: &Sender<WorkerMessage>) {
-    match key.code {
-        KeyCode::Esc | KeyCode::Char('b') => app.screen = Screen::Home,
-        KeyCode::Char('g') => spawn_generate_pr(app, tx),
         KeyCode::Down | KeyCode::Char('j') => {
-            app.pr.scroll = app.pr.scroll.saturating_add(1);
+            if app.output.is_some() {
+                app.output_scroll = app.output_scroll.saturating_add(1);
+            } else {
+                app.diff_scroll = app.diff_scroll.saturating_add(1);
+            }
         }
-        KeyCode::Up | KeyCode::Char('k') => {
-            app.pr.scroll = app.pr.scroll.saturating_sub(1);
+
+        // Enter activates focused button
+        KeyCode::Enter => {
+            let btn = app.focused_button_id();
+            activate_button(app, btn, tx);
         }
+
+        // Esc clears output panel / notice
+        KeyCode::Esc => {
+            if app.output.is_some() {
+                app.output = None;
+                app.output_scroll = 0;
+                app.sensitive_blocked = false;
+            } else {
+                app.notice = None;
+            }
+        }
+
         _ => {}
     }
 }
 
-fn handle_changelog_key(app: &mut App, key: KeyEvent, tx: &Sender<WorkerMessage>) {
-    match key.code {
-        KeyCode::Esc | KeyCode::Char('b') => app.screen = Screen::Home,
-        KeyCode::Char('g') => spawn_generate_changelog(app, tx),
-        KeyCode::Down | KeyCode::Char('j') => {
-            app.changelog.scroll = app.changelog.scroll.saturating_add(1);
+/// Handle keys specific to output panel interactive elements.
+/// Returns true if the key was consumed.
+fn handle_output_panel_key(app: &mut App, key: KeyEvent, tx: &Sender<WorkerMessage>) -> bool {
+    match &app.output {
+        Some(OutputContent::SensitiveWarning { .. }) => {
+            if key.code == KeyCode::Char('a') || key.code == KeyCode::Enter {
+                app.sensitive_blocked = false;
+                app.output = None;
+                app.output_scroll = 0;
+                spawn_generate_commit(app, tx, true);
+                return true;
+            }
         }
-        KeyCode::Up | KeyCode::Char('k') => {
-            app.changelog.scroll = app.changelog.scroll.saturating_sub(1);
+        Some(OutputContent::BranchPreview { .. }) => {
+            if key.code == KeyCode::Char('c') || key.code == KeyCode::Enter {
+                spawn_create_branch(app, tx);
+                return true;
+            }
+            if key.code == KeyCode::Char('r') {
+                spawn_generate_branch(app, tx);
+                return true;
+            }
+        }
+        Some(OutputContent::PrPreview { .. }) => {
+            if key.code == KeyCode::Char('s') || key.code == KeyCode::Enter {
+                spawn_submit_pr(app, tx);
+                return true;
+            }
+            if key.code == KeyCode::Char('r') {
+                spawn_generate_pr(app, tx);
+                return true;
+            }
+        }
+        Some(OutputContent::HookConfirm { operation }) => {
+            let op = *operation;
+            if key.code == KeyCode::Char('y') || key.code == KeyCode::Enter {
+                spawn_run_hook(app, tx, op);
+                return true;
+            }
+            if key.code == KeyCode::Char('n') || key.code == KeyCode::Esc {
+                app.output = None;
+                app.output_scroll = 0;
+                return true;
+            }
         }
         _ => {}
     }
+    false
 }
 
-fn handle_hook_key(app: &mut App, key: KeyEvent, tx: &Sender<WorkerMessage>) {
-    match key.code {
-        KeyCode::Esc | KeyCode::Char('b') => app.screen = Screen::Home,
-        KeyCode::Down | KeyCode::Char('j') => {
-            app.hook_index = (app.hook_index + 1) % 2;
+fn activate_button(app: &mut App, btn: ButtonId, tx: &Sender<WorkerMessage>) {
+    if !btn.is_available(app) {
+        app.set_error(btn.description(app));
+        return;
+    }
+
+    match btn {
+        ButtonId::Generate => spawn_generate_commit(app, tx, false),
+        ButtonId::Shorten => spawn_shorten_commit(app, tx),
+        ButtonId::Commit => spawn_apply_commit(app, tx),
+        ButtonId::Branch => spawn_generate_branch(app, tx),
+        ButtonId::Pr => spawn_generate_pr(app, tx),
+        ButtonId::InstallHook => {
+            app.output = Some(OutputContent::HookConfirm {
+                operation: HookOperation::Install,
+            });
+            app.output_scroll = 0;
         }
-        KeyCode::Up | KeyCode::Char('k') => {
-            app.hook_index = if app.hook_index == 0 { 1 } else { 0 };
+        ButtonId::UninstallHook => {
+            app.output = Some(OutputContent::HookConfirm {
+                operation: HookOperation::Uninstall,
+            });
+            app.output_scroll = 0;
         }
-        KeyCode::Enter | KeyCode::Char('r') => spawn_run_hook(app, tx),
-        _ => {}
+        ButtonId::Quit => app.should_quit = true,
     }
 }
 
-fn spawn_generate_commit(app: &mut App, tx: &Sender<WorkerMessage>) {
+// ── Worker thread spawners ──
+
+fn spawn_generate_commit(app: &mut App, tx: &Sender<WorkerMessage>, allow_sensitive: bool) {
     app.pending = Some(PendingJob::GeneratingCommit);
     let config = app.config.clone();
     let tx = tx.clone();
@@ -418,7 +563,7 @@ fn spawn_generate_commit(app: &mut App, tx: &Sender<WorkerMessage>) {
             refine: None,
             feedback: None,
             stdin_diff: None,
-            allow_sensitive: false,
+            allow_sensitive,
         };
         let _ = tx.send(WorkerMessage::CommitGenerated(
             actions::generate_commit_preview(&config, &request),
@@ -427,7 +572,7 @@ fn spawn_generate_commit(app: &mut App, tx: &Sender<WorkerMessage>) {
 }
 
 fn spawn_shorten_commit(app: &mut App, tx: &Sender<WorkerMessage>) {
-    let Some(preview) = app.commit.preview.as_ref() else {
+    let Some(OutputContent::CommitMessage { preview }) = &app.output else {
         app.set_error("Generate a commit message first.");
         return;
     };
@@ -450,7 +595,7 @@ fn spawn_shorten_commit(app: &mut App, tx: &Sender<WorkerMessage>) {
 }
 
 fn spawn_apply_commit(app: &mut App, tx: &Sender<WorkerMessage>) {
-    let Some(preview) = app.commit.preview.as_ref() else {
+    let Some(OutputContent::CommitMessage { preview }) = &app.output else {
         app.set_error("Generate a commit message first.");
         return;
     };
@@ -477,8 +622,7 @@ fn spawn_generate_branch(app: &mut App, tx: &Sender<WorkerMessage>) {
 }
 
 fn spawn_create_branch(app: &mut App, tx: &Sender<WorkerMessage>) {
-    let Some(preview) = app.branch.preview.as_ref() else {
-        app.set_error("Generate a branch name first.");
+    let Some(OutputContent::BranchPreview { preview }) = &app.output else {
         return;
     };
 
@@ -501,29 +645,82 @@ fn spawn_generate_pr(app: &mut App, tx: &Sender<WorkerMessage>) {
     });
 }
 
-fn spawn_generate_changelog(app: &mut App, tx: &Sender<WorkerMessage>) {
-    app.pending = Some(PendingJob::GeneratingChangelog);
-    let config = app.config.clone();
+fn spawn_submit_pr(app: &mut App, tx: &Sender<WorkerMessage>) {
+    let Some(OutputContent::PrPreview { preview }) = &app.output else {
+        return;
+    };
+
+    app.pending = Some(PendingJob::SubmittingPr);
+    let title = preview.title.clone();
+    let body = preview.body.clone();
     let tx = tx.clone();
     std::thread::spawn(move || {
-        let _ = tx.send(WorkerMessage::ChangelogGenerated(
-            actions::generate_changelog_preview(&config),
-        ));
+        let result = std::process::Command::new("gh")
+            .args(["pr", "create", "--title", &title, "--body", &body])
+            .output();
+
+        let msg = match result {
+            Ok(output) if output.status.success() => {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+                Ok(stdout)
+            }
+            Ok(output) => {
+                let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+                Err(format!("gh pr create failed: {stderr}"))
+            }
+            Err(_) => {
+                // gh not available — try clipboard
+                if copy_to_clipboard(&format!("{title}\n\n{body}")) {
+                    Err("gh not found. PR content copied to clipboard.".to_owned())
+                } else {
+                    Err(
+                        "gh not found and clipboard copy failed. Select text to copy manually."
+                            .to_owned(),
+                    )
+                }
+            }
+        };
+        let _ = tx.send(WorkerMessage::PrSubmitted(msg));
     });
 }
 
-fn spawn_run_hook(app: &mut App, tx: &Sender<WorkerMessage>) {
+fn copy_to_clipboard(text: &str) -> bool {
+    for cmd in &[
+        "xclip -selection clipboard",
+        "xsel --clipboard --input",
+        "wl-copy",
+        "pbcopy",
+    ] {
+        let parts: Vec<&str> = cmd.split_whitespace().collect();
+        if let Ok(mut child) = std::process::Command::new(parts[0])
+            .args(&parts[1..])
+            .stdin(std::process::Stdio::piped())
+            .spawn()
+        {
+            if let Some(stdin) = child.stdin.as_mut() {
+                if stdin.write_all(text.as_bytes()).is_ok() {
+                    drop(child.stdin.take());
+                    if child.wait().is_ok_and(|s| s.success()) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
+fn spawn_run_hook(app: &mut App, tx: &Sender<WorkerMessage>, operation: HookOperation) {
     app.pending = Some(PendingJob::RunningHook);
-    let action = if app.hook_index == 0 {
-        HookOperation::Install
-    } else {
-        HookOperation::Uninstall
-    };
+    app.output = None;
+    app.output_scroll = 0;
     let tx = tx.clone();
     std::thread::spawn(move || {
-        let _ = tx.send(WorkerMessage::HookRan(actions::run_hook(action)));
+        let _ = tx.send(WorkerMessage::HookRan(actions::run_hook(operation)));
     });
 }
+
+// ── Worker message handling ──
 
 fn apply_worker_message(app: &mut App, message: WorkerMessage) {
     match message {
@@ -531,9 +728,15 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
             app.pending = None;
             match result {
                 Ok(preview) => {
-                    app.commit.preview = Some(preview);
-                    app.commit.scroll = 0;
                     app.set_info("Generated commit message.");
+                    app.output = Some(OutputContent::CommitMessage { preview });
+                    app.output_scroll = 0;
+                    app.focused_button = 2; // focus Commit button
+                }
+                Err(ActionError::SensitiveContent(report)) => {
+                    app.sensitive_blocked = true;
+                    app.output = Some(OutputContent::SensitiveWarning { report });
+                    app.output_scroll = 0;
                 }
                 Err(err) => app.set_error(err.to_string()),
             }
@@ -542,9 +745,10 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
             app.pending = None;
             match result {
                 Ok(preview) => {
-                    app.commit.preview = Some(preview);
-                    app.commit.scroll = 0;
                     app.set_info("Shortened commit message.");
+                    app.output = Some(OutputContent::CommitMessage { preview });
+                    app.output_scroll = 0;
+                    app.focused_button = 2;
                 }
                 Err(err) => app.set_error(err.to_string()),
             }
@@ -563,7 +767,16 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
                     } else {
                         app.set_info(format!("Committed: {summary}"));
                     }
+                    app.output = None;
+                    app.output_scroll = 0;
                     app.refresh_repo();
+                    // Refresh diff
+                    app.diff_text = opencodecommit::git::get_diff(
+                        app.config.diff_source,
+                        &app.repo.repo_root,
+                    )
+                    .unwrap_or_default();
+                    app.diff_scroll = 0;
                 }
                 Err(err) => app.set_error(err.to_string()),
             }
@@ -572,8 +785,9 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
             app.pending = None;
             match result {
                 Ok(preview) => {
-                    app.branch.preview = Some(preview);
                     app.set_info("Generated branch name.");
+                    app.output = Some(OutputContent::BranchPreview { preview });
+                    app.output_scroll = 0;
                 }
                 Err(err) => app.set_error(err.to_string()),
             }
@@ -583,6 +797,8 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
             match result {
                 Ok(result) => {
                     app.set_info(format!("Switched to new branch '{}'.", result.name));
+                    app.output = None;
+                    app.output_scroll = 0;
                     app.refresh_repo();
                 }
                 Err(err) => app.set_error(err.to_string()),
@@ -592,20 +808,9 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
             app.pending = None;
             match result {
                 Ok(preview) => {
-                    app.pr.preview = Some(preview);
-                    app.pr.scroll = 0;
                     app.set_info("Generated PR preview.");
-                }
-                Err(err) => app.set_error(err.to_string()),
-            }
-        }
-        WorkerMessage::ChangelogGenerated(result) => {
-            app.pending = None;
-            match result {
-                Ok(preview) => {
-                    app.changelog.preview = Some(preview);
-                    app.changelog.scroll = 0;
-                    app.set_info("Generated changelog entry.");
+                    app.output = Some(OutputContent::PrPreview { preview });
+                    app.output_scroll = 0;
                 }
                 Err(err) => app.set_error(err.to_string()),
             }
@@ -615,325 +820,402 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
             match result {
                 Ok(message) => {
                     app.set_info(message);
-                    app.refresh_repo();
+                    app.hook_installed = detect_hook_installed(&app.repo);
                 }
                 Err(err) => app.set_error(err.to_string()),
+            }
+        }
+        WorkerMessage::PrSubmitted(result) => {
+            app.pending = None;
+            match result {
+                Ok(url) => app.set_info(format!("PR created: {url}")),
+                Err(msg) => app.set_error(msg),
             }
         }
     }
 }
 
+// ── Rendering ──
+
+fn style_diff_line(line: &str) -> Line<'_> {
+    if line.starts_with('+') && !line.starts_with("+++") {
+        Line::styled(line, Style::default().fg(Color::Green))
+    } else if line.starts_with('-') && !line.starts_with("---") {
+        Line::styled(line, Style::default().fg(Color::Red))
+    } else if line.starts_with("@@") {
+        Line::styled(line, Style::default().fg(Color::Cyan))
+    } else if line.starts_with("diff ") || line.starts_with("index ") {
+        Line::styled(line, Style::default().fg(Color::Yellow))
+    } else if line.starts_with("--- ") || line.starts_with("+++ ") {
+        Line::styled(line, Style::default().fg(Color::Yellow))
+    } else {
+        Line::styled(line, Style::default().fg(Color::DarkGray))
+    }
+}
+
 fn render(frame: &mut Frame, app: &App) {
     let area = frame.area();
-    let layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3),
-            Constraint::Min(10),
-            Constraint::Length(3),
-        ])
-        .split(area);
+    let output_height = output_panel_height(app);
 
-    render_header(frame, layout[0], app);
-    match app.screen {
-        Screen::Home => render_home(frame, layout[1], app),
-        Screen::Commit => render_commit(frame, layout[1], app),
-        Screen::Branch => render_branch(frame, layout[1], app),
-        Screen::Pr => render_pr(frame, layout[1], app),
-        Screen::Changelog => render_changelog(frame, layout[1], app),
-        Screen::Hook => render_hook(frame, layout[1], app),
+    let chunks = Layout::vertical([
+        Constraint::Length(1),             // header
+        Constraint::Min(5),               // diff viewer
+        Constraint::Length(output_height), // output panel (0 when empty)
+        Constraint::Length(1),             // button bar
+        Constraint::Length(1),             // description line
+    ])
+    .split(area);
+
+    render_header(frame, chunks[0], app);
+    render_diff(frame, chunks[1], app);
+    if output_height > 0 {
+        render_output_panel(frame, chunks[2], app);
     }
-    render_footer(frame, layout[2], app);
+    render_button_bar(frame, chunks[3], app);
+    render_description(frame, chunks[4], app);
 
     if let Some(pending) = app.pending {
         render_pending_overlay(frame, area, pending, app.spinner_tick);
     }
 }
 
+fn output_panel_height(app: &App) -> u16 {
+    match &app.output {
+        None => 0,
+        Some(OutputContent::CommitMessage { preview }) => {
+            let lines = preview.message.lines().count() as u16;
+            (lines + 4).min(12) // border + label + message + metadata
+        }
+        Some(OutputContent::SensitiveWarning { report }) => {
+            let lines = report.findings.len() as u16;
+            (lines + 5).min(15) // border + header + findings + button
+        }
+        Some(OutputContent::BranchPreview { .. }) => 7,
+        Some(OutputContent::PrPreview { preview }) => {
+            let lines =
+                preview.title.lines().count() as u16 + preview.body.lines().count() as u16;
+            (lines + 6).min(20) // border + label + title + body + button
+        }
+        Some(OutputContent::HookConfirm { .. }) => 5,
+    }
+}
+
 fn render_header(frame: &mut Frame, area: Rect, app: &App) {
-    let title = Line::from(vec![
+    let spans = vec![
         Span::styled(
             "OpenCodeCommit",
-            Style::default().add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
         ),
         Span::raw("  "),
-        Span::raw(format!("repo: {}", app.repo.repo_name)),
-        Span::raw("  "),
-        Span::raw(format!("branch: {}", app.repo.branch)),
-    ]);
-
-    let header =
-        Paragraph::new(title).block(Block::default().borders(Borders::ALL).title("occ tui"));
-    frame.render_widget(header, area);
+        Span::styled(
+            app.repo.repo_root.display().to_string(),
+            Style::default().fg(Color::DarkGray),
+        ),
+        Span::raw("  branch: "),
+        Span::styled(&app.repo.branch, Style::default().fg(Color::Green)),
+        Span::raw(format!(
+            "  staged: {}  unstaged: {}",
+            app.repo.staged_files, app.repo.unstaged_files
+        )),
+    ];
+    frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
-fn render_footer(frame: &mut Frame, area: Rect, app: &App) {
-    let help = match app.screen {
-        Screen::Home => "Arrows/jk move  Enter open  q quit",
-        Screen::Commit => "g generate  s shorten  c commit  Esc/b back  q quit",
-        Screen::Branch => "g generate  c create  Esc/b back  q quit",
-        Screen::Pr => "g generate  Arrows/jk scroll  Esc/b back  q quit",
-        Screen::Changelog => "g generate  Arrows/jk scroll  Esc/b back  q quit",
-        Screen::Hook => "Arrows/jk move  Enter run  Esc/b back  q quit",
-    };
-    let notice = app.notice.as_ref().map(|notice| {
-        let style = match notice.kind {
-            NoticeKind::Info => Style::default().fg(Color::Green),
-            NoticeKind::Error => Style::default().fg(Color::Red),
-        };
-        Span::styled(notice.message.clone(), style)
-    });
-
-    let mut line = vec![Span::raw(help)];
-    if let Some(notice) = notice {
-        line.push(Span::raw("  "));
-        line.push(notice);
+fn render_diff(frame: &mut Frame, area: Rect, app: &App) {
+    if app.diff_text.is_empty() {
+        let msg = Paragraph::new("No changes detected.")
+            .style(Style::default().fg(Color::DarkGray))
+            .block(Block::default().borders(Borders::ALL).title("Diff"));
+        frame.render_widget(msg, area);
+        return;
     }
 
-    let footer = Paragraph::new(Line::from(line)).block(Block::default().borders(Borders::ALL));
-    frame.render_widget(footer, area);
+    let lines: Vec<Line> = app.diff_text.lines().map(style_diff_line).collect();
+    let diff = Paragraph::new(lines)
+        .block(Block::default().borders(Borders::ALL).title("Diff"))
+        .scroll((app.diff_scroll, 0));
+    frame.render_widget(diff, area);
 }
 
-fn render_home(frame: &mut Frame, area: Rect, app: &App) {
-    let columns = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(35), Constraint::Percentage(65)])
-        .split(area);
-
-    let items: Vec<ListItem> = HomeItem::ALL
-        .iter()
-        .map(|item| ListItem::new(item.title()))
-        .collect();
-    let mut list_state = ListState::default();
-    list_state.select(Some(app.home_index));
-    let list = List::new(items)
-        .block(Block::default().title("Launcher").borders(Borders::ALL))
-        .highlight_style(Style::default().fg(Color::Black).bg(Color::Yellow))
-        .highlight_symbol(">> ");
-    frame.render_stateful_widget(list, columns[0], &mut list_state);
-
-    let backend_line = match (&app.repo.backend_path, &app.repo.backend_error) {
-        (Some(path), _) => format!("{}: ready ({})", app.repo.backend_label, path.display()),
-        (None, Some(err)) => format!("{}: {}", app.repo.backend_label, err),
-        (None, None) => format!("{}: unavailable", app.repo.backend_label),
-    };
-
-    let details = vec![
-        Line::from(Span::styled(
-            app.selected_home_item().title(),
-            Style::default().add_modifier(Modifier::BOLD),
-        )),
-        Line::from(app.selected_home_item().summary()),
-        Line::default(),
-        Line::from(format!("Repo root: {}", app.repo.repo_root.display())),
-        Line::from(format!("Active language: {}", app.repo.active_language)),
-        Line::from(backend_line),
-        Line::default(),
-        Line::from(format!("Staged files: {}", app.repo.staged_files)),
-        Line::from(format!("Unstaged files: {}", app.repo.unstaged_files)),
-        Line::default(),
-        Line::from("Minimal mode: no staging UI, no editor, no git dashboard."),
-    ];
-    let details = Paragraph::new(details)
-        .block(Block::default().title("Repository").borders(Borders::ALL))
-        .wrap(Wrap { trim: false });
-    frame.render_widget(details, columns[1]);
-}
-
-fn render_commit(frame: &mut Frame, area: Rect, app: &App) {
-    let sections = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3),
-            Constraint::Min(10),
-            Constraint::Length(8),
-        ])
-        .split(area);
-
-    let summary = match app.commit.preview.as_ref() {
-        Some(preview) => format!(
-            "Branch: {} | Diff: {} | Files: {} | Backend: {}",
-            preview.branch, preview.diff_origin, preview.files_analyzed, preview.provider
-        ),
-        None => format!(
-            "Branch: {} | Diff source: {} | Backend: {}",
-            app.repo.branch,
-            diff_source_label(app.config.diff_source),
-            app.repo.backend_label
-        ),
-    };
-    let summary =
-        Paragraph::new(summary).block(Block::default().title("Summary").borders(Borders::ALL));
-    frame.render_widget(summary, sections[0]);
-
-    let message = if let Some(preview) = app.commit.preview.as_ref() {
-        preview.message.clone()
-    } else {
-        "Press g to generate a commit message.\nPress s after that to run the built-in shorten refine step.".to_owned()
-    };
-    let message = Paragraph::new(Text::from(message))
-        .block(Block::default().title("Message").borders(Borders::ALL))
-        .wrap(Wrap { trim: false })
-        .scroll((app.commit.scroll, 0));
-    frame.render_widget(message, sections[1]);
-
-    let files = if let Some(preview) = app.commit.preview.as_ref() {
-        let mut lines: Vec<Line> = preview
-            .changed_files
-            .iter()
-            .take(6)
-            .map(|file| Line::from(format!("- {file}")))
-            .collect();
-        if preview.changed_files.len() > 6 {
-            lines.push(Line::from(format!(
-                "... and {} more",
-                preview.changed_files.len() - 6
-            )));
+fn render_output_panel(frame: &mut Frame, area: Rect, app: &App) {
+    match &app.output {
+        None => {}
+        Some(OutputContent::CommitMessage { preview }) => {
+            render_commit_output(frame, area, preview, app.output_scroll);
         }
-        lines
-    } else {
-        vec![
-            Line::from("No preview yet."),
-            Line::from("The TUI mirrors current CLI behavior when you commit."),
-            Line::from("If nothing is staged, occ stages all changes right before commit."),
-        ]
-    };
-    let files = Paragraph::new(files)
+        Some(OutputContent::SensitiveWarning { report }) => {
+            render_sensitive_output(frame, area, report);
+        }
+        Some(OutputContent::BranchPreview { preview }) => {
+            render_branch_output(frame, area, preview);
+        }
+        Some(OutputContent::PrPreview { preview }) => {
+            render_pr_output(frame, area, preview, app.output_scroll);
+        }
+        Some(OutputContent::HookConfirm { operation }) => {
+            render_hook_confirm(frame, area, *operation);
+        }
+    }
+}
+
+fn render_commit_output(frame: &mut Frame, area: Rect, preview: &CommitPreview, scroll: u16) {
+    let mut lines = vec![
+        Line::styled(
+            "COMMIT MESSAGE PREVIEW",
+            Style::default()
+                .fg(Color::DarkGray)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Line::raw(""),
+    ];
+    for line in preview.message.lines() {
+        lines.push(Line::raw(line.to_owned()));
+    }
+    lines.push(Line::raw(""));
+    lines.push(Line::styled(
+        format!(
+            "provider: {}  files: {}  {:.1}s",
+            preview.provider,
+            preview.files_analyzed,
+            preview.duration_ms as f64 / 1000.0
+        ),
+        Style::default().fg(Color::DarkGray),
+    ));
+
+    let widget = Paragraph::new(lines)
         .block(
             Block::default()
-                .title("Changed Files")
-                .borders(Borders::ALL),
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Green)),
         )
-        .wrap(Wrap { trim: false });
-    frame.render_widget(files, sections[2]);
+        .scroll((scroll, 0));
+    frame.render_widget(widget, area);
 }
 
-fn diff_source_label(source: opencodecommit::config::DiffSource) -> &'static str {
-    match source {
-        opencodecommit::config::DiffSource::Staged => "staged",
-        opencodecommit::config::DiffSource::All => "all",
-        opencodecommit::config::DiffSource::Auto => "auto",
+fn render_sensitive_output(frame: &mut Frame, area: Rect, report: &SensitiveReport) {
+    let mut lines = vec![Line::styled(
+        "SENSITIVE CONTENT DETECTED",
+        Style::default()
+            .fg(Color::Red)
+            .add_modifier(Modifier::BOLD),
+    )];
+
+    for finding in &report.findings {
+        let location = match finding.line_number {
+            Some(line) => format!("{}:{}", finding.file_path, line),
+            None => finding.file_path.clone(),
+        };
+        lines.push(Line::from(vec![
+            Span::styled(location, Style::default().fg(Color::Yellow)),
+            Span::raw(" · "),
+            Span::styled(&finding.preview, Style::default().fg(Color::DarkGray)),
+        ]));
     }
-}
 
-fn render_branch(frame: &mut Frame, area: Rect, app: &App) {
-    let text = if let Some(preview) = app.branch.preview.as_ref() {
-        format!(
-            "{}\n\nPress c to create and checkout this branch.",
-            preview.name
-        )
-    } else {
-        "Press g to generate a branch name from the current diff.".to_owned()
-    };
-    let widget = Paragraph::new(Text::from(text))
-        .block(Block::default().title("Branch").borders(Borders::ALL))
-        .wrap(Wrap { trim: false });
+    lines.push(Line::raw(""));
+    lines.push(Line::from(vec![
+        Span::styled(
+            "[Allow & Continue]",
+            Style::default().fg(Color::Black).bg(Color::Red),
+        ),
+        Span::raw("  Generation blocked until resolved or allowed"),
+    ]));
+
+    let widget = Paragraph::new(lines).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Red)),
+    );
     frame.render_widget(widget, area);
 }
 
-fn render_pr(frame: &mut Frame, area: Rect, app: &App) {
-    let sections = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Length(5), Constraint::Min(10)])
-        .split(area);
-
-    let title = app
-        .pr
-        .preview
-        .as_ref()
-        .map(|preview| preview.title.clone())
-        .unwrap_or_else(|| "Press g to generate a PR title and body.".to_owned());
-    let title = Paragraph::new(title)
-        .block(Block::default().title("Title").borders(Borders::ALL))
-        .wrap(Wrap { trim: false });
-    frame.render_widget(title, sections[0]);
-
-    let body = app
-        .pr
-        .preview
-        .as_ref()
-        .map(|preview| preview.body.clone())
-        .unwrap_or_else(|| "Generated PR body will appear here.".to_owned());
-    let body = Paragraph::new(Text::from(body))
-        .block(Block::default().title("Body").borders(Borders::ALL))
-        .wrap(Wrap { trim: false })
-        .scroll((app.pr.scroll, 0));
-    frame.render_widget(body, sections[1]);
-}
-
-fn render_changelog(frame: &mut Frame, area: Rect, app: &App) {
-    let text = app
-        .changelog
-        .preview
-        .as_ref()
-        .map(|preview| preview.entry.clone())
-        .unwrap_or_else(|| "Press g to generate a changelog entry.".to_owned());
-    let widget = Paragraph::new(Text::from(text))
-        .block(Block::default().title("Changelog").borders(Borders::ALL))
-        .wrap(Wrap { trim: false })
-        .scroll((app.changelog.scroll, 0));
-    frame.render_widget(widget, area);
-}
-
-fn render_hook(frame: &mut Frame, area: Rect, app: &App) {
-    let sections = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Length(8), Constraint::Min(6)])
-        .split(area);
-
-    let items = vec![
-        ListItem::new("Install hook"),
-        ListItem::new("Uninstall hook"),
+fn render_branch_output(frame: &mut Frame, area: Rect, preview: &BranchPreview) {
+    let lines = vec![
+        Line::styled(
+            "BRANCH NAME PREVIEW",
+            Style::default()
+                .fg(Color::DarkGray)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Line::raw(""),
+        Line::styled(
+            &preview.name,
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Line::raw(""),
+        Line::from(vec![
+            Span::styled(
+                "[Create Branch]",
+                Style::default().fg(Color::Black).bg(Color::Cyan),
+            ),
+            Span::raw("  "),
+            Span::styled("[Regenerate]", Style::default().fg(Color::White)),
+        ]),
     ];
-    let mut state = ListState::default();
-    state.select(Some(app.hook_index));
-    let list = List::new(items)
-        .block(Block::default().title("Hook Action").borders(Borders::ALL))
-        .highlight_style(Style::default().fg(Color::Black).bg(Color::Yellow))
-        .highlight_symbol(">> ");
-    frame.render_stateful_widget(list, sections[0], &mut state);
 
-    let text = if app.hook_index == 0 {
-        "Install the prepare-commit-msg hook generated by OpenCodeCommit."
-    } else {
-        "Remove the prepare-commit-msg hook if it was installed by OpenCodeCommit."
+    let widget = Paragraph::new(lines).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Cyan)),
+    );
+    frame.render_widget(widget, area);
+}
+
+fn render_pr_output(frame: &mut Frame, area: Rect, preview: &PrPreview, scroll: u16) {
+    let mut lines = vec![Line::styled(
+        "PR PREVIEW — select text to copy, or press Submit PR",
+        Style::default()
+            .fg(Color::DarkGray)
+            .add_modifier(Modifier::BOLD),
+    )];
+
+    lines.push(Line::styled(
+        format!("## {}", preview.title),
+        Style::default()
+            .fg(Color::Magenta)
+            .add_modifier(Modifier::BOLD),
+    ));
+    lines.push(Line::raw(""));
+
+    for line in preview.body.lines() {
+        lines.push(Line::raw(line.to_owned()));
+    }
+
+    lines.push(Line::raw(""));
+    lines.push(Line::from(vec![
+        Span::styled(
+            "[Submit PR]",
+            Style::default().fg(Color::Black).bg(Color::Magenta),
+        ),
+        Span::raw("  "),
+        Span::styled("[Regenerate]", Style::default().fg(Color::White)),
+    ]));
+
+    let widget = Paragraph::new(lines)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Magenta)),
+        )
+        .wrap(Wrap { trim: false })
+        .scroll((scroll, 0));
+    frame.render_widget(widget, area);
+}
+
+fn render_hook_confirm(frame: &mut Frame, area: Rect, operation: HookOperation) {
+    let (action, color) = match operation {
+        HookOperation::Install => ("Install", Color::Cyan),
+        HookOperation::Uninstall => ("Uninstall", Color::Yellow),
     };
-    let description = Paragraph::new(text)
-        .block(Block::default().title("Details").borders(Borders::ALL))
-        .wrap(Wrap { trim: false });
-    frame.render_widget(description, sections[1]);
+
+    let lines = vec![
+        Line::styled(
+            format!("{action} the prepare-commit-msg hook?"),
+            Style::default().add_modifier(Modifier::BOLD),
+        ),
+        Line::raw(""),
+        Line::from(vec![
+            Span::styled(
+                "[Yes]",
+                Style::default().fg(Color::Black).bg(color),
+            ),
+            Span::raw("  "),
+            Span::styled("[No]", Style::default().fg(Color::White)),
+        ]),
+    ];
+
+    let widget = Paragraph::new(lines).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(color)),
+    );
+    frame.render_widget(widget, area);
+}
+
+fn render_button_bar(frame: &mut Frame, area: Rect, app: &App) {
+    let mut spans: Vec<Span> = Vec::new();
+
+    for (i, &btn) in ButtonId::ALL.iter().enumerate() {
+        if i > 0 {
+            spans.push(Span::raw(" "));
+        }
+
+        let focused = i == app.focused_button;
+        let available = btn.is_available(app);
+        let show_label = btn.is_expanded(app) || focused;
+
+        let text = if show_label {
+            format!("[{} {}]", btn.number(), btn.label())
+        } else {
+            format!("[{}]", btn.number())
+        };
+
+        let style = if focused && available {
+            Style::default().fg(Color::Black).bg(Color::Cyan)
+        } else if focused && !available {
+            Style::default().fg(Color::Black).bg(Color::DarkGray)
+        } else if !available {
+            Style::default().fg(Color::DarkGray)
+        } else {
+            Style::default().fg(Color::White)
+        };
+
+        spans.push(Span::styled(text, style));
+    }
+
+    frame.render_widget(Paragraph::new(Line::from(spans)), area);
+}
+
+fn render_description(frame: &mut Frame, area: Rect, app: &App) {
+    if let Some(notice) = &app.notice {
+        let color = match notice.kind {
+            NoticeKind::Info => Color::Green,
+            NoticeKind::Error => Color::Red,
+        };
+        frame.render_widget(
+            Paragraph::new(Span::styled(&notice.message, Style::default().fg(color))),
+            area,
+        );
+    } else {
+        let desc = app.focused_button_id().description(app);
+        frame.render_widget(
+            Paragraph::new(Span::styled(desc, Style::default().fg(Color::Cyan))),
+            area,
+        );
+    }
 }
 
 fn render_pending_overlay(frame: &mut Frame, area: Rect, pending: PendingJob, tick: usize) {
-    let overlay = centered_rect(48, 18, area);
+    let overlay = centered_rect(48, 5, area);
     let spinner = ["-", "\\", "|", "/"][tick % 4];
     let message = format!("{spinner} {}", pending.label());
 
     frame.render_widget(Clear, overlay);
     let widget = Paragraph::new(message)
-        .block(Block::default().title("Working").borders(Borders::ALL))
-        .wrap(Wrap { trim: false });
+        .block(Block::default().title("Working").borders(Borders::ALL));
     frame.render_widget(widget, overlay);
 }
 
-fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
-    let vertical = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage((100 - percent_y) / 2),
-            Constraint::Percentage(percent_y),
-            Constraint::Percentage((100 - percent_y) / 2),
-        ])
-        .split(area);
-    Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage((100 - percent_x) / 2),
-            Constraint::Percentage(percent_x),
-            Constraint::Percentage((100 - percent_x) / 2),
-        ])
-        .split(vertical[1])[1]
+fn centered_rect(percent_x: u16, height: u16, area: Rect) -> Rect {
+    let vertical = Layout::vertical([
+        Constraint::Fill(1),
+        Constraint::Length(height),
+        Constraint::Fill(1),
+    ])
+    .split(area);
+    Layout::horizontal([
+        Constraint::Percentage((100 - percent_x) / 2),
+        Constraint::Percentage(percent_x),
+        Constraint::Percentage((100 - percent_x) / 2),
+    ])
+    .split(vertical[1])[1]
 }
+
+// ── Tests ──
 
 #[cfg(test)]
 mod tests {
@@ -941,7 +1223,7 @@ mod tests {
     use opencodecommit::config::CliBackend;
     use ratatui::backend::TestBackend;
 
-    fn repo_summary() -> RepoSummary {
+    fn test_repo() -> RepoSummary {
         RepoSummary {
             repo_name: "demo".to_owned(),
             repo_root: "/tmp/demo".into(),
@@ -955,13 +1237,26 @@ mod tests {
         }
     }
 
-    fn app() -> App {
-        let mut config = Config::default();
-        config.backend = CliBackend::Codex;
-        App::new(config, repo_summary())
+    fn test_diff() -> String {
+        "diff --git a/src/main.rs b/src/main.rs\n\
+         --- a/src/main.rs\n\
+         +++ b/src/main.rs\n\
+         @@ -1,3 +1,4 @@\n\
+          fn main() {\n\
+         -    println!(\"old\");\n\
+         +    println!(\"new\");\n\
+         +    extra();\n\
+          }\n"
+            .to_owned()
     }
 
-    fn render_lines(app: &App, width: u16, height: u16) -> Vec<String> {
+    fn test_app() -> App {
+        let mut config = Config::default();
+        config.backend = CliBackend::Codex;
+        App::new(config, test_repo(), test_diff(), false)
+    }
+
+    fn render_text(app: &App, width: u16, height: u16) -> String {
         let backend = TestBackend::new(width, height);
         let mut terminal = Terminal::new(backend).unwrap();
         terminal.draw(|frame| render(frame, app)).unwrap();
@@ -974,69 +1269,180 @@ mod tests {
             }
             lines.push(line);
         }
-        lines
+        lines.join("\n")
     }
 
     #[test]
-    fn renders_home_screen_details() {
-        let app = app();
-        let text = render_lines(&app, 80, 24).join("\n");
-        assert!(text.contains("Launcher"));
-        assert!(text.contains("Commit"));
-        assert!(text.contains("Codex CLI: ready"));
+    fn initial_state_shows_header_diff_and_buttons() {
+        let app = test_app();
+        let text = render_text(&app, 100, 24);
+        assert!(text.contains("OpenCodeCommit"), "missing header");
+        assert!(text.contains("/tmp/demo"), "missing repo path");
+        assert!(text.contains("main"), "missing branch");
+        assert!(text.contains("1 Generate"), "missing Generate button");
+        assert!(text.contains("[2]"), "missing collapsed Shorten");
+        assert!(text.contains("[3]"), "missing collapsed Commit");
+        assert!(text.contains("4 Branch"), "missing Branch button");
     }
 
     #[test]
-    fn renders_commit_screen_placeholder() {
-        let mut app = app();
-        app.screen = Screen::Commit;
-        let text = render_lines(&app, 80, 24).join("\n");
-        assert!(text.contains("Press g to generate a commit message."));
-        assert!(text.contains("Changed Files"));
+    fn no_output_panel_initially() {
+        let app = test_app();
+        let text = render_text(&app, 100, 24);
+        assert!(
+            !text.contains("COMMIT MESSAGE"),
+            "should not show commit panel"
+        );
+        assert!(
+            !text.contains("SENSITIVE"),
+            "should not show sensitive panel"
+        );
     }
 
     #[test]
-    fn renders_pending_overlay() {
-        let mut app = app();
-        app.pending = Some(PendingJob::GeneratingCommit);
-        let text = render_lines(&app, 80, 24).join("\n");
-        assert!(text.contains("Working"));
-        assert!(text.contains("Generating commit message"));
-    }
-
-    #[test]
-    fn renders_generated_commit_message() {
-        let mut app = app();
-        app.screen = Screen::Commit;
-        app.commit.preview = Some(CommitPreview {
-            message: "feat: add tui launcher".to_owned(),
-            parsed: opencodecommit::response::ParsedCommit {
-                type_name: "feat".to_owned(),
-                message: "add tui launcher".to_owned(),
-                description: None,
+    fn commit_message_shows_output_panel() {
+        let mut app = test_app();
+        app.output = Some(OutputContent::CommitMessage {
+            preview: CommitPreview {
+                message: "feat: add TUI".to_owned(),
+                parsed: opencodecommit::response::ParsedCommit {
+                    type_name: "feat".to_owned(),
+                    message: "add TUI".to_owned(),
+                    description: None,
+                },
+                provider: "codex".to_owned(),
+                files_analyzed: 2,
+                duration_ms: 500,
+                changed_files: vec!["src/main.rs".to_owned()],
+                branch: "main".to_owned(),
+                diff_origin: crate::actions::DiffOrigin::Staged,
             },
-            provider: "codex".to_owned(),
-            files_analyzed: 3,
-            duration_ms: 42,
-            changed_files: vec!["src/main.rs".to_owned(), "src/tui.rs".to_owned()],
-            branch: "feat-ratatui".to_owned(),
-            diff_origin: actions::DiffOrigin::Staged,
         });
-        let text = render_lines(&app, 80, 24).join("\n");
-        assert!(text.contains("feat: add tui launcher"));
-        assert!(text.contains("src/main.rs"));
-        assert!(text.contains("staged"));
+        let text = render_text(&app, 100, 24);
+        assert!(text.contains("COMMIT MESSAGE"), "missing commit panel");
+        assert!(text.contains("feat: add TUI"), "missing commit message");
+        assert!(text.contains("2 Shorten"), "Shorten should be expanded");
+        assert!(text.contains("3 Commit"), "Commit should be expanded");
     }
 
     #[test]
-    fn renders_error_notice() {
-        let mut app = app();
-        app.notice = Some(Notice {
-            kind: NoticeKind::Error,
-            message: "backend missing".to_owned(),
+    fn sensitive_warning_shows_panel() {
+        let mut app = test_app();
+        app.output = Some(OutputContent::SensitiveWarning {
+            report: SensitiveReport::from_findings(vec![
+                opencodecommit::sensitive::SensitiveFinding {
+                    category: "token",
+                    rule: "API_KEY",
+                    file_path: ".env".to_owned(),
+                    line_number: Some(1),
+                    preview: "API_KEY=sk-██████".to_owned(),
+                },
+            ]),
         });
-        let text = render_lines(&app, 80, 24).join("\n");
-        assert!(text.contains("backend"));
-        assert!(text.contains("missing"));
+        app.sensitive_blocked = true;
+        let text = render_text(&app, 100, 24);
+        assert!(text.contains("SENSITIVE"), "missing sensitive header");
+        assert!(text.contains(".env:1"), "missing finding location");
+        assert!(
+            text.contains("Allow & Continue"),
+            "missing allow button"
+        );
+    }
+
+    #[test]
+    fn button_focus_cycles() {
+        let mut app = test_app();
+        let (tx, _rx) = mpsc::channel();
+
+        assert_eq!(app.focused_button, 0);
+        handle_key(&mut app, KeyEvent::from(KeyCode::Tab), &tx);
+        assert_eq!(app.focused_button, 1);
+        handle_key(&mut app, KeyEvent::from(KeyCode::Tab), &tx);
+        assert_eq!(app.focused_button, 2);
+
+        handle_key(&mut app, KeyEvent::from(KeyCode::BackTab), &tx);
+        assert_eq!(app.focused_button, 1);
+    }
+
+    #[test]
+    fn diff_scrolls_when_no_output() {
+        let mut app = test_app();
+        let (tx, _rx) = mpsc::channel();
+
+        assert_eq!(app.diff_scroll, 0);
+        handle_key(&mut app, KeyEvent::from(KeyCode::Down), &tx);
+        assert_eq!(app.diff_scroll, 1);
+        handle_key(&mut app, KeyEvent::from(KeyCode::Up), &tx);
+        assert_eq!(app.diff_scroll, 0);
+    }
+
+    #[test]
+    fn output_scrolls_when_panel_visible() {
+        let mut app = test_app();
+        app.output = Some(OutputContent::CommitMessage {
+            preview: CommitPreview {
+                message: "feat: test".to_owned(),
+                parsed: opencodecommit::response::ParsedCommit {
+                    type_name: "feat".to_owned(),
+                    message: "test".to_owned(),
+                    description: None,
+                },
+                provider: "test".to_owned(),
+                files_analyzed: 1,
+                duration_ms: 100,
+                changed_files: vec![],
+                branch: "main".to_owned(),
+                diff_origin: crate::actions::DiffOrigin::Staged,
+            },
+        });
+        let (tx, _rx) = mpsc::channel();
+
+        assert_eq!(app.output_scroll, 0);
+        handle_key(&mut app, KeyEvent::from(KeyCode::Down), &tx);
+        assert_eq!(app.output_scroll, 1);
+        assert_eq!(app.diff_scroll, 0, "diff should not scroll");
+    }
+
+    #[test]
+    fn esc_clears_output() {
+        let mut app = test_app();
+        app.output = Some(OutputContent::BranchPreview {
+            preview: BranchPreview {
+                name: "feat/test".to_owned(),
+            },
+        });
+        let (tx, _rx) = mpsc::channel();
+
+        handle_key(&mut app, KeyEvent::from(KeyCode::Esc), &tx);
+        assert!(app.output.is_none());
+    }
+
+    #[test]
+    fn pending_overlay_renders() {
+        let mut app = test_app();
+        app.pending = Some(PendingJob::GeneratingCommit);
+        let text = render_text(&app, 100, 24);
+        assert!(text.contains("Working"), "missing overlay title");
+        assert!(
+            text.contains("Generating commit message"),
+            "missing overlay text"
+        );
+    }
+
+    #[test]
+    fn hook_buttons_always_collapsed() {
+        let app = test_app();
+        let text = render_text(&app, 100, 24);
+        assert!(text.contains("[6]"), "Install Hook should be collapsed");
+        assert!(text.contains("[7]"), "Uninstall Hook should be collapsed");
+    }
+
+    #[test]
+    fn empty_diff_shows_no_changes() {
+        let mut config = Config::default();
+        config.backend = CliBackend::Codex;
+        let app = App::new(config, test_repo(), String::new(), false);
+        let text = render_text(&app, 100, 24);
+        assert!(text.contains("No changes detected"));
     }
 }
