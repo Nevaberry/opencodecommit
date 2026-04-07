@@ -562,7 +562,7 @@ index 1234567..0000000
     assert.deepStrictEqual(report, { findings: [] })
   })
 
-  it("records line numbers and redacts long secrets", () => {
+  it("records line numbers and keeps the full line preview", () => {
     const diff = `diff --git a/src/config.ts b/src/config.ts
 index 1234567..89abcde 100644
 --- a/src/config.ts
@@ -574,19 +574,22 @@ index 1234567..89abcde 100644
     assert.strictEqual(report.findings.length, 1)
     assert.strictEqual(report.findings[0].filePath, "src/config.ts")
     assert.strictEqual(report.findings[0].lineNumber, 11)
-    assert.ok(report.findings[0].preview.includes("<redacted>"))
+    assert.strictEqual(
+      report.findings[0].preview,
+      'const API_KEY = "sk-abcdefghijklmnopqrstuvwxyz";',
+    )
   })
 
   it("detects non-example IPv4 literals", () => {
     const diff = `diff --git a/src/app.ts b/src/app.ts
 --- a/src/app.ts
-+++ b/src/app.ts
+    +++ b/src/app.ts
 @@ -1 +1,2 @@
 +const host = "10.24.8.12";`
     const report = detectSensitiveReport(diff, ["src/app.ts"])
     assert.strictEqual(report.findings.length, 1)
     assert.strictEqual(report.findings[0].rule, "ipv4-address")
-    assert.ok(report.findings[0].preview.includes("<redacted-ip>"))
+    assert.strictEqual(report.findings[0].preview, 'const host = "10.24.8.12";')
   })
 
   it("allows documentation example IPv4 literals", () => {
@@ -609,21 +612,21 @@ describe("formatSensitiveWarningSummary", () => {
           rule: "api-key-marker",
           filePath: "src/config.ts",
           lineNumber: 18,
-          preview: "const API_KEY = <redacted>",
+          preview: 'const API_KEY = "sk-example"',
         },
         {
           category: "credential",
           rule: "password-marker",
           filePath: "src/auth.ts",
           lineNumber: 7,
-          preview: "const PASSWORD = <redacted>",
+          preview: 'const PASSWORD = "secret"',
         },
       ],
     })
 
     assert.ok(message.includes("2 sensitive findings"))
     assert.ok(message.includes("2 files"))
-    assert.ok(message.includes("Inspect the redacted report"))
+    assert.ok(message.includes("Inspect the report"))
   })
 })
 
@@ -636,7 +639,7 @@ describe("formatSensitiveWarningReport", () => {
           rule: "api-key-marker",
           filePath: "src/config.ts",
           lineNumber: 18,
-          preview: "const API_KEY = <redacted>",
+          preview: 'const API_KEY = "sk-example"',
         },
       ],
     })
@@ -644,6 +647,7 @@ describe("formatSensitiveWarningReport", () => {
     assert.ok(message.includes("Sensitive findings:"))
     assert.ok(message.includes("src/config.ts:18"))
     assert.ok(message.includes("[credential / api-key-marker]"))
+    assert.ok(message.includes('const API_KEY = "sk-example"'))
     assert.ok(
       message.includes(
         'To continue, rerun the command and choose "Bypass Once".',
@@ -661,7 +665,7 @@ describe("formatSensitiveWarningMessage", () => {
           rule: "api-key-marker",
           filePath: "src/config.ts",
           lineNumber: 18,
-          preview: "const API_KEY = <redacted>",
+          preview: 'const API_KEY = "sk-example"',
         },
       ],
     })

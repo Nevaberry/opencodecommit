@@ -167,16 +167,6 @@ const LINE_RULES: LineRule[] = [
   },
 ]
 
-const SECRET_ASSIGNMENT_RE =
-  /\b([A-Z0-9_.-]*(?:KEY|TOKEN|PASSWORD|PASSWD|SECRET|URL|CREDENTIALS?|SID)\b\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;]+)/i
-
-const LONG_SECRET_REPLACERS = [
-  /\bsk-[A-Za-z0-9]{20,}/,
-  /\bghp_[A-Za-z0-9]{20,}/,
-  /\bAKIA[A-Z0-9]{12,}/,
-  /\bBEARER\s+[A-Za-z0-9_.~+/-]{20,}/i,
-]
-
 function withGlobal(regex: RegExp): RegExp {
   return new RegExp(
     regex.source,
@@ -236,7 +226,7 @@ function scanAddedLine(
       rule: rule.rule,
       filePath,
       lineNumber,
-      preview: redactLinePreview(line),
+      preview: formatLinePreview(line),
     }
   }
 
@@ -246,7 +236,7 @@ function scanAddedLine(
       rule: "ipv4-address",
       filePath,
       lineNumber,
-      preview: redactLinePreview(line),
+      preview: formatLinePreview(line),
     }
   }
 
@@ -283,18 +273,8 @@ function isExampleIpv4(ip: number[]): boolean {
   )
 }
 
-function redactLinePreview(line: string): string {
+function formatLinePreview(line: string): string {
   let preview = line.trim()
-  preview = preview.replace(withGlobal(SECRET_ASSIGNMENT_RE), "$1<redacted>")
-
-  for (const regex of LONG_SECRET_REPLACERS) {
-    preview = preview.replace(withGlobal(regex), "<redacted>")
-  }
-
-  preview = preview.replace(withGlobal(IPV4_RE), (candidate) =>
-    firstSensitiveIpv4(candidate) ? "<redacted-ip>" : candidate,
-  )
-
   if (preview.length > 160) {
     preview = `${preview.slice(0, 157)}...`
   }
@@ -385,7 +365,7 @@ export function detectSensitiveContent(
 
 export function formatSensitiveWarningSummary(report: SensitiveReport): string {
   if (report.findings.length === 0) {
-    return "Sensitive content detected in diff. Inspect the redacted report before sending the diff to an AI backend."
+    return "Sensitive content detected in diff. Inspect the report before sending the diff to an AI backend."
   }
 
   const findings = report.findings.length
@@ -393,13 +373,13 @@ export function formatSensitiveWarningSummary(report: SensitiveReport): string {
   const findingLabel = findings === 1 ? "finding" : "findings"
   const fileLabel = files === 1 ? "file" : "files"
 
-  return `${findings} sensitive ${findingLabel} in ${files} ${fileLabel}. Inspect the redacted report before sending the diff to an AI backend.`
+  return `${findings} sensitive ${findingLabel} in ${files} ${fileLabel}. Inspect the report before sending the diff to an AI backend.`
 }
 
 export function formatSensitiveWarningReport(report: SensitiveReport): string {
   return formatBlockMessage(
     report,
-    'Review the redacted findings above before sending the diff to an AI backend.\nTo continue, rerun the command and choose "Bypass Once".',
+    'Review the findings above before sending the diff to an AI backend.\nTo continue, rerun the command and choose "Bypass Once".',
   )
 }
 
