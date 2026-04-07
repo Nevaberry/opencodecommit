@@ -23,6 +23,14 @@ import type {
 // Diagnostic output channel
 let outputChannel: vscode.OutputChannel
 
+// Fire-and-forget toast that auto-closes after 5 seconds
+function showAutoCloseToast(message: string, ms = 5000) {
+  vscode.window.withProgress(
+    { location: vscode.ProgressLocation.Notification, title: message },
+    () => new Promise((resolve) => setTimeout(resolve, ms)),
+  )
+}
+
 const SENSITIVE_BYPASS_ACTION = "Bypass Once"
 const SENSITIVE_INSPECT_ACTION = "Inspect Report"
 const SENSITIVE_CANCEL_ACTION = "Cancel"
@@ -178,7 +186,10 @@ async function generateMessageInline(mode: CommitMode, repo: Repository) {
     }
   }
 
-  const message = await generateCommitMessage(context, config, mode, log)
+  const onProgress = (msg: string) => {
+    if (msg.includes("failed")) showAutoCloseToast(msg)
+  }
+  const message = await generateCommitMessage(context, config, mode, log, onProgress)
   log(`Generated message: "${message}"`)
   repo.inputBox.value = message
 }
@@ -200,12 +211,17 @@ async function refineMessageInline(repo: Repository) {
   })
   if (!feedback) return
 
+  const onProgress = (msg: string) => {
+    if (msg.includes("failed")) showAutoCloseToast(msg)
+  }
   const diff = await getDiff(repo, config.diffSource)
   const message = await refineCommitMessage(
     currentMessage,
     feedback,
     diff,
     config,
+    log,
+    onProgress,
   )
   repo.inputBox.value = message
 }
@@ -307,6 +323,9 @@ async function generateBranchInline(mode: BranchMode, repo: Repository) {
   const existingBranches =
     mode === "adaptive" ? await getRecentBranchNames(repo.rootUri.fsPath) : []
 
+  const onProgress = (msg: string) => {
+    if (msg.includes("failed")) showAutoCloseToast(msg)
+  }
   const branchName = await generateBranchName(
     diff,
     description,
@@ -314,6 +333,7 @@ async function generateBranchInline(mode: BranchMode, repo: Repository) {
     mode,
     existingBranches,
     log,
+    onProgress,
   )
   log(`Generated branch name: "${branchName}"`)
 

@@ -2,8 +2,8 @@ use std::fmt;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use opencodecommit::backend::{build_invocation, build_invocation_with_model, detect_cli, exec_cli};
-use opencodecommit::config::{BranchMode, CommitMode, Config, DiffSource};
+use opencodecommit::backend::{build_invocation, build_invocation_for, build_invocation_with_model, detect_cli, exec_cli, exec_cli_with_timeout};
+use opencodecommit::config::{BranchMode, CliBackend, CommitMode, Config, DiffSource};
 use opencodecommit::context::{self, CommitContext};
 use opencodecommit::git;
 use opencodecommit::prompt::{
@@ -65,6 +65,18 @@ impl fmt::Display for DiffOrigin {
 }
 
 #[derive(Debug, Clone)]
+pub enum BackendProgress {
+    Trying(CliBackend),
+    Failed { backend: CliBackend, error: String },
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct BackendFailure {
+    pub backend: String,
+    pub error: String,
+}
+
+#[derive(Debug, Clone)]
 pub struct CommitPreview {
     pub message: String,
     pub parsed: ParsedCommit,
@@ -74,6 +86,7 @@ pub struct CommitPreview {
     pub changed_files: Vec<String>,
     pub branch: String,
     pub diff_origin: DiffOrigin,
+    pub backend_failures: Vec<BackendFailure>,
 }
 
 #[derive(Debug, Clone)]
@@ -93,6 +106,7 @@ pub struct CommitResult {
 #[derive(Debug, Clone)]
 pub struct BranchPreview {
     pub name: String,
+    pub backend_failures: Vec<BackendFailure>,
 }
 
 #[derive(Debug, Clone)]
@@ -104,6 +118,7 @@ pub struct BranchResult {
 pub struct PrPreview {
     pub title: String,
     pub body: String,
+    pub backend_failures: Vec<BackendFailure>,
 }
 
 /// Context specifically for PR generation.
@@ -121,6 +136,7 @@ pub struct PrContext {
 #[derive(Debug, Clone)]
 pub struct ChangelogPreview {
     pub entry: String,
+    pub backend_failures: Vec<BackendFailure>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -243,12 +259,78 @@ pub fn generate_commit_preview(config: &Config, request: &CommitRequest) -> Resu
     Ok(CommitPreview {
         message,
         parsed,
-        provider: format!("{:?}", config.backend).to_lowercase(),
+        provider: format!("{}", config.backend),
         files_analyzed: context.changed_files.len(),
         duration_ms,
         changed_files: context.changed_files,
         branch: context.branch,
         diff_origin,
+        backend_failures: vec![],
+    })
+}
+
+/// Truncate an error message to the first line and ~80 chars for progress display.
+fn truncate_error(err: &str) -> String {
+    let first_line = err.lines().next().unwrap_or(err);
+    if first_line.len() > 80 {
+        format!("{}…", &first_line[..79])
+    } else {
+        first_line.to_owned()
+    }
+}
+
+const FALLBACK_TIMEOUT_SECS: u64 = 45;
+
+pub fn generate_commit_preview_with_fallback(
+    config: &Config,
+    request: &CommitRequest,
+    on_progress: impl Fn(BackendProgress),
+) -> Result<CommitPreview> {
+    let (mut context, diff_origin) = load_commit_context(config, request.stdin_diff.as_deref())?;
+
+    if context.has_sensitive_content && !request.allow_sensitive {
+        return Err(ActionError::SensitiveContent(
+            SensitiveReport::from_findings(context.sensitive_findings.clone()),
+        ));
+    }
+
+    truncate_diff(&mut context, config.max_diff_length);
+
+    let prompt = if let Some(current_message) = request.refine.as_deref() {
+        let feedback = request
+            .feedback
+            .as_deref()
+            .unwrap_or(&config.refine.default_feedback);
+        build_refine_prompt(current_message, feedback, &context.diff, config)
+    } else {
+        build_prompt(&context, config, Some(config.commit_mode))
+    };
+
+    let start = Instant::now();
+    let (response, backend, failures) = exec_with_fallback(config, &prompt, &on_progress)?;
+    let duration_ms = start.elapsed().as_millis();
+
+    let message = match config.commit_mode {
+        CommitMode::Adaptive | CommitMode::AdaptiveOneliner => {
+            format_adaptive_message(&response)
+        }
+        CommitMode::Conventional | CommitMode::ConventionalOneliner => {
+            let parsed = parse_response(&response);
+            format_commit_message(&parsed, config)
+        }
+    };
+    let parsed = parse_response(&response);
+
+    Ok(CommitPreview {
+        message,
+        parsed,
+        provider: backend.to_string(),
+        files_analyzed: context.changed_files.len(),
+        duration_ms,
+        changed_files: context.changed_files,
+        branch: context.branch,
+        diff_origin,
+        backend_failures: failures,
     })
 }
 
@@ -304,6 +386,7 @@ pub fn generate_branch_preview(
 
     Ok(BranchPreview {
         name: format_branch_name(&response),
+        backend_failures: vec![],
     })
 }
 
@@ -408,6 +491,7 @@ pub fn generate_pr_preview(config: &Config, explicit_base: Option<&str>) -> Resu
         return Ok(PrPreview {
             title: parsed.title,
             body: parsed.body,
+            backend_failures: vec![],
         });
     }
 
@@ -451,6 +535,7 @@ pub fn generate_pr_preview(config: &Config, explicit_base: Option<&str>) -> Resu
     Ok(PrPreview {
         title: parsed.title,
         body: parsed.body,
+        backend_failures: vec![],
     })
 }
 
@@ -462,6 +547,113 @@ pub fn generate_changelog_preview(config: &Config) -> Result<ChangelogPreview> {
     let response = exec_cli(&invocation)?;
     Ok(ChangelogPreview {
         entry: response::sanitize_response(&response),
+        backend_failures: vec![],
+    })
+}
+
+/// Execute a prompt across backends with fallback, returning the response and failures.
+fn exec_with_fallback(
+    config: &Config,
+    prompt: &str,
+    on_progress: &impl Fn(BackendProgress),
+) -> std::result::Result<(String, CliBackend, Vec<BackendFailure>), ActionError> {
+    let backends = config.effective_backend_order();
+    let mut failures: Vec<BackendFailure> = vec![];
+
+    for &backend in backends {
+        on_progress(BackendProgress::Trying(backend));
+
+        let cli_path = match detect_cli(backend, config.cli_path_for(backend)) {
+            Ok(p) => p,
+            Err(e) => {
+                let error = truncate_error(&e.to_string());
+                on_progress(BackendProgress::Failed { backend, error: error.clone() });
+                failures.push(BackendFailure { backend: backend.to_string(), error });
+                continue;
+            }
+        };
+
+        let invocation = build_invocation_for(&cli_path, prompt, config, backend);
+        match exec_cli_with_timeout(&invocation, FALLBACK_TIMEOUT_SECS) {
+            Ok(response) => return Ok((response, backend, failures)),
+            Err(e) => {
+                let error = truncate_error(&e.to_string());
+                on_progress(BackendProgress::Failed { backend, error: error.clone() });
+                failures.push(BackendFailure { backend: backend.to_string(), error });
+            }
+        }
+    }
+
+    let detail = failures
+        .iter()
+        .map(|f| format!("{}: {}", f.backend, f.error))
+        .collect::<Vec<_>>()
+        .join("\n  ");
+    Err(ActionError::Occ(opencodecommit::Error::BackendExecution(
+        format!("All backends failed:\n  {detail}"),
+    )))
+}
+
+pub fn generate_branch_preview_with_fallback(
+    config: &Config,
+    description: Option<&str>,
+    branch_mode: BranchMode,
+    on_progress: impl Fn(BackendProgress),
+) -> Result<BranchPreview> {
+    let repo_root = git::get_repo_root()?;
+
+    let diff = if description.is_none() {
+        Some(git::get_diff(config.diff_source, &repo_root)?)
+    } else {
+        None
+    };
+
+    let existing_branches = if branch_mode == BranchMode::Adaptive {
+        git::get_recent_branch_names(&repo_root, 20).unwrap_or_default()
+    } else {
+        vec![]
+    };
+
+    let prompt = build_branch_prompt(
+        description.unwrap_or(""),
+        diff.as_deref(),
+        config,
+        branch_mode,
+        &existing_branches,
+    );
+
+    let (response, _backend, failures) = exec_with_fallback(config, &prompt, &on_progress)?;
+    Ok(BranchPreview {
+        name: format_branch_name(&response),
+        backend_failures: failures,
+    })
+}
+
+pub fn generate_pr_preview_with_fallback(
+    config: &Config,
+    on_progress: impl Fn(BackendProgress),
+) -> Result<PrPreview> {
+    let context = build_context_preview(config)?;
+    let prompt = build_pr_prompt(&context, config);
+    let (response, _backend, failures) = exec_with_fallback(config, &prompt, &on_progress)?;
+    let parsed: ParsedPr = parse_pr_response(&response);
+    Ok(PrPreview {
+        title: parsed.title,
+        body: parsed.body,
+        backend_failures: failures,
+    })
+}
+
+pub fn generate_changelog_preview_with_fallback(
+    config: &Config,
+    on_progress: impl Fn(BackendProgress),
+) -> Result<ChangelogPreview> {
+    let context = build_context_preview(config)?;
+    let prompt = build_changelog_prompt(&context, config);
+    let (response, _backend, failures) = exec_with_fallback(config, &prompt, &on_progress)?;
+    Ok(ChangelogPreview {
+        entry: response::sanitize_response(&response),
+        backend_failures: failures,
     })
 }
 

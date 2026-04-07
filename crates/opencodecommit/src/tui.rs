@@ -16,8 +16,10 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 use ratatui::{Frame, Terminal};
 
+use opencodecommit::config::CliBackend;
+
 use crate::actions::{
-    self, ActionError, BranchPreview, CommitPreview, CommitRequest, HookOperation, PrContext,
+    self, ActionError, BackendProgress, BranchPreview, CommitPreview, CommitRequest, HookOperation, PrContext,
     PrPreview, RepoSummary,
 };
 
@@ -176,9 +178,24 @@ struct Notice {
     message: String,
 }
 
+// ── Backend progress log ──
+
+#[derive(Debug, Clone)]
+enum BackendLogStatus {
+    Trying,
+    Failed(String),
+}
+
+#[derive(Debug, Clone)]
+struct BackendLogEntry {
+    backend: CliBackend,
+    status: BackendLogStatus,
+}
+
 // ── Worker messages ──
 
 enum WorkerMessage {
+    BackendProgress(BackendProgress),
     CommitGenerated(actions::Result<CommitPreview>),
     CommitShortened(actions::Result<CommitPreview>),
     CommitApplied(actions::Result<actions::CommitResult>),
@@ -216,6 +233,7 @@ struct App {
     base_branch: String,
     commit_count: usize,
     update_notice: Option<String>,
+    backend_log: Vec<BackendLogEntry>,
 }
 
 impl App {
@@ -242,6 +260,7 @@ impl App {
             base_branch: String::new(),
             commit_count: 0,
             update_notice: None,
+            backend_log: vec![],
         }
     }
 
@@ -865,6 +884,7 @@ fn handle_panel_shortcut(app: &mut App, ch: char, tx: &Sender<WorkerMessage>) {
 
 fn spawn_generate_commit(app: &mut App, tx: &Sender<WorkerMessage>, allow_sensitive: bool) {
     app.pending = Some(PendingJob::GeneratingCommit);
+    app.backend_log.clear();
     let config = app.config.clone();
     let tx = tx.clone();
     std::thread::spawn(move || {
@@ -874,8 +894,11 @@ fn spawn_generate_commit(app: &mut App, tx: &Sender<WorkerMessage>, allow_sensit
             stdin_diff: None,
             allow_sensitive,
         };
+        let progress_tx = tx.clone();
         let _ = tx.send(WorkerMessage::CommitGenerated(
-            actions::generate_commit_preview(&config, &request),
+            actions::generate_commit_preview_with_fallback(&config, &request, move |p| {
+                let _ = progress_tx.send(WorkerMessage::BackendProgress(p));
+            }),
         ));
     });
 }
@@ -887,6 +910,7 @@ fn spawn_shorten_commit(app: &mut App, tx: &Sender<WorkerMessage>) {
     };
 
     app.pending = Some(PendingJob::ShorteningCommit);
+    app.backend_log.clear();
     let config = app.config.clone();
     let message = preview.message.clone();
     let tx = tx.clone();
@@ -897,8 +921,11 @@ fn spawn_shorten_commit(app: &mut App, tx: &Sender<WorkerMessage>) {
             stdin_diff: None,
             allow_sensitive: false,
         };
+        let progress_tx = tx.clone();
         let _ = tx.send(WorkerMessage::CommitShortened(
-            actions::generate_commit_preview(&config, &request),
+            actions::generate_commit_preview_with_fallback(&config, &request, move |p| {
+                let _ = progress_tx.send(WorkerMessage::BackendProgress(p));
+            }),
         ));
     });
 }
@@ -921,11 +948,20 @@ fn spawn_apply_commit(app: &mut App, tx: &Sender<WorkerMessage>) {
 
 fn spawn_generate_branch(app: &mut App, tx: &Sender<WorkerMessage>) {
     app.pending = Some(PendingJob::GeneratingBranch);
+    app.backend_log.clear();
     let config = app.config.clone();
     let tx = tx.clone();
     std::thread::spawn(move || {
+        let progress_tx = tx.clone();
         let _ = tx.send(WorkerMessage::BranchGenerated(
-            actions::generate_branch_preview(&config, None, config.branch_mode),
+            actions::generate_branch_preview_with_fallback(
+                &config,
+                None,
+                config.branch_mode,
+                move |p| {
+                    let _ = progress_tx.send(WorkerMessage::BackendProgress(p));
+                },
+            ),
         ));
     });
 }
@@ -945,12 +981,16 @@ fn spawn_create_branch(app: &mut App, tx: &Sender<WorkerMessage>) {
 
 fn spawn_generate_pr(app: &mut App, tx: &Sender<WorkerMessage>) {
     app.pending = Some(PendingJob::GeneratingPr);
+    app.backend_log.clear();
     let config = app.config.clone();
     let tx = tx.clone();
     std::thread::spawn(move || {
         // Load PR context for sidebar population
         let pr_ctx = actions::load_pr_context(&config, None).ok();
-        let result = actions::generate_pr_preview(&config, None);
+        let progress_tx = tx.clone();
+        let result = actions::generate_pr_preview_with_fallback(&config, move |p| {
+            let _ = progress_tx.send(WorkerMessage::BackendProgress(p));
+        });
         let _ = tx.send(WorkerMessage::PrGenerated(result, pr_ctx));
     });
 }
@@ -1028,13 +1068,41 @@ fn spawn_run_hook(app: &mut App, tx: &Sender<WorkerMessage>, operation: HookOper
 
 // ── Worker message handling ──
 
+fn format_success_notice(action: &str, provider: &str, failures: &[actions::BackendFailure]) -> String {
+    if failures.is_empty() {
+        format!("{action}.")
+    } else {
+        let failed: Vec<&str> = failures.iter().map(|f| f.backend.as_str()).collect();
+        format!("{action} via {provider} ({} failed).", failed.join(", "))
+    }
+}
+
 fn apply_worker_message(app: &mut App, message: WorkerMessage) {
     match message {
+        WorkerMessage::BackendProgress(progress) => {
+            match progress {
+                BackendProgress::Trying(backend) => {
+                    app.backend_log.push(BackendLogEntry {
+                        backend,
+                        status: BackendLogStatus::Trying,
+                    });
+                }
+                BackendProgress::Failed { backend, error } => {
+                    // Update the existing "Trying" entry to "Failed"
+                    if let Some(entry) = app.backend_log.iter_mut().rev().find(|e| e.backend == backend) {
+                        entry.status = BackendLogStatus::Failed(error);
+                    }
+                }
+            }
+            // Don't clear pending — the job is still running
+        }
         WorkerMessage::CommitGenerated(result) => {
             app.pending = None;
+            app.backend_log.clear();
             match result {
                 Ok(preview) => {
-                    app.set_info("Generated commit message.");
+                    let notice = format_success_notice("Generated commit message", &preview.provider, &preview.backend_failures);
+                    app.set_info(notice);
                     app.set_output(OutputContent::CommitMessage { preview });
                 }
                 Err(ActionError::SensitiveContent(report)) => {
@@ -1046,9 +1114,11 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
         }
         WorkerMessage::CommitShortened(result) => {
             app.pending = None;
+            app.backend_log.clear();
             match result {
                 Ok(preview) => {
-                    app.set_info("Shortened commit message.");
+                    let notice = format_success_notice("Shortened commit message", &preview.provider, &preview.backend_failures);
+                    app.set_info(notice);
                     app.set_output(OutputContent::CommitMessage { preview });
                 }
                 Err(err) => app.set_error(err.to_string()),
@@ -1080,9 +1150,16 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
         }
         WorkerMessage::BranchGenerated(result) => {
             app.pending = None;
+            app.backend_log.clear();
             match result {
                 Ok(preview) => {
-                    app.set_info("Generated branch name.");
+                    let failed: Vec<&str> = preview.backend_failures.iter().map(|f| f.backend.as_str()).collect();
+                    let notice = if failed.is_empty() {
+                        "Generated branch name.".to_owned()
+                    } else {
+                        format!("Generated branch name ({} failed).", failed.join(", "))
+                    };
+                    app.set_info(notice);
                     app.set_output(OutputContent::BranchPreview { preview });
                 }
                 Err(err) => app.set_error(err.to_string()),
@@ -1101,6 +1178,7 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
         }
         WorkerMessage::PrGenerated(result, pr_ctx) => {
             app.pending = None;
+            app.backend_log.clear();
             match result {
                 Ok(preview) => {
                     if let Some(ctx) = &pr_ctx {
@@ -1109,7 +1187,13 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
                             app.diff_text = ctx.diff.clone();
                         }
                     }
-                    app.set_info("Generated PR preview.");
+                    let failed: Vec<&str> = preview.backend_failures.iter().map(|f| f.backend.as_str()).collect();
+                    let notice = if failed.is_empty() {
+                        "Generated PR preview.".to_owned()
+                    } else {
+                        format!("Generated PR preview ({} failed).", failed.join(", "))
+                    };
+                    app.set_info(notice);
                     app.set_output(OutputContent::PrPreview { preview });
                 }
                 Err(err) => app.set_error(err.to_string()),
@@ -1195,7 +1279,7 @@ fn render(frame: &mut Frame, app: &App) {
     render_description(frame, chunks[4], app);
 
     if let Some(pending) = app.pending {
-        render_pending_overlay(frame, area, pending, app.spinner_tick);
+        render_pending_overlay(frame, area, pending, app.spinner_tick, &app.backend_log);
     }
 }
 
@@ -1675,14 +1759,47 @@ fn render_description(frame: &mut Frame, area: Rect, app: &App) {
     }
 }
 
-fn render_pending_overlay(frame: &mut Frame, area: Rect, pending: PendingJob, tick: usize) {
-    let overlay = centered_rect(48, 5, area);
+fn render_pending_overlay(
+    frame: &mut Frame,
+    area: Rect,
+    pending: PendingJob,
+    tick: usize,
+    backend_log: &[BackendLogEntry],
+) {
+    // Dynamic height: 3 (border + title line + border) + 1 per log entry + 1 blank separator if log present
+    let log_lines = backend_log.len();
+    let height = if log_lines > 0 { 4 + log_lines as u16 } else { 5 };
+    let overlay = centered_rect(48, height, area);
     let spinner = ["-", "\\", "|", "/"][tick % 4];
-    let message = format!("{spinner} {}", pending.label());
+
+    let mut lines: Vec<Line<'_>> = vec![
+        Line::from(format!("{spinner} {}", pending.label())),
+    ];
+
+    if !backend_log.is_empty() {
+        lines.push(Line::from(""));
+        for entry in backend_log {
+            match &entry.status {
+                BackendLogStatus::Trying => {
+                    lines.push(Line::styled(
+                        format!("  {} ...", entry.backend),
+                        Style::default().fg(Color::Yellow),
+                    ));
+                }
+                BackendLogStatus::Failed(err) => {
+                    let short_err = if err.len() > 40 { &err[..40] } else { err };
+                    lines.push(Line::styled(
+                        format!("  {} failed: {short_err}", entry.backend),
+                        Style::default().fg(Color::DarkGray),
+                    ));
+                }
+            }
+        }
+    }
 
     frame.render_widget(Clear, overlay);
-    let widget =
-        Paragraph::new(message).block(Block::default().title("Working").borders(Borders::ALL));
+    let widget = Paragraph::new(lines)
+        .block(Block::default().title("Working").borders(Borders::ALL));
     frame.render_widget(widget, overlay);
 }
 
@@ -1774,6 +1891,7 @@ mod tests {
             changed_files: vec!["src/main.rs".to_owned()],
             branch: "main".to_owned(),
             diff_origin: crate::actions::DiffOrigin::Staged,
+            backend_failures: vec![],
         }
     }
 
@@ -1878,6 +1996,7 @@ mod tests {
         app.set_output(OutputContent::BranchPreview {
             preview: BranchPreview {
                 name: "feat/test".to_owned(),
+                backend_failures: vec![],
             },
         });
         let (tx, _rx) = mpsc::channel();
@@ -1938,6 +2057,7 @@ mod tests {
         app.set_output(OutputContent::BranchPreview {
             preview: BranchPreview {
                 name: "feat/test".to_owned(),
+                backend_failures: vec![],
             },
         });
         let (tx, _rx) = mpsc::channel();
