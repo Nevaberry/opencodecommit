@@ -219,6 +219,9 @@ pub struct Config {
     #[serde(default)]
     pub show_language_selector: bool,
 
+    #[serde(default = "default_true")]
+    pub auto_update: bool,
+
     #[serde(default)]
     pub refine: RefineConfig,
 
@@ -354,6 +357,7 @@ impl Default for Config {
             languages: default_languages(),
             active_language: default_active_language(),
             show_language_selector: false,
+            auto_update: true,
             refine: RefineConfig::default(),
             custom: CustomConfig::default(),
         }

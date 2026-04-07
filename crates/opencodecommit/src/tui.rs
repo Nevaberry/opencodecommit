@@ -187,6 +187,7 @@ enum WorkerMessage {
     PrGenerated(actions::Result<PrPreview>, Option<PrContext>),
     HookRan(actions::Result<String>),
     PrSubmitted(Result<String, String>),
+    UpdateAvailable(Option<String>),
 }
 
 // ── App state ──
@@ -214,6 +215,7 @@ struct App {
     file_sidebar_scroll: usize,
     base_branch: String,
     commit_count: usize,
+    update_notice: Option<String>,
 }
 
 impl App {
@@ -239,6 +241,7 @@ impl App {
             file_sidebar_scroll: 0,
             base_branch: String::new(),
             commit_count: 0,
+            update_notice: None,
         }
     }
 
@@ -555,6 +558,7 @@ pub fn run(config: Config) -> Result<(), ActionError> {
         .map_err(|err| ActionError::InvalidInput(format!("failed to clear terminal: {err}")))?;
 
     let (tx, rx) = mpsc::channel();
+    let auto_update = config.auto_update;
     let mut app = App::new(config, repo, diff_text.clone(), hook_installed);
 
     // Populate file sidebar and use branch diff if available
@@ -564,6 +568,31 @@ pub fn run(config: Config) -> Result<(), ActionError> {
             // Use the branch diff for the diff panel
             app.diff_text = ctx.diff.clone();
         }
+    }
+
+    if auto_update {
+        let tx = tx.clone();
+        std::thread::spawn(move || {
+            let (needs_check, cached) = crate::update::should_check();
+            if needs_check {
+                let source = crate::update::detect_install_source();
+                match crate::update::check_latest_version(source) {
+                    Ok(latest) => {
+                        crate::update::write_cache(&latest);
+                        let current = env!("CARGO_PKG_VERSION");
+                        if crate::update::is_newer(current, &latest) {
+                            let _ = tx.send(WorkerMessage::UpdateAvailable(Some(latest)));
+                        }
+                    }
+                    Err(_) => {}
+                }
+            } else if let Some(latest) = cached {
+                let current = env!("CARGO_PKG_VERSION");
+                if crate::update::is_newer(current, &latest) {
+                    let _ = tx.send(WorkerMessage::UpdateAvailable(Some(latest)));
+                }
+            }
+        });
     }
 
     let result = event_loop(&mut terminal, &mut app, &tx, &rx);
@@ -1103,6 +1132,11 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
                 Err(msg) => app.set_error(msg),
             }
         }
+        WorkerMessage::UpdateAvailable(version) => {
+            if let Some(v) = version {
+                app.update_notice = Some(format!("v{v} available \u{2014} run `occ update`"));
+            }
+        }
     }
 }
 
@@ -1225,6 +1259,15 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
         "  backend: {} [{}]",
         app.repo.backend_label, backend_status
     )));
+    if let Some(notice) = &app.update_notice {
+        spans.push(Span::raw("  "));
+        spans.push(Span::styled(
+            notice.as_str(),
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ));
+    }
     frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
