@@ -340,9 +340,7 @@ fn panel_button_description(content: &OutputContent, index: usize) -> &'static s
             2 => "Regenerate the commit message",
             _ => "",
         },
-        OutputContent::SensitiveWarning { .. } => {
-            "Allow sensitive content and continue generating"
-        }
+        OutputContent::SensitiveWarning { .. } => "Allow sensitive content and continue generating",
         OutputContent::BranchPreview { .. } => match index {
             0 => "Create and checkout this branch",
             1 => "Generate a new branch name",
@@ -420,10 +418,8 @@ pub fn run(config: Config) -> Result<(), ActionError> {
     }
 
     let repo = actions::load_repo_summary(&config)?;
-    let diff_text = match opencodecommit::git::get_diff(config.diff_source, &repo.repo_root) {
-        Ok(diff) => diff,
-        Err(_) => String::new(),
-    };
+    let diff_text =
+        opencodecommit::git::get_diff(config.diff_source, &repo.repo_root).unwrap_or_default();
     let hook_installed = detect_hook_installed(&repo);
 
     install_panic_cleanup_hook();
@@ -835,14 +831,12 @@ fn copy_to_clipboard(text: &str) -> bool {
             .args(&parts[1..])
             .stdin(std::process::Stdio::piped())
             .spawn()
+            && let Some(stdin) = child.stdin.as_mut()
+            && stdin.write_all(text.as_bytes()).is_ok()
         {
-            if let Some(stdin) = child.stdin.as_mut() {
-                if stdin.write_all(text.as_bytes()).is_ok() {
-                    drop(child.stdin.take());
-                    if child.wait().is_ok_and(|s| s.success()) {
-                        return true;
-                    }
-                }
+            drop(child.stdin.take());
+            if child.wait().is_ok_and(|s| s.success()) {
+                return true;
             }
         }
     }
@@ -902,11 +896,9 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
                     }
                     app.clear_output();
                     app.refresh_repo();
-                    app.diff_text = opencodecommit::git::get_diff(
-                        app.config.diff_source,
-                        &app.repo.repo_root,
-                    )
-                    .unwrap_or_default();
+                    app.diff_text =
+                        opencodecommit::git::get_diff(app.config.diff_source, &app.repo.repo_root)
+                            .unwrap_or_default();
                     app.diff_scroll = 0;
                 }
                 Err(err) => app.set_error(err.to_string()),
@@ -972,9 +964,11 @@ fn style_diff_line(line: &str) -> Line<'_> {
         Line::styled(line, Style::default().fg(Color::Red))
     } else if line.starts_with("@@") {
         Line::styled(line, Style::default().fg(Color::Cyan))
-    } else if line.starts_with("diff ") || line.starts_with("index ") {
-        Line::styled(line, Style::default().fg(Color::Yellow))
-    } else if line.starts_with("--- ") || line.starts_with("+++ ") {
+    } else if line.starts_with("diff ")
+        || line.starts_with("index ")
+        || line.starts_with("--- ")
+        || line.starts_with("+++ ")
+    {
         Line::styled(line, Style::default().fg(Color::Yellow))
     } else {
         Line::styled(line, Style::default().fg(Color::DarkGray))
@@ -987,7 +981,7 @@ fn render(frame: &mut Frame, app: &App) {
 
     let chunks = Layout::vertical([
         Constraint::Length(1),             // header
-        Constraint::Min(5),               // diff viewer
+        Constraint::Min(5),                // diff viewer
         Constraint::Length(output_height), // output panel (0 when empty)
         Constraint::Length(1),             // button bar
         Constraint::Length(1),             // description line
@@ -1012,8 +1006,8 @@ fn output_panel_height(app: &App) -> u16 {
         None => 0,
         Some(OutputContent::CommitMessage { preview }) => {
             let lines = preview.message.lines().count() as u16;
-            // border(2) + label + blank + message + blank + metadata + blank + buttons
-            (lines + 8).min(16)
+            // border(2) + label + blank + message + blank + 2 metadata lines + blank + buttons
+            (lines + 9).min(16)
         }
         Some(OutputContent::SensitiveWarning { report }) => {
             let lines = report.findings.len() as u16;
@@ -1021,8 +1015,7 @@ fn output_panel_height(app: &App) -> u16 {
         }
         Some(OutputContent::BranchPreview { .. }) => 7,
         Some(OutputContent::PrPreview { preview }) => {
-            let lines =
-                preview.title.lines().count() as u16 + preview.body.lines().count() as u16;
+            let lines = preview.title.lines().count() as u16 + preview.body.lines().count() as u16;
             (lines + 6).min(20)
         }
         Some(OutputContent::HookMenu) => 6,
@@ -1031,6 +1024,11 @@ fn output_panel_height(app: &App) -> u16 {
 }
 
 fn render_header(frame: &mut Frame, area: Rect, app: &App) {
+    let backend_status = match (&app.repo.backend_path, &app.repo.backend_error) {
+        (Some(_), _) => "ready".to_owned(),
+        (None, Some(err)) => format!("missing ({err})"),
+        (None, None) => "missing".to_owned(),
+    };
     let spans = vec![
         Span::styled(
             "OpenCodeCommit",
@@ -1040,14 +1038,18 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
         ),
         Span::raw("  "),
         Span::styled(
-            app.repo.repo_root.display().to_string(),
+            format!("{} @ {}", app.repo.repo_name, app.repo.repo_root.display()),
             Style::default().fg(Color::DarkGray),
         ),
         Span::raw("  branch: "),
         Span::styled(&app.repo.branch, Style::default().fg(Color::Green)),
         Span::raw(format!(
-            "  staged: {}  unstaged: {}",
-            app.repo.staged_files, app.repo.unstaged_files
+            "  staged: {}  unstaged: {}  lang: {}  backend: {} [{}]",
+            app.repo.staged_files,
+            app.repo.unstaged_files,
+            app.repo.active_language,
+            app.repo.backend_label,
+            backend_status
         )),
     ];
     frame.render_widget(Paragraph::new(Line::from(spans)), area);
@@ -1149,6 +1151,15 @@ fn render_commit_output(frame: &mut Frame, area: Rect, preview: &CommitPreview, 
         ),
         Style::default().fg(Color::DarkGray),
     ));
+    lines.push(Line::styled(
+        format!(
+            "branch: {}  source: {}  tracked files: {}",
+            preview.branch,
+            preview.diff_origin,
+            preview.changed_files.len()
+        ),
+        Style::default().fg(Color::DarkGray),
+    ));
     lines.push(Line::raw(""));
     lines.push(render_panel_button_line(app));
 
@@ -1162,17 +1173,10 @@ fn render_commit_output(frame: &mut Frame, area: Rect, preview: &CommitPreview, 
     frame.render_widget(widget, area);
 }
 
-fn render_sensitive_output(
-    frame: &mut Frame,
-    area: Rect,
-    report: &SensitiveReport,
-    app: &App,
-) {
+fn render_sensitive_output(frame: &mut Frame, area: Rect, report: &SensitiveReport, app: &App) {
     let mut lines = vec![Line::styled(
         "SENSITIVE CONTENT DETECTED",
-        Style::default()
-            .fg(Color::Red)
-            .add_modifier(Modifier::BOLD),
+        Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
     )];
 
     for finding in &report.findings {
@@ -1366,8 +1370,8 @@ fn render_pending_overlay(frame: &mut Frame, area: Rect, pending: PendingJob, ti
     let message = format!("{spinner} {}", pending.label());
 
     frame.render_widget(Clear, overlay);
-    let widget = Paragraph::new(message)
-        .block(Block::default().title("Working").borders(Borders::ALL));
+    let widget =
+        Paragraph::new(message).block(Block::default().title("Working").borders(Borders::ALL));
     frame.render_widget(widget, overlay);
 }
 
@@ -1418,12 +1422,14 @@ mod tests {
          +    println!(\"new\");\n\
          +    extra();\n\
           }\n"
-            .to_owned()
+        .to_owned()
     }
 
     fn test_app() -> App {
-        let mut config = Config::default();
-        config.backend = CliBackend::Codex;
+        let config = Config {
+            backend: CliBackend::Codex,
+            ..Config::default()
+        };
         App::new(config, test_repo(), test_diff(), false)
     }
 
@@ -1478,8 +1484,14 @@ mod tests {
     fn no_output_panel_initially() {
         let app = test_app();
         let text = render_text(&app, 100, 24);
-        assert!(!text.contains("COMMIT MESSAGE"), "should not show commit panel");
-        assert!(!text.contains("SENSITIVE"), "should not show sensitive panel");
+        assert!(
+            !text.contains("COMMIT MESSAGE"),
+            "should not show commit panel"
+        );
+        assert!(
+            !text.contains("SENSITIVE"),
+            "should not show sensitive panel"
+        );
     }
 
     #[test]
@@ -1631,7 +1643,10 @@ mod tests {
         app.pending = Some(PendingJob::GeneratingCommit);
         let text = render_text(&app, 100, 24);
         assert!(text.contains("Working"), "missing overlay title");
-        assert!(text.contains("Generating commit message"), "missing overlay text");
+        assert!(
+            text.contains("Generating commit message"),
+            "missing overlay text"
+        );
     }
 
     #[test]
@@ -1646,8 +1661,10 @@ mod tests {
 
     #[test]
     fn empty_diff_shows_no_changes() {
-        let mut config = Config::default();
-        config.backend = CliBackend::Codex;
+        let config = Config {
+            backend: CliBackend::Codex,
+            ..Config::default()
+        };
         let app = App::new(config, test_repo(), String::new(), false);
         let text = render_text(&app, 100, 24);
         assert!(text.contains("No changes detected"));

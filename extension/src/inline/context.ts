@@ -1,8 +1,8 @@
 import { spawn } from "node:child_process"
 import * as fs from "node:fs"
 import * as path from "node:path"
-import { detectSensitiveReport } from "./sensitive"
 import type { SensitiveReport } from "./sensitive"
+import { detectSensitiveReport } from "./sensitive"
 
 export interface FileContext {
   path: string
@@ -94,10 +94,14 @@ export function getRecentCommits(repoRoot: string): Promise<string[]> {
 
 export function getRecentBranchNames(repoRoot: string): Promise<string[]> {
   return new Promise((resolve) => {
-    const child = spawn("git", ["branch", "--sort=-committerdate", "--format=%(refname:short)"], {
-      cwd: repoRoot,
-      stdio: ["ignore", "pipe", "pipe"],
-    })
+    const child = spawn(
+      "git",
+      ["branch", "--sort=-committerdate", "--format=%(refname:short)"],
+      {
+        cwd: repoRoot,
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    )
 
     let stdout = ""
     child.stdout.on("data", (d: Buffer) => {
@@ -154,7 +158,10 @@ function readFileContent(
 ): FileContext {
   const fullPath = path.resolve(repoRoot, filePath)
   const resolvedRoot = path.resolve(repoRoot)
-  if (!fullPath.startsWith(resolvedRoot + path.sep) && fullPath !== resolvedRoot) {
+  if (
+    !fullPath.startsWith(resolvedRoot + path.sep) &&
+    fullPath !== resolvedRoot
+  ) {
     return { path: filePath, content: "", truncationMode: "skipped" }
   }
 

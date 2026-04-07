@@ -146,14 +146,13 @@ fn read_file_content(file_path: &str, repo_root: &Path, diff: &str) -> FileConte
 
     // Guard against path traversal
     if let (Ok(resolved), Ok(resolved_root)) = (full_path.canonicalize(), repo_root.canonicalize())
+        && !resolved.starts_with(&resolved_root)
     {
-        if !resolved.starts_with(&resolved_root) {
-            return FileContext {
-                path: file_path.to_owned(),
-                content: String::new(),
-                truncation_mode: TruncationMode::Skipped,
-            };
-        }
+        return FileContext {
+            path: file_path.to_owned(),
+            content: String::new(),
+            truncation_mode: TruncationMode::Skipped,
+        };
     }
 
     let content = match std::fs::read_to_string(&full_path) {

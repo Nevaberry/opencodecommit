@@ -32,11 +32,27 @@ const DIFF_HUNK_RE = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/
 const IPV4_RE = /\b(?:\d{1,3}\.){3}\d{1,3}\b/
 
 const FILE_RULES: FileRule[] = [
-  { pattern: /(?:^|\/)\.env(?:\.\w+)?$/, category: "filename", rule: "env-file" },
-  { pattern: /(?:^|\/)credentials\.json$/, category: "filename", rule: "credentials-json" },
-  { pattern: /(?:^|\/)secrets?\.\w+$/, category: "filename", rule: "secret-file" },
+  {
+    pattern: /(?:^|\/)\.env(?:\.\w+)?$/,
+    category: "filename",
+    rule: "env-file",
+  },
+  {
+    pattern: /(?:^|\/)credentials\.json$/,
+    category: "filename",
+    rule: "credentials-json",
+  },
+  {
+    pattern: /(?:^|\/)secrets?\.\w+$/,
+    category: "filename",
+    rule: "secret-file",
+  },
   { pattern: /(?:^|\/)\.netrc$/, category: "filename", rule: "netrc" },
-  { pattern: /(?:^|\/)service[-_]?account.*\.json$/, category: "filename", rule: "service-account" },
+  {
+    pattern: /(?:^|\/)service[-_]?account.*\.json$/,
+    category: "filename",
+    rule: "service-account",
+  },
   { pattern: /\.(?:js|css)\.map$/, category: "filename", rule: "source-map" },
   { pattern: /(?:^|\/)[^/]+\.map$/, category: "filename", rule: "source-map" },
   { pattern: /\.pem$/, category: "filename", rule: "private-key" },
@@ -45,34 +61,110 @@ const FILE_RULES: FileRule[] = [
   { pattern: /\.key$/, category: "filename", rule: "private-key" },
   { pattern: /\.keystore$/, category: "filename", rule: "private-key" },
   { pattern: /\.jks$/, category: "filename", rule: "private-key" },
-  { pattern: /(?:^|\/)id_(?:rsa|ed25519|ecdsa|dsa)$/, category: "filename", rule: "ssh-private-key" },
+  {
+    pattern: /(?:^|\/)id_(?:rsa|ed25519|ecdsa|dsa)$/,
+    category: "filename",
+    rule: "ssh-private-key",
+  },
   { pattern: /(?:^|\/)\.ssh\//, category: "filename", rule: "ssh-config" },
   { pattern: /(?:^|\/)\.htpasswd$/, category: "filename", rule: "auth-file" },
 ]
 
 const LINE_RULES: LineRule[] = [
   { pattern: /\bsk-[A-Za-z0-9]{20,}/, category: "token", rule: "openai-key" },
-  { pattern: /\bghp_[A-Za-z0-9]{20,}/, category: "token", rule: "github-token" },
+  {
+    pattern: /\bghp_[A-Za-z0-9]{20,}/,
+    category: "token",
+    rule: "github-token",
+  },
   { pattern: /\bAKIA[A-Z0-9]{12,}/, category: "token", rule: "aws-access-key" },
-  { pattern: /\bBEARER\s+[A-Za-z0-9_.~+/\-]{20,}/i, category: "token", rule: "bearer-token" },
-  { pattern: /\bAPI[_-]?KEY\b/i, category: "credential", rule: "api-key-marker" },
-  { pattern: /\bSECRET[_-]?KEY\b/i, category: "credential", rule: "secret-key-marker" },
-  { pattern: /\bACCESS[_-]?TOKEN\b/i, category: "credential", rule: "access-token-marker" },
-  { pattern: /\bAUTH[_-]?TOKEN\b/i, category: "credential", rule: "auth-token-marker" },
-  { pattern: /\bPRIVATE[_-]?KEY\b/i, category: "credential", rule: "private-key-marker" },
+  {
+    pattern: /\bBEARER\s+[A-Za-z0-9_.~+/-]{20,}/i,
+    category: "token",
+    rule: "bearer-token",
+  },
+  {
+    pattern: /\bAPI[_-]?KEY\b/i,
+    category: "credential",
+    rule: "api-key-marker",
+  },
+  {
+    pattern: /\bSECRET[_-]?KEY\b/i,
+    category: "credential",
+    rule: "secret-key-marker",
+  },
+  {
+    pattern: /\bACCESS[_-]?TOKEN\b/i,
+    category: "credential",
+    rule: "access-token-marker",
+  },
+  {
+    pattern: /\bAUTH[_-]?TOKEN\b/i,
+    category: "credential",
+    rule: "auth-token-marker",
+  },
+  {
+    pattern: /\bPRIVATE[_-]?KEY\b/i,
+    category: "credential",
+    rule: "private-key-marker",
+  },
   { pattern: /\bPASSWORD\b/i, category: "credential", rule: "password-marker" },
   { pattern: /\bPASSWD\b/i, category: "credential", rule: "passwd-marker" },
-  { pattern: /\bDB[_-]?PASSWORD\b/i, category: "credential", rule: "db-password-marker" },
-  { pattern: /\bDATABASE[_-]?URL\b/i, category: "credential", rule: "database-url-marker" },
-  { pattern: /\bCLIENT[_-]?SECRET\b/i, category: "credential", rule: "client-secret-marker" },
-  { pattern: /\bAWS[_-]?SECRET\b/i, category: "credential", rule: "aws-secret-marker" },
-  { pattern: /\bGH[_-]?TOKEN\b/i, category: "credential", rule: "gh-token-marker" },
-  { pattern: /\bNPM[_-]?TOKEN\b/i, category: "credential", rule: "npm-token-marker" },
-  { pattern: /\bSLACK[_-]?TOKEN\b/i, category: "credential", rule: "slack-token-marker" },
-  { pattern: /\bSTRIPE[_-]?(?:SECRET|KEY)\b/i, category: "credential", rule: "stripe-secret-marker" },
-  { pattern: /\bSENDGRID[_-]?(?:API)?[_-]?KEY\b/i, category: "credential", rule: "sendgrid-key-marker" },
-  { pattern: /\bTWILIO[_-]?(?:AUTH|SID)\b/i, category: "credential", rule: "twilio-secret-marker" },
-  { pattern: /\bCREDENTIALS?\b/i, category: "credential", rule: "credentials-marker" },
+  {
+    pattern: /\bDB[_-]?PASSWORD\b/i,
+    category: "credential",
+    rule: "db-password-marker",
+  },
+  {
+    pattern: /\bDATABASE[_-]?URL\b/i,
+    category: "credential",
+    rule: "database-url-marker",
+  },
+  {
+    pattern: /\bCLIENT[_-]?SECRET\b/i,
+    category: "credential",
+    rule: "client-secret-marker",
+  },
+  {
+    pattern: /\bAWS[_-]?SECRET\b/i,
+    category: "credential",
+    rule: "aws-secret-marker",
+  },
+  {
+    pattern: /\bGH[_-]?TOKEN\b/i,
+    category: "credential",
+    rule: "gh-token-marker",
+  },
+  {
+    pattern: /\bNPM[_-]?TOKEN\b/i,
+    category: "credential",
+    rule: "npm-token-marker",
+  },
+  {
+    pattern: /\bSLACK[_-]?TOKEN\b/i,
+    category: "credential",
+    rule: "slack-token-marker",
+  },
+  {
+    pattern: /\bSTRIPE[_-]?(?:SECRET|KEY)\b/i,
+    category: "credential",
+    rule: "stripe-secret-marker",
+  },
+  {
+    pattern: /\bSENDGRID[_-]?(?:API)?[_-]?KEY\b/i,
+    category: "credential",
+    rule: "sendgrid-key-marker",
+  },
+  {
+    pattern: /\bTWILIO[_-]?(?:AUTH|SID)\b/i,
+    category: "credential",
+    rule: "twilio-secret-marker",
+  },
+  {
+    pattern: /\bCREDENTIALS?\b/i,
+    category: "credential",
+    rule: "credentials-marker",
+  },
 ]
 
 const SECRET_ASSIGNMENT_RE =
@@ -82,11 +174,14 @@ const LONG_SECRET_REPLACERS = [
   /\bsk-[A-Za-z0-9]{20,}/,
   /\bghp_[A-Za-z0-9]{20,}/,
   /\bAKIA[A-Z0-9]{12,}/,
-  /\bBEARER\s+[A-Za-z0-9_.~+/\-]{20,}/i,
+  /\bBEARER\s+[A-Za-z0-9_.~+/-]{20,}/i,
 ]
 
 function withGlobal(regex: RegExp): RegExp {
-  return new RegExp(regex.source, regex.flags.includes("g") ? regex.flags : `${regex.flags}g`)
+  return new RegExp(
+    regex.source,
+    regex.flags.includes("g") ? regex.flags : `${regex.flags}g`,
+  )
 }
 
 function parseDiffFileEntries(diff: string): DiffFileEntry[] {
@@ -196,9 +291,9 @@ function redactLinePreview(line: string): string {
     preview = preview.replace(withGlobal(regex), "<redacted>")
   }
 
-  preview = preview.replace(withGlobal(IPV4_RE), (candidate) => (
-    firstSensitiveIpv4(candidate) ? "<redacted-ip>" : candidate
-  ))
+  preview = preview.replace(withGlobal(IPV4_RE), (candidate) =>
+    firstSensitiveIpv4(candidate) ? "<redacted-ip>" : candidate,
+  )
 
   if (preview.length > 160) {
     preview = `${preview.slice(0, 157)}...`
@@ -212,10 +307,13 @@ function formatBlockMessage(report: SensitiveReport, footer: string): string {
 
   const lines = ["Sensitive findings:"]
   for (const finding of report.findings) {
-    const location = finding.lineNumber !== undefined
-      ? `${finding.filePath}:${finding.lineNumber}`
-      : finding.filePath
-    lines.push(`- ${location} [${finding.category} / ${finding.rule}] ${finding.preview}`)
+    const location =
+      finding.lineNumber !== undefined
+        ? `${finding.filePath}:${finding.lineNumber}`
+        : finding.filePath
+    lines.push(
+      `- ${location} [${finding.category} / ${finding.rule}] ${finding.preview}`,
+    )
   }
   lines.push(footer)
   return lines.join("\n")

@@ -190,7 +190,7 @@ fn load_metadata() -> Result<GuardInstallMetadata> {
 }
 
 fn load_metadata_from(path: &Path) -> Result<GuardInstallMetadata> {
-    let content = std::fs::read_to_string(&path)?;
+    let content = std::fs::read_to_string(path)?;
     toml::from_str(&content).map_err(|err| {
         GuardError::InvalidInstall(format!(
             "failed to parse guard metadata {}: {err}",
@@ -274,7 +274,7 @@ fn chain_hooks(
 
     let mut seen = vec![hooks_dir.join(hook_name)];
     for candidate in candidates {
-        if should_run_hook(&candidate, &hooks_dir, &seen)? {
+        if should_run_hook(&candidate, hooks_dir, &seen)? {
             let code = run_hook_script(&candidate, hook_name, args)?;
             if code != 0 {
                 return Ok(code);
@@ -316,7 +316,7 @@ fn is_executable(path: &Path) -> Result<bool> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        return Ok(metadata.permissions().mode() & 0o111 != 0);
+        Ok(metadata.permissions().mode() & 0o111 != 0)
     }
     #[cfg(not(unix))]
     {

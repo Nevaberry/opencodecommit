@@ -1,17 +1,20 @@
 import * as assert from "node:assert"
 import { describe, it } from "node:test"
+import type { CommitContext } from "../inline/context"
 import { detectSensitiveContent } from "../inline/context"
-import { detectSensitiveReport, formatSensitiveWarningMessage } from "../inline/sensitive"
 import {
+  buildBranchPrompt,
   buildPrompt,
   buildRefinePrompt,
-  buildBranchPrompt,
   formatBranchName,
   formatCommitMessage,
   parseResponse,
   sanitizeResponse,
 } from "../inline/generator"
-import type { CommitContext } from "../inline/context"
+import {
+  detectSensitiveReport,
+  formatSensitiveWarningMessage,
+} from "../inline/sensitive"
 import type { BranchMode, ExtensionConfig } from "../inline/types"
 
 function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
@@ -37,11 +40,14 @@ function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
     custom: { emojis: {} },
     prompt: {
       baseModule: "You are an expert at writing git commit messages.",
-      adaptiveFormat: "Match the style of the recent commits.\n\nRecent commits:\n{recentCommits}",
-      conventionalFormat: "Use conventional commit format: type(scope): description\n- feat: new features or capabilities",
+      adaptiveFormat:
+        "Match the style of the recent commits.\n\nRecent commits:\n{recentCommits}",
+      conventionalFormat:
+        "Use conventional commit format: type(scope): description\n- feat: new features or capabilities",
       multilineLength: "Add a body after a blank line with bullet points.",
       onelinerLength: "Write exactly one line, no body. Maximum 72 characters.",
-      sensitiveContentNote: "The diff contains sensitive content. Mention this in the first line of the commit message.",
+      sensitiveContentNote:
+        "The diff contains sensitive content. Mention this in the first line of the commit message.",
     },
     commitMode: "adaptive",
     sparkleMode: "adaptive",
@@ -92,24 +98,15 @@ describe("sanitizeResponse", () => {
   })
 
   it("strips inline backticks", () => {
-    assert.strictEqual(
-      sanitizeResponse("`feat: add login`"),
-      "feat: add login",
-    )
+    assert.strictEqual(sanitizeResponse("`feat: add login`"), "feat: add login")
   })
 
   it("strips wrapping double quotes", () => {
-    assert.strictEqual(
-      sanitizeResponse('"feat: add login"'),
-      "feat: add login",
-    )
+    assert.strictEqual(sanitizeResponse('"feat: add login"'), "feat: add login")
   })
 
   it("strips wrapping single quotes", () => {
-    assert.strictEqual(
-      sanitizeResponse("'feat: add login'"),
-      "feat: add login",
-    )
+    assert.strictEqual(sanitizeResponse("'feat: add login'"), "feat: add login")
   })
 
   it("strips markdown bold", () => {
@@ -120,10 +117,7 @@ describe("sanitizeResponse", () => {
   })
 
   it("strips markdown italic", () => {
-    assert.strictEqual(
-      sanitizeResponse("*feat: add login*"),
-      "feat: add login",
-    )
+    assert.strictEqual(sanitizeResponse("*feat: add login*"), "feat: add login")
   })
 
   it("trims whitespace", () => {
@@ -621,7 +615,11 @@ describe("formatSensitiveWarningMessage", () => {
     assert.ok(message.includes("Sensitive findings:"))
     assert.ok(message.includes("src/config.ts:18"))
     assert.ok(message.includes("[credential / api-key-marker]"))
-    assert.ok(message.includes("The diff will be sent to an AI backend if you continue."))
+    assert.ok(
+      message.includes(
+        "The diff will be sent to an AI backend if you continue.",
+      ),
+    )
   })
 })
 
@@ -630,7 +628,13 @@ describe("formatSensitiveWarningMessage", () => {
 describe("buildBranchPrompt", () => {
   it("conventional mode contains type/slug instructions", () => {
     const config = makeConfig()
-    const prompt = buildBranchPrompt("add login", undefined, config, "conventional", [])
+    const prompt = buildBranchPrompt(
+      "add login",
+      undefined,
+      config,
+      "conventional",
+      [],
+    )
     assert.ok(prompt.includes("type/short-description-slug"))
     assert.ok(prompt.includes("feat, fix, docs"))
     assert.ok(prompt.includes("add login"))
@@ -639,7 +643,13 @@ describe("buildBranchPrompt", () => {
   it("adaptive mode includes existing branch names", () => {
     const config = makeConfig()
     const branches = ["feat/add-login", "fix/auth-bug"]
-    const prompt = buildBranchPrompt("", "diff here", config, "adaptive", branches)
+    const prompt = buildBranchPrompt(
+      "",
+      "diff here",
+      config,
+      "adaptive",
+      branches,
+    )
     assert.ok(prompt.includes("feat/add-login"))
     assert.ok(prompt.includes("fix/auth-bug"))
     assert.ok(prompt.includes("Match the naming style"))
@@ -653,14 +663,28 @@ describe("buildBranchPrompt", () => {
 
   it("includes diff when provided", () => {
     const config = makeConfig()
-    const prompt = buildBranchPrompt("", "my diff content", config, "conventional", [])
+    const prompt = buildBranchPrompt(
+      "",
+      "my diff content",
+      config,
+      "conventional",
+      [],
+    )
     assert.ok(prompt.includes("my diff content"))
     assert.ok(prompt.includes("Git Diff"))
   })
 
   it("includes language instruction", () => {
-    const config = makeConfig({ activeLanguageInstruction: "Write in Finnish." })
-    const prompt = buildBranchPrompt("desc", undefined, config, "conventional", [])
+    const config = makeConfig({
+      activeLanguageInstruction: "Write in Finnish.",
+    })
+    const prompt = buildBranchPrompt(
+      "desc",
+      undefined,
+      config,
+      "conventional",
+      [],
+    )
     assert.ok(prompt.includes("Write in Finnish."))
   })
 })
@@ -677,11 +701,17 @@ describe("formatBranchName", () => {
   })
 
   it("slugifies spaces and special chars", () => {
-    assert.strictEqual(formatBranchName("feat/add login page!"), "feat/add-login-page")
+    assert.strictEqual(
+      formatBranchName("feat/add login page!"),
+      "feat/add-login-page",
+    )
   })
 
   it("handles code block wrapped response", () => {
-    assert.strictEqual(formatBranchName("```\nfeat/add-login\n```"), "feat/add-login")
+    assert.strictEqual(
+      formatBranchName("```\nfeat/add-login\n```"),
+      "feat/add-login",
+    )
   })
 
   it("returns fallback for empty response", () => {

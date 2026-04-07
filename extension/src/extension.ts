@@ -2,15 +2,26 @@ import * as vscode from "vscode"
 
 import { getConfig as getInlineConfig } from "./inline/config"
 import { gatherContext, getRecentBranchNames } from "./inline/context"
-import { generateCommitMessage, refineCommitMessage, generateBranchName } from "./inline/generator"
+import {
+  generateBranchName,
+  generateCommitMessage,
+  refineCommitMessage,
+} from "./inline/generator"
 import { formatSensitiveWarningMessage } from "./inline/sensitive"
-import type { BranchMode, Change, CommitMode, GitExtension, Repository } from "./inline/types"
+import type {
+  BranchMode,
+  Change,
+  CommitMode,
+  GitExtension,
+  Repository,
+} from "./inline/types"
 
 // Diagnostic output channel
 let outputChannel: vscode.OutputChannel
 
 function log(msg: string) {
-  if (!outputChannel) outputChannel = vscode.window.createOutputChannel("OpenCodeCommit")
+  if (!outputChannel)
+    outputChannel = vscode.window.createOutputChannel("OpenCodeCommit")
   outputChannel.appendLine(`[${new Date().toISOString()}] ${msg}`)
 }
 
@@ -26,15 +37,22 @@ function getGitExtension(): { repositories: Repository[] } {
   return gitExt.exports.getAPI(1)
 }
 
-function resolveRepository(arg?: { rootUri?: vscode.Uri }): Repository | undefined {
+function resolveRepository(arg?: {
+  rootUri?: vscode.Uri
+}): Repository | undefined {
   let git: { repositories: Repository[] }
-  try { git = getGitExtension() } catch { return undefined }
+  try {
+    git = getGitExtension()
+  } catch {
+    return undefined
+  }
   if (!git.repositories.length) return undefined
 
   if (arg?.rootUri) {
-    return git.repositories.find(
-      (r) => r.rootUri.fsPath === arg.rootUri!.fsPath,
-    ) ?? git.repositories[0]
+    return (
+      git.repositories.find((r) => r.rootUri.fsPath === arg.rootUri?.fsPath) ??
+      git.repositories[0]
+    )
   }
 
   const editor = vscode.window.activeTextEditor
@@ -105,10 +123,14 @@ async function generateMessageInline(mode: CommitMode, repo: Repository) {
 
   const branchName = repo.state.HEAD?.name ?? "unknown"
   const context = await gatherContext(repo.rootUri.fsPath, diff, branchName)
-  log(`Context: branch=${context.branch}, files=${context.changedFiles.length}, recentCommits=${context.recentCommits.length}`)
+  log(
+    `Context: branch=${context.branch}, files=${context.changedFiles.length}, recentCommits=${context.recentCommits.length}`,
+  )
 
   if (context.hasSensitiveContent) {
-    const warningMessage = formatSensitiveWarningMessage(context.sensitiveReport)
+    const warningMessage = formatSensitiveWarningMessage(
+      context.sensitiveReport,
+    )
     log(`Sensitive warning:\n${warningMessage}`)
     const choice = await vscode.window.showWarningMessage(
       "Sensitive content detected in diff.",
@@ -131,7 +153,9 @@ async function generateMessageInline(mode: CommitMode, repo: Repository) {
 async function refineMessageInline(repo: Repository) {
   const currentMessage = repo.inputBox.value
   if (!currentMessage.trim()) {
-    vscode.window.showWarningMessage("No commit message to refine. Generate one first.")
+    vscode.window.showWarningMessage(
+      "No commit message to refine. Generate one first.",
+    )
     return
   }
 
@@ -144,7 +168,12 @@ async function refineMessageInline(repo: Repository) {
   if (!feedback) return
 
   const diff = await getDiff(repo, config.diffSource)
-  const message = await refineCommitMessage(currentMessage, feedback, diff, config)
+  const message = await refineCommitMessage(
+    currentMessage,
+    feedback,
+    diff,
+    config,
+  )
   repo.inputBox.value = message
 }
 
@@ -152,7 +181,10 @@ async function refineMessageInline(repo: Repository) {
 // Command handlers
 // ---------------------------------------------------------------------------
 
-async function generateMessage(mode: CommitMode, arg?: { rootUri?: vscode.Uri }) {
+async function generateMessage(
+  mode: CommitMode,
+  arg?: { rootUri?: vscode.Uri },
+) {
   const repo = resolveRepository(arg)
   if (!repo) {
     vscode.window.showErrorMessage("No git repository found.")
@@ -160,7 +192,10 @@ async function generateMessage(mode: CommitMode, arg?: { rootUri?: vscode.Uri })
   }
 
   await vscode.window.withProgress(
-    { location: vscode.ProgressLocation.SourceControl, title: "Generating commit message..." },
+    {
+      location: vscode.ProgressLocation.SourceControl,
+      title: "Generating commit message...",
+    },
     async () => {
       try {
         await generateMessageInline(mode, repo)
@@ -172,7 +207,10 @@ async function generateMessage(mode: CommitMode, arg?: { rootUri?: vscode.Uri })
             "Open Settings",
           )
           if (action === "Open Settings") {
-            vscode.commands.executeCommand("workbench.action.openSettings", "opencodecommit")
+            vscode.commands.executeCommand(
+              "workbench.action.openSettings",
+              "opencodecommit",
+            )
           }
         } else {
           vscode.window.showErrorMessage(`OpenCodeCommit: ${msg}`)
@@ -192,7 +230,10 @@ async function refineMessage(arg?: { rootUri?: vscode.Uri }) {
   }
 
   await vscode.window.withProgress(
-    { location: vscode.ProgressLocation.SourceControl, title: "Refining commit message..." },
+    {
+      location: vscode.ProgressLocation.SourceControl,
+      title: "Refining commit message...",
+    },
     async () => {
       try {
         await refineMessageInline(repo)
@@ -208,7 +249,9 @@ async function refineMessage(arg?: { rootUri?: vscode.Uri }) {
 
 async function generateBranchInline(mode: BranchMode, repo: Repository) {
   const config = getInlineConfig()
-  log(`Branch mode: ${mode}, Backend order: [${config.backendOrder.join(", ")}]`)
+  log(
+    `Branch mode: ${mode}, Backend order: [${config.backendOrder.join(", ")}]`,
+  )
 
   let diff: string | undefined
   try {
@@ -228,11 +271,17 @@ async function generateBranchInline(mode: BranchMode, repo: Repository) {
     description = input
   }
 
-  const existingBranches = mode === "adaptive"
-    ? await getRecentBranchNames(repo.rootUri.fsPath)
-    : []
+  const existingBranches =
+    mode === "adaptive" ? await getRecentBranchNames(repo.rootUri.fsPath) : []
 
-  const branchName = await generateBranchName(diff, description, config, mode, existingBranches, log)
+  const branchName = await generateBranchName(
+    diff,
+    description,
+    config,
+    mode,
+    existingBranches,
+    log,
+  )
   log(`Generated branch name: "${branchName}"`)
 
   const confirmed = await vscode.window.showInputBox({
@@ -243,11 +292,16 @@ async function generateBranchInline(mode: BranchMode, repo: Repository) {
 
   // Create and checkout the branch using git
   const terminal = vscode.window.createTerminal("OpenCodeCommit")
-  terminal.sendText(`cd "${repo.rootUri.fsPath}" && git checkout -b "${confirmed}"`)
+  terminal.sendText(
+    `cd "${repo.rootUri.fsPath}" && git checkout -b "${confirmed}"`,
+  )
   terminal.show()
 }
 
-async function generateBranch(mode: BranchMode, arg?: { rootUri?: vscode.Uri }) {
+async function generateBranch(
+  mode: BranchMode,
+  arg?: { rootUri?: vscode.Uri },
+) {
   const repo = resolveRepository(arg)
   if (!repo) {
     vscode.window.showErrorMessage("No git repository found.")
@@ -255,7 +309,10 @@ async function generateBranch(mode: BranchMode, arg?: { rootUri?: vscode.Uri }) 
   }
 
   await vscode.window.withProgress(
-    { location: vscode.ProgressLocation.SourceControl, title: "Generating branch name..." },
+    {
+      location: vscode.ProgressLocation.SourceControl,
+      title: "Generating branch name...",
+    },
     async () => {
       try {
         await generateBranchInline(mode, repo)
@@ -277,66 +334,118 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(
     vscode.commands.registerCommand("opencodecommit.generate", (arg) =>
-      generateMessage(sparkleMode, arg)),
+      generateMessage(sparkleMode, arg),
+    ),
     vscode.commands.registerCommand("opencodecommit.generateAdaptive", (arg) =>
-      generateMessage("adaptive", arg)),
-    vscode.commands.registerCommand("opencodecommit.generateAdaptiveOneliner", (arg) =>
-      generateMessage("adaptive-oneliner", arg)),
-    vscode.commands.registerCommand("opencodecommit.generateConventional", (arg) =>
-      generateMessage("conventional", arg)),
-    vscode.commands.registerCommand("opencodecommit.generateConventionalOneliner", (arg) =>
-      generateMessage("conventional-oneliner", arg)),
+      generateMessage("adaptive", arg),
+    ),
+    vscode.commands.registerCommand(
+      "opencodecommit.generateAdaptiveOneliner",
+      (arg) => generateMessage("adaptive-oneliner", arg),
+    ),
+    vscode.commands.registerCommand(
+      "opencodecommit.generateConventional",
+      (arg) => generateMessage("conventional", arg),
+    ),
+    vscode.commands.registerCommand(
+      "opencodecommit.generateConventionalOneliner",
+      (arg) => generateMessage("conventional-oneliner", arg),
+    ),
     vscode.commands.registerCommand("opencodecommit.refine", (arg) =>
-      refineMessage(arg)),
+      refineMessage(arg),
+    ),
     vscode.commands.registerCommand("opencodecommit.generateBranch", (arg) =>
-      generateBranch(cfg.get<BranchMode>("branchMode", "conventional"), arg)),
-    vscode.commands.registerCommand("opencodecommit.generateBranchAdaptive", (arg) =>
-      generateBranch("adaptive", arg)),
-    vscode.commands.registerCommand("opencodecommit.generateBranchConventional", (arg) =>
-      generateBranch("conventional", arg)),
-    vscode.commands.registerCommand("opencodecommit.switchLanguage", async () => {
-      const cfg = vscode.workspace.getConfiguration("opencodecommit")
-      const languages = cfg.get<{ label: string; instruction: string }[]>("languages", [])
-      const active = cfg.get<string>("activeLanguage", "English")
-      const items = languages.map((l) => ({
-        label: l.label === active ? `$(check) ${l.label}` : l.label,
-        langLabel: l.label,
-      }))
-      const picked = await vscode.window.showQuickPick(items, { placeHolder: "Select language" })
-      if (picked) {
-        await cfg.update("activeLanguage", picked.langLabel, vscode.ConfigurationTarget.Global)
-        vscode.window.showInformationMessage(`Language set to ${picked.langLabel}`)
-      }
-    }),
+      generateBranch(cfg.get<BranchMode>("branchMode", "conventional"), arg),
+    ),
+    vscode.commands.registerCommand(
+      "opencodecommit.generateBranchAdaptive",
+      (arg) => generateBranch("adaptive", arg),
+    ),
+    vscode.commands.registerCommand(
+      "opencodecommit.generateBranchConventional",
+      (arg) => generateBranch("conventional", arg),
+    ),
+    vscode.commands.registerCommand(
+      "opencodecommit.switchLanguage",
+      async () => {
+        const cfg = vscode.workspace.getConfiguration("opencodecommit")
+        const languages = cfg.get<{ label: string; instruction: string }[]>(
+          "languages",
+          [],
+        )
+        const active = cfg.get<string>("activeLanguage", "English")
+        const items = languages.map((l) => ({
+          label: l.label === active ? `$(check) ${l.label}` : l.label,
+          langLabel: l.label,
+        }))
+        const picked = await vscode.window.showQuickPick(items, {
+          placeHolder: "Select language",
+        })
+        if (picked) {
+          await cfg.update(
+            "activeLanguage",
+            picked.langLabel,
+            vscode.ConfigurationTarget.Global,
+          )
+          vscode.window.showInformationMessage(
+            `Language set to ${picked.langLabel}`,
+          )
+        }
+      },
+    ),
     vscode.commands.registerCommand("opencodecommit.openSettings", () => {
-      vscode.commands.executeCommand("workbench.action.openSettings", "opencodecommit")
-    }),
-    vscode.commands.registerCommand("opencodecommit.resetSettings", async () => {
-      const choice = await vscode.window.showWarningMessage(
-        "Reset all OpenCodeCommit settings to defaults? This removes your customizations.",
-        "Reset",
-        "Cancel",
+      vscode.commands.executeCommand(
+        "workbench.action.openSettings",
+        "opencodecommit",
       )
-      if (choice !== "Reset") return
-
-      const cfg = vscode.workspace.getConfiguration("opencodecommit")
-      const keys = [
-        "languages", "activeLanguage", "showLanguageSelector",
-        "backendOrder", "commitMode", "sparkleMode",
-        "codexCLIModel", "codexCLIPath", "codexCLIProvider",
-        "opencodeCLIModel", "opencodeCLIPath", "opencodeCLIProvider",
-        "claudeCodeCLIModel", "claudeCodeCLIPath",
-        "geminiCLIModel", "geminiCLIPath",
-        "diffSource", "maxDiffLength", "useEmojis", "useLowerCase",
-        "commitTemplate", "custom.emojis", "refine.defaultFeedback",
-      ]
-      for (const key of keys) {
-        await cfg.update(key, undefined, vscode.ConfigurationTarget.Global)
-      }
-      vscode.window.showInformationMessage("OpenCodeCommit settings reset to defaults.")
     }),
+    vscode.commands.registerCommand(
+      "opencodecommit.resetSettings",
+      async () => {
+        const choice = await vscode.window.showWarningMessage(
+          "Reset all OpenCodeCommit settings to defaults? This removes your customizations.",
+          "Reset",
+          "Cancel",
+        )
+        if (choice !== "Reset") return
+
+        const cfg = vscode.workspace.getConfiguration("opencodecommit")
+        const keys = [
+          "languages",
+          "activeLanguage",
+          "showLanguageSelector",
+          "backendOrder",
+          "commitMode",
+          "sparkleMode",
+          "codexCLIModel",
+          "codexCLIPath",
+          "codexCLIProvider",
+          "opencodeCLIModel",
+          "opencodeCLIPath",
+          "opencodeCLIProvider",
+          "claudeCodeCLIModel",
+          "claudeCodeCLIPath",
+          "geminiCLIModel",
+          "geminiCLIPath",
+          "diffSource",
+          "maxDiffLength",
+          "useEmojis",
+          "useLowerCase",
+          "commitTemplate",
+          "custom.emojis",
+          "refine.defaultFeedback",
+        ]
+        for (const key of keys) {
+          await cfg.update(key, undefined, vscode.ConfigurationTarget.Global)
+        }
+        vscode.window.showInformationMessage(
+          "OpenCodeCommit settings reset to defaults.",
+        )
+      },
+    ),
     vscode.commands.registerCommand("opencodecommit.diagnose", async () => {
-      if (!outputChannel) outputChannel = vscode.window.createOutputChannel("OpenCodeCommit")
+      if (!outputChannel)
+        outputChannel = vscode.window.createOutputChannel("OpenCodeCommit")
       outputChannel.clear()
       outputChannel.show(true)
 
@@ -349,13 +458,17 @@ export function activate(context: vscode.ExtensionContext) {
       const config = getInlineConfig()
       log(`DIAGNOSE: Backend order: [${config.backendOrder.join(", ")}]`)
       log(`DIAGNOSE: Provider: ${config.provider}, Model: ${config.model}`)
-      log(`DIAGNOSE: Claude model: ${config.claudeModel}, Codex model: ${config.codexModel}`)
+      log(
+        `DIAGNOSE: Claude model: ${config.claudeModel}, Codex model: ${config.codexModel}`,
+      )
       log(`DIAGNOSE: Commit mode: ${config.commitMode}`)
       log(`DIAGNOSE: Diff source: ${config.diffSource}`)
       log(`DIAGNOSE: Max diff length: ${config.maxDiffLength}`)
 
       try {
-        const { detectCli, getConfigPath: getCliConfigPath } = await import("./inline/cli")
+        const { detectCli, getConfigPath: getCliConfigPath } = await import(
+          "./inline/cli"
+        )
 
         for (const backend of config.backendOrder) {
           try {
@@ -377,10 +490,16 @@ export function activate(context: vscode.ExtensionContext) {
         log(`DIAGNOSE: Diff preview:\n${diff.slice(0, 500)}`)
 
         const branchName = repo.state.HEAD?.name ?? "unknown"
-        const context = await gatherContext(repo.rootUri.fsPath, diff, branchName)
+        const context = await gatherContext(
+          repo.rootUri.fsPath,
+          diff,
+          branchName,
+        )
         log(`DIAGNOSE: Branch: ${context.branch}`)
         log(`DIAGNOSE: Changed files: ${context.changedFiles.join(", ")}`)
-        log(`DIAGNOSE: Recent commits: ${context.recentCommits.slice(0, 5).join(", ")}`)
+        log(
+          `DIAGNOSE: Recent commits: ${context.recentCommits.slice(0, 5).join(", ")}`,
+        )
 
         const { buildPrompt } = await import("./inline/generator")
         const { buildInvocation } = await import("./inline/cli")
@@ -388,11 +507,17 @@ export function activate(context: vscode.ExtensionContext) {
         log(`DIAGNOSE: Prompt length: ${prompt.length} chars`)
         log(`DIAGNOSE: Prompt preview:\n${prompt.slice(0, 1000)}`)
 
-        const { invocation, stdin } = buildInvocation(cliPath, prompt, config, firstBackend)
-        log(`DIAGNOSE: Will run: ${invocation.command} ${invocation.args.map(a => a.length > 80 ? `[${a.length} chars]` : a).join(" ")}`)
+        const { invocation, stdin } = buildInvocation(
+          cliPath,
+          prompt,
+          config,
+          firstBackend,
+        )
+        log(
+          `DIAGNOSE: Will run: ${invocation.command} ${invocation.args.map((a) => (a.length > 80 ? `[${a.length} chars]` : a)).join(" ")}`,
+        )
         if (stdin) log(`DIAGNOSE: Stdin: ${stdin.length} chars`)
         else log("DIAGNOSE: No stdin (prompt passed as argument)")
-
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err)
         log(`DIAGNOSE ERROR: ${msg}`)

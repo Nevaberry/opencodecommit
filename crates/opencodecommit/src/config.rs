@@ -463,8 +463,10 @@ mod tests {
 
     #[test]
     fn active_prompt_modules_finnish() {
-        let mut cfg = Config::default();
-        cfg.active_language = "Suomi".to_owned();
+        let cfg = Config {
+            active_language: "Suomi".to_owned(),
+            ..Config::default()
+        };
         let mods = cfg.active_prompt_modules();
         assert!(mods.base_module.contains("Olet asiantuntija"));
         assert!(mods.adaptive_format.contains("Noudata alla"));
@@ -476,8 +478,10 @@ mod tests {
 
     #[test]
     fn active_prompt_modules_custom_falls_back_to_english() {
-        let mut cfg = Config::default();
-        cfg.active_language = "Custom (example)".to_owned();
+        let cfg = Config {
+            active_language: "Custom (example)".to_owned(),
+            ..Config::default()
+        };
         let mods = cfg.active_prompt_modules();
         // Custom has no modules → falls back to first language (English)
         assert!(

@@ -263,10 +263,10 @@ pub fn scan_diff_for_sensitive_content(diff: &str, changed_files: &[String]) -> 
             continue;
         }
 
-        if line.starts_with('+') {
+        if let Some(added_line) = line.strip_prefix('+') {
             let file_path = current_file.clone().unwrap_or_else(|| "unknown".to_owned());
             let line_number = current_line;
-            if let Some(finding) = scan_added_line(&file_path, &line[1..], line_number) {
+            if let Some(finding) = scan_added_line(&file_path, added_line, line_number) {
                 findings.push(finding);
             }
             if let Some(line_no) = current_line.as_mut() {
@@ -301,13 +301,12 @@ fn parse_diff_file_entries(diff: &str) -> Vec<DiffFileEntry> {
             continue;
         }
 
-        if line == "deleted file mode 100644"
+        if (line == "deleted file mode 100644"
             || line == "deleted file mode 100755"
-            || line == "+++ /dev/null"
+            || line == "+++ /dev/null")
+            && let Some(entry) = current.as_mut()
         {
-            if let Some(entry) = current.as_mut() {
-                entry.deleted = true;
-            }
+            entry.deleted = true;
         }
     }
 

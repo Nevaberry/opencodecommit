@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process"
+import { type SpawnOptionsWithStdioTuple, spawn } from "node:child_process"
 import * as fs from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
@@ -24,7 +24,13 @@ function isExecutable(filePath: string): boolean {
   }
 }
 
-function spawnMaybeHost(command: string, args: string[], opts: { stdio: any } = { stdio: ["ignore", "pipe", "pipe"] }): ReturnType<typeof spawn> {
+function spawnMaybeHost(
+  command: string,
+  args: string[],
+  opts: SpawnOptionsWithStdioTuple<"ignore", "pipe", "pipe"> = {
+    stdio: ["ignore", "pipe", "pipe"],
+  },
+): ReturnType<typeof spawn> {
   if (isFlatpak()) {
     return spawn("flatpak-spawn", ["--host", command, ...args], opts)
   }
@@ -41,7 +47,7 @@ function runWhich(command: string): Promise<string | undefined> {
     const child = spawnHost(cmd, [command])
 
     let stdout = ""
-    child.stdout!.on("data", (d: Buffer) => {
+    child.stdout?.on("data", (d: Buffer) => {
       stdout += d
     })
 
@@ -62,13 +68,13 @@ function runShellSourceWhich(binary: string): Promise<string | undefined> {
   if (process.platform === "win32") return Promise.resolve(undefined)
 
   return new Promise((resolve) => {
-    const child = spawnHost(
-      "bash",
-      ["-c", `source ~/.zshrc 2>/dev/null || source ~/.bashrc 2>/dev/null || true; which ${binary}`],
-    )
+    const child = spawnHost("bash", [
+      "-c",
+      `source ~/.zshrc 2>/dev/null || source ~/.bashrc 2>/dev/null || true; which ${binary}`,
+    ])
 
     let stdout = ""
-    child.stdout!.on("data", (d: Buffer) => {
+    child.stdout?.on("data", (d: Buffer) => {
       stdout += d
     })
 
@@ -114,7 +120,7 @@ function runWslWhich(binary: string): Promise<string | undefined> {
     const child = spawnHost("wsl", ["which", binary])
 
     let stdout = ""
-    child.stdout!.on("data", (d: Buffer) => {
+    child.stdout?.on("data", (d: Buffer) => {
       stdout += d
     })
 
@@ -194,12 +200,19 @@ function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-9;]*m/g, "")
 }
 
-export function getConfigPath(config: ExtensionConfig, backend: CliBackend): string {
+export function getConfigPath(
+  config: ExtensionConfig,
+  backend: CliBackend,
+): string {
   switch (backend) {
-    case "opencode": return config.cliPath
-    case "claude": return config.claudePath
-    case "codex": return config.codexPath
-    case "gemini": return config.geminiPath
+    case "opencode":
+      return config.cliPath
+    case "claude":
+      return config.claudePath
+    case "codex":
+      return config.codexPath
+    case "gemini":
+      return config.geminiPath
   }
 }
 
@@ -214,7 +227,14 @@ export function buildInvocation(
       return {
         invocation: {
           command: cliPath,
-          args: ["run", "-m", `${config.provider}/${config.model}`, "--format", "json", prompt],
+          args: [
+            "run",
+            "-m",
+            `${config.provider}/${config.model}`,
+            "--format",
+            "json",
+            prompt,
+          ],
           timeout: 120_000,
         },
       }
@@ -287,7 +307,8 @@ export function parseOpenCodeJson(output: string): string {
     try {
       const event = JSON.parse(line)
       if (event.type === "error") {
-        const msg = event.error?.data?.message ?? event.error?.name ?? "unknown error"
+        const msg =
+          event.error?.data?.message ?? event.error?.name ?? "unknown error"
         throw new Error(`OpenCode: ${msg}`)
       }
       if (event.type === "text" && event.part?.text) {

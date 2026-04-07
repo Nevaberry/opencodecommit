@@ -1,5 +1,11 @@
 import * as vscode from "vscode"
-import type { BranchMode, CliBackend, CommitMode, ExtensionConfig, LanguageConfig } from "./types"
+import type {
+  BranchMode,
+  CliBackend,
+  CommitMode,
+  ExtensionConfig,
+  LanguageConfig,
+} from "./types"
 
 export function getConfig(): ExtensionConfig {
   const cfg = vscode.workspace.getConfiguration("opencodecommit")
@@ -40,10 +46,13 @@ export function getConfig(): ExtensionConfig {
     prompt: {
       baseModule: active?.baseModule ?? fallback?.baseModule ?? "",
       adaptiveFormat: active?.adaptiveFormat ?? fallback?.adaptiveFormat ?? "",
-      conventionalFormat: active?.conventionalFormat ?? fallback?.conventionalFormat ?? "",
-      multilineLength: active?.multilineLength ?? fallback?.multilineLength ?? "",
+      conventionalFormat:
+        active?.conventionalFormat ?? fallback?.conventionalFormat ?? "",
+      multilineLength:
+        active?.multilineLength ?? fallback?.multilineLength ?? "",
       onelinerLength: active?.onelinerLength ?? fallback?.onelinerLength ?? "",
-      sensitiveContentNote: active?.sensitiveContentNote ?? fallback?.sensitiveContentNote ?? "",
+      sensitiveContentNote:
+        active?.sensitiveContentNote ?? fallback?.sensitiveContentNote ?? "",
     },
     commitMode: cfg.get<CommitMode>("commitMode", "adaptive"),
     sparkleMode: cfg.get<CommitMode>("sparkleMode", "adaptive"),
@@ -54,7 +63,12 @@ export function getConfig(): ExtensionConfig {
     codexModel: cfg.get<string>("codexCLIModel", "gpt-5.4-mini"),
     codexProvider: cfg.get<string>("codexCLIProvider", ""),
     geminiModel: cfg.get<string>("geminiCLIModel", ""),
-    backendOrder: cfg.get<CliBackend[]>("backendOrder", ["codex", "opencode", "claude", "gemini"]),
+    backendOrder: cfg.get<CliBackend[]>("backendOrder", [
+      "codex",
+      "opencode",
+      "claude",
+      "gemini",
+    ]),
     branchMode: cfg.get<BranchMode>("branchMode", "conventional"),
   }
 }

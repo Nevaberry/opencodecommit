@@ -1,7 +1,17 @@
-import { buildInvocation, detectCli, execCli, getConfigPath, parseOpenCodeJson } from "./cli"
+import {
+  buildInvocation,
+  detectCli,
+  execCli,
+  getConfigPath,
+  parseOpenCodeJson,
+} from "./cli"
 import type { CommitContext } from "./context"
-import { getRecentBranchNames } from "./context"
-import type { BranchMode, CliBackend, CommitMode, ExtensionConfig } from "./types"
+import type {
+  BranchMode,
+  CliBackend,
+  CommitMode,
+  ExtensionConfig,
+} from "./types"
 
 interface ParsedCommit {
   type: string
@@ -27,7 +37,9 @@ export function buildPrompt(
       context.recentCommits.length > 0
         ? context.recentCommits.join("\n")
         : "(no recent commits)"
-    parts.push(config.prompt.adaptiveFormat.replace("{recentCommits}", recentText))
+    parts.push(
+      config.prompt.adaptiveFormat.replace("{recentCommits}", recentText),
+    )
   } else {
     parts.push(config.prompt.conventionalFormat)
   }
@@ -107,7 +119,9 @@ Existing branches:
 ${existingBranches.join("\n")}`,
     )
   } else {
-    parts.push("Generate a branch name in the format: type/short-description-slug")
+    parts.push(
+      "Generate a branch name in the format: type/short-description-slug",
+    )
     parts.push("Types: feat, fix, docs, refactor, test, chore")
     parts.push("Use lowercase, hyphens between words, max 50 characters total.")
   }
@@ -139,7 +153,10 @@ export function formatBranchName(response: string): string {
   }
 
   // Slugify: lowercase, replace non-alphanumeric with hyphens, collapse
-  let slug = name.toLowerCase().replace(/[^a-z0-9/-]/g, "-").replace(/-{2,}/g, "-")
+  let slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9/-]/g, "-")
+    .replace(/-{2,}/g, "-")
   slug = slug.replace(/^-+|-+$/g, "")
   return slug || "chore/update"
 }
@@ -154,11 +171,18 @@ export async function generateBranchName(
 ): Promise<string> {
   const logFn = logger ?? (() => {})
 
-  const truncatedDiff = diff && diff.length > config.maxDiffLength
-    ? `${diff.slice(0, config.maxDiffLength)}\n... (truncated)`
-    : diff
+  const truncatedDiff =
+    diff && diff.length > config.maxDiffLength
+      ? `${diff.slice(0, config.maxDiffLength)}\n... (truncated)`
+      : diff
 
-  const prompt = buildBranchPrompt(description, truncatedDiff, config, mode, existingBranches)
+  const prompt = buildBranchPrompt(
+    description,
+    truncatedDiff,
+    config,
+    mode,
+    existingBranches,
+  )
   logFn(`Branch prompt length: ${prompt.length} chars, mode: ${mode}`)
 
   const backends = config.backendOrder
@@ -246,15 +270,30 @@ export function parseResponse(response: string): ParsedCommit {
 
 function inferType(message: string): string {
   const lower = message.toLowerCase()
-  if (/\b(readme|docs?|documentation|changelog|comment|jsdoc|rustdoc)\b/.test(lower)) return "docs"
-  if (/\b(fix|bug|patch|resolve|issue|error|crash|repair)\b/.test(lower)) return "fix"
-  if (/\b(add|implement|feature|new|introduce|support|create)\b/.test(lower)) return "feat"
-  if (/\b(refactor|restructure|reorganize|rename|move|extract|simplify)\b/.test(lower)) return "refactor"
+  if (
+    /\b(readme|docs?|documentation|changelog|comment|jsdoc|rustdoc)\b/.test(
+      lower,
+    )
+  )
+    return "docs"
+  if (/\b(fix|bug|patch|resolve|issue|error|crash|repair)\b/.test(lower))
+    return "fix"
+  if (/\b(add|implement|feature|new|introduce|support|create)\b/.test(lower))
+    return "feat"
+  if (
+    /\b(refactor|restructure|reorganize|rename|move|extract|simplify)\b/.test(
+      lower,
+    )
+  )
+    return "refactor"
   if (/\b(tests?|spec|assert|coverage)\b/.test(lower)) return "test"
-  if (/\b(style|format|whitespace|indent|lint|prettier|biome)\b/.test(lower)) return "style"
-  if (/\b(perf|performance|optimiz|speed|faster|cache)\b/.test(lower)) return "perf"
+  if (/\b(style|format|whitespace|indent|lint|prettier|biome)\b/.test(lower))
+    return "style"
+  if (/\b(perf|performance|optimiz|speed|faster|cache)\b/.test(lower))
+    return "perf"
   if (/\b(revert|undo|rollback)\b/.test(lower)) return "revert"
-  if (/\b(security|vulnerab|auth|cve|xss|csrf|injection|sanitiz)\b/.test(lower)) return "security"
+  if (/\b(security|vulnerab|auth|cve|xss|csrf|injection|sanitiz)\b/.test(lower))
+    return "security"
   return "chore"
 }
 
@@ -302,7 +341,6 @@ export function formatCommitMessage(
   return result
 }
 
-
 async function tryBackend(
   backend: CliBackend,
   prompt: string,
@@ -313,14 +351,24 @@ async function tryBackend(
   const cliPath = await detectCli(backend, configPath || undefined)
   logFn(`[${backend}] CLI path: ${cliPath}`)
 
-  const { invocation, stdin } = buildInvocation(cliPath, prompt, config, backend)
-  logFn(`[${backend}] Running: ${invocation.command} ${invocation.args.map(a => a.length > 100 ? `[${a.length} chars]` : a).join(" ")}`)
+  const { invocation, stdin } = buildInvocation(
+    cliPath,
+    prompt,
+    config,
+    backend,
+  )
+  logFn(
+    `[${backend}] Running: ${invocation.command} ${invocation.args.map((a) => (a.length > 100 ? `[${a.length} chars]` : a)).join(" ")}`,
+  )
 
   const rawOutput = await execCli(invocation, stdin)
 
   // opencode --format json needs event parsing
-  const response = backend === "opencode" ? parseOpenCodeJson(rawOutput) : rawOutput
-  logFn(`[${backend}] Response (${response.length} chars): "${response.slice(0, 500)}"`)
+  const response =
+    backend === "opencode" ? parseOpenCodeJson(rawOutput) : rawOutput
+  logFn(
+    `[${backend}] Response (${response.length} chars): "${response.slice(0, 500)}"`,
+  )
 
   if (!response.trim()) {
     throw new Error(`${backend} returned empty response`)
