@@ -38,20 +38,16 @@ enum OutputContent {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ButtonId {
-    Generate,      // 1
-    Shorten,       // 2
-    Commit,        // 3
-    Branch,        // 4
-    Pr,            // 5
-    InstallHook,   // 6
-    UninstallHook, // 7
+    Commit,        // 1
+    Branch,        // 2
+    Pr,            // 3
+    InstallHook,   // 4
+    UninstallHook, // 5
     Quit,          // 0
 }
 
 impl ButtonId {
-    const ALL: [ButtonId; 8] = [
-        ButtonId::Generate,
-        ButtonId::Shorten,
+    const ALL: [ButtonId; 6] = [
         ButtonId::Commit,
         ButtonId::Branch,
         ButtonId::Pr,
@@ -62,21 +58,17 @@ impl ButtonId {
 
     fn number(self) -> char {
         match self {
-            ButtonId::Generate => '1',
-            ButtonId::Shorten => '2',
-            ButtonId::Commit => '3',
-            ButtonId::Branch => '4',
-            ButtonId::Pr => '5',
-            ButtonId::InstallHook => '6',
-            ButtonId::UninstallHook => '7',
+            ButtonId::Commit => '1',
+            ButtonId::Branch => '2',
+            ButtonId::Pr => '3',
+            ButtonId::InstallHook => '4',
+            ButtonId::UninstallHook => '5',
             ButtonId::Quit => '0',
         }
     }
 
     fn label(self) -> &'static str {
         match self {
-            ButtonId::Generate => "Generate",
-            ButtonId::Shorten => "Shorten",
             ButtonId::Commit => "Commit",
             ButtonId::Branch => "Branch",
             ButtonId::Pr => "PR",
@@ -88,25 +80,11 @@ impl ButtonId {
 
     fn description(self, app: &App) -> &'static str {
         match self {
-            ButtonId::Generate => {
+            ButtonId::Commit => {
                 if app.sensitive_blocked {
                     "Sensitive content found. Allow to continue or remove secrets."
                 } else {
                     "Generate a commit message from the current diff using AI"
-                }
-            }
-            ButtonId::Shorten => {
-                if app.has_commit_message() {
-                    "Shorten the commit message using AI"
-                } else {
-                    "Shorten the commit message. Generate a message first."
-                }
-            }
-            ButtonId::Commit => {
-                if app.has_commit_message() {
-                    "Commit with the generated message"
-                } else {
-                    "Commit with the generated message. Generate a message first."
                 }
             }
             ButtonId::Branch => "Generate a branch name from the current diff",
@@ -130,10 +108,9 @@ impl ButtonId {
     }
 
     /// Whether this button should show its label (expanded) or just the number (collapsed).
-    fn is_expanded(self, app: &App) -> bool {
+    fn is_expanded(self, _app: &App) -> bool {
         match self {
-            ButtonId::Generate | ButtonId::Branch | ButtonId::Pr | ButtonId::Quit => true,
-            ButtonId::Shorten | ButtonId::Commit => app.has_commit_message(),
+            ButtonId::Commit | ButtonId::Branch | ButtonId::Pr | ButtonId::Quit => true,
             ButtonId::InstallHook | ButtonId::UninstallHook => false, // always collapsed
         }
     }
@@ -141,8 +118,7 @@ impl ButtonId {
     /// Whether this button can be activated.
     fn is_available(self, app: &App) -> bool {
         match self {
-            ButtonId::Generate => !app.sensitive_blocked,
-            ButtonId::Shorten | ButtonId::Commit => app.has_commit_message(),
+            ButtonId::Commit => !app.sensitive_blocked,
             ButtonId::Branch | ButtonId::Pr | ButtonId::Quit => true,
             ButtonId::InstallHook => !app.hook_installed,
             ButtonId::UninstallHook => app.hook_installed,
@@ -242,10 +218,6 @@ impl App {
             sensitive_blocked: false,
             should_quit: false,
         }
-    }
-
-    fn has_commit_message(&self) -> bool {
-        matches!(self.output, Some(OutputContent::CommitMessage { .. }))
     }
 
     fn set_info(&mut self, message: impl Into<String>) {
@@ -403,7 +375,7 @@ fn handle_key(app: &mut App, key: KeyEvent, tx: &Sender<WorkerMessage>) {
 
     match key.code {
         // Number key direct activation
-        KeyCode::Char(ch @ '0'..='7') => {
+        KeyCode::Char(ch @ '0'..='5') => {
             if let Some(btn) = ButtonId::ALL.iter().find(|b| b.number() == ch) {
                 activate_button(app, *btn, tx);
             }
@@ -478,6 +450,20 @@ fn handle_key(app: &mut App, key: KeyEvent, tx: &Sender<WorkerMessage>) {
 /// Returns true if the key was consumed.
 fn handle_output_panel_key(app: &mut App, key: KeyEvent, tx: &Sender<WorkerMessage>) -> bool {
     match &app.output {
+        Some(OutputContent::CommitMessage { .. }) => {
+            if key.code == KeyCode::Char('c') || key.code == KeyCode::Enter {
+                spawn_apply_commit(app, tx);
+                return true;
+            }
+            if key.code == KeyCode::Char('s') {
+                spawn_shorten_commit(app, tx);
+                return true;
+            }
+            if key.code == KeyCode::Char('r') {
+                spawn_generate_commit(app, tx, false);
+                return true;
+            }
+        }
         Some(OutputContent::SensitiveWarning { .. }) => {
             if key.code == KeyCode::Char('a') || key.code == KeyCode::Enter {
                 app.sensitive_blocked = false;
@@ -531,9 +517,7 @@ fn activate_button(app: &mut App, btn: ButtonId, tx: &Sender<WorkerMessage>) {
     }
 
     match btn {
-        ButtonId::Generate => spawn_generate_commit(app, tx, false),
-        ButtonId::Shorten => spawn_shorten_commit(app, tx),
-        ButtonId::Commit => spawn_apply_commit(app, tx),
+        ButtonId::Commit => spawn_generate_commit(app, tx, false),
         ButtonId::Branch => spawn_generate_branch(app, tx),
         ButtonId::Pr => spawn_generate_pr(app, tx),
         ButtonId::InstallHook => {
@@ -731,7 +715,7 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
                     app.set_info("Generated commit message.");
                     app.output = Some(OutputContent::CommitMessage { preview });
                     app.output_scroll = 0;
-                    app.focused_button = 2; // focus Commit button
+                    app.focused_button = 0; // focus Commit button
                 }
                 Err(ActionError::SensitiveContent(report)) => {
                     app.sensitive_blocked = true;
@@ -884,7 +868,8 @@ fn output_panel_height(app: &App) -> u16 {
         None => 0,
         Some(OutputContent::CommitMessage { preview }) => {
             let lines = preview.message.lines().count() as u16;
-            (lines + 4).min(12) // border + label + message + metadata
+            // border(2) + label + blank + message + blank + metadata + blank + buttons
+            (lines + 8).min(16)
         }
         Some(OutputContent::SensitiveWarning { report }) => {
             let lines = report.findings.len() as u16;
@@ -983,6 +968,17 @@ fn render_commit_output(frame: &mut Frame, area: Rect, preview: &CommitPreview, 
         ),
         Style::default().fg(Color::DarkGray),
     ));
+    lines.push(Line::raw(""));
+    lines.push(Line::from(vec![
+        Span::styled(
+            "[c Commit]",
+            Style::default().fg(Color::Black).bg(Color::Green),
+        ),
+        Span::raw("  "),
+        Span::styled("[s Shorten]", Style::default().fg(Color::White)),
+        Span::raw("  "),
+        Span::styled("[r Regenerate]", Style::default().fg(Color::White)),
+    ]));
 
     let widget = Paragraph::new(lines)
         .block(
@@ -1017,7 +1013,7 @@ fn render_sensitive_output(frame: &mut Frame, area: Rect, report: &SensitiveRepo
     lines.push(Line::raw(""));
     lines.push(Line::from(vec![
         Span::styled(
-            "[Allow & Continue]",
+            "[a Allow & Continue]",
             Style::default().fg(Color::Black).bg(Color::Red),
         ),
         Span::raw("  Generation blocked until resolved or allowed"),
@@ -1049,11 +1045,11 @@ fn render_branch_output(frame: &mut Frame, area: Rect, preview: &BranchPreview) 
         Line::raw(""),
         Line::from(vec![
             Span::styled(
-                "[Create Branch]",
+                "[c Create Branch]",
                 Style::default().fg(Color::Black).bg(Color::Cyan),
             ),
             Span::raw("  "),
-            Span::styled("[Regenerate]", Style::default().fg(Color::White)),
+            Span::styled("[r Regenerate]", Style::default().fg(Color::White)),
         ]),
     ];
 
@@ -1088,11 +1084,11 @@ fn render_pr_output(frame: &mut Frame, area: Rect, preview: &PrPreview, scroll: 
     lines.push(Line::raw(""));
     lines.push(Line::from(vec![
         Span::styled(
-            "[Submit PR]",
+            "[s Submit PR]",
             Style::default().fg(Color::Black).bg(Color::Magenta),
         ),
         Span::raw("  "),
-        Span::styled("[Regenerate]", Style::default().fg(Color::White)),
+        Span::styled("[r Regenerate]", Style::default().fg(Color::White)),
     ]));
 
     let widget = Paragraph::new(lines)
@@ -1120,11 +1116,11 @@ fn render_hook_confirm(frame: &mut Frame, area: Rect, operation: HookOperation) 
         Line::raw(""),
         Line::from(vec![
             Span::styled(
-                "[Yes]",
+                "[y Yes]",
                 Style::default().fg(Color::Black).bg(color),
             ),
             Span::raw("  "),
-            Span::styled("[No]", Style::default().fg(Color::White)),
+            Span::styled("[n No]", Style::default().fg(Color::White)),
         ]),
     ];
 
@@ -1279,10 +1275,9 @@ mod tests {
         assert!(text.contains("OpenCodeCommit"), "missing header");
         assert!(text.contains("/tmp/demo"), "missing repo path");
         assert!(text.contains("main"), "missing branch");
-        assert!(text.contains("1 Generate"), "missing Generate button");
-        assert!(text.contains("[2]"), "missing collapsed Shorten");
-        assert!(text.contains("[3]"), "missing collapsed Commit");
-        assert!(text.contains("4 Branch"), "missing Branch button");
+        assert!(text.contains("1 Commit"), "missing Commit button");
+        assert!(text.contains("2 Branch"), "missing Branch button");
+        assert!(text.contains("3 PR"), "missing PR button");
     }
 
     #[test]
@@ -1321,8 +1316,10 @@ mod tests {
         let text = render_text(&app, 100, 24);
         assert!(text.contains("COMMIT MESSAGE"), "missing commit panel");
         assert!(text.contains("feat: add TUI"), "missing commit message");
-        assert!(text.contains("2 Shorten"), "Shorten should be expanded");
-        assert!(text.contains("3 Commit"), "Commit should be expanded");
+        // Panel action buttons rendered inside the output panel
+        assert!(text.contains("[c Commit]"), "missing Commit action in panel\n{text}");
+        assert!(text.contains("[s Shorten]"), "missing Shorten action in panel\n{text}");
+        assert!(text.contains("[r Regenerate]"), "missing Regenerate action in panel\n{text}");
     }
 
     #[test]
@@ -1433,8 +1430,8 @@ mod tests {
     fn hook_buttons_always_collapsed() {
         let app = test_app();
         let text = render_text(&app, 100, 24);
-        assert!(text.contains("[6]"), "Install Hook should be collapsed");
-        assert!(text.contains("[7]"), "Uninstall Hook should be collapsed");
+        assert!(text.contains("[4]"), "Install Hook should be collapsed");
+        assert!(text.contains("[5]"), "Uninstall Hook should be collapsed");
     }
 
     #[test]
