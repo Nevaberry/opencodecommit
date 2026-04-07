@@ -30,11 +30,22 @@ node -e "
 # Cargo.toml
 sed -i "s/^version = \".*\"/version = \"${VERSION}\"/" "${REPO_ROOT}/crates/opencodecommit/Cargo.toml"
 
-# npm package
+# npm package (primary)
 node -e "
   const f = '${REPO_ROOT}/npm/opencodecommit/package.json';
   const pkg = JSON.parse(require('fs').readFileSync(f, 'utf-8'));
   pkg.version = '${VERSION}';
+  require('fs').writeFileSync(f, JSON.stringify(pkg, null, 2) + '\n');
+"
+
+# npm package (scoped redirect)
+node -e "
+  const f = '${REPO_ROOT}/npm/nb-opencodecommit/package.json';
+  const pkg = JSON.parse(require('fs').readFileSync(f, 'utf-8'));
+  pkg.version = '${VERSION}';
+  if (pkg.dependencies && pkg.dependencies.opencodecommit) {
+    pkg.dependencies.opencodecommit = '${VERSION}';
+  }
   require('fs').writeFileSync(f, JSON.stringify(pkg, null, 2) + '\n');
 "
 
