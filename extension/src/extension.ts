@@ -7,7 +7,11 @@ import {
   generateCommitMessage,
   refineCommitMessage,
 } from "./inline/generator"
-import { formatSensitiveWarningMessage } from "./inline/sensitive"
+import type { SensitiveReport } from "./inline/sensitive"
+import {
+  formatSensitiveWarningReport,
+  formatSensitiveWarningSummary,
+} from "./inline/sensitive"
 import type {
   BranchMode,
   Change,
@@ -19,10 +23,32 @@ import type {
 // Diagnostic output channel
 let outputChannel: vscode.OutputChannel
 
+const SENSITIVE_BYPASS_ACTION = "Bypass Once"
+const SENSITIVE_INSPECT_ACTION = "Inspect Report"
+const SENSITIVE_CANCEL_ACTION = "Cancel"
+
 function log(msg: string) {
   if (!outputChannel)
     outputChannel = vscode.window.createOutputChannel("OpenCodeCommit")
   outputChannel.appendLine(`[${new Date().toISOString()}] ${msg}`)
+}
+
+async function openSensitiveReport(
+  report: SensitiveReport,
+  repo: Repository,
+): Promise<void> {
+  const content = [
+    "OpenCodeCommit Sensitive Report",
+    `Repository: ${repo.rootUri.fsPath}`,
+    "",
+    formatSensitiveWarningReport(report),
+  ].join("\n")
+
+  const document = await vscode.workspace.openTextDocument({
+    language: "plaintext",
+    content,
+  })
+  await vscode.window.showTextDocument(document, { preview: false })
 }
 
 // ---------------------------------------------------------------------------
@@ -128,21 +154,28 @@ async function generateMessageInline(mode: CommitMode, repo: Repository) {
   )
 
   if (context.hasSensitiveContent) {
-    const warningMessage = formatSensitiveWarningMessage(
+    const warningSummary = formatSensitiveWarningSummary(
       context.sensitiveReport,
     )
-    log(`Sensitive warning:\n${warningMessage}`)
+    log(`Sensitive warning summary: ${warningSummary}`)
     const choice = await vscode.window.showWarningMessage(
       "Sensitive content detected in diff.",
-      { modal: true, detail: warningMessage },
-      "Continue Anyway",
-      "Cancel",
+      { modal: true, detail: warningSummary },
+      SENSITIVE_BYPASS_ACTION,
+      SENSITIVE_INSPECT_ACTION,
+      SENSITIVE_CANCEL_ACTION,
     )
-    if (choice !== "Continue Anyway") {
+
+    if (choice === SENSITIVE_BYPASS_ACTION) {
+      log("Sensitive warning acknowledged: bypassing once for this generation")
+    } else if (choice === SENSITIVE_INSPECT_ACTION) {
+      await openSensitiveReport(context.sensitiveReport, repo)
+      log("Aborted: opened sensitive report in a new tab")
+      return
+    } else {
       log("Aborted: user declined to send sensitive content")
       return
     }
-    log("Sensitive warning acknowledged: continuing with AI backend")
   }
 
   const message = await generateCommitMessage(context, config, mode, log)

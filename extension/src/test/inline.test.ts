@@ -14,6 +14,8 @@ import {
 import {
   detectSensitiveReport,
   formatSensitiveWarningMessage,
+  formatSensitiveWarningReport,
+  formatSensitiveWarningSummary,
 } from "../inline/sensitive"
 import type { BranchMode, ExtensionConfig } from "../inline/types"
 
@@ -598,9 +600,36 @@ index 1234567..89abcde 100644
   })
 })
 
-describe("formatSensitiveWarningMessage", () => {
-  it("formats the full warning block for the popup", () => {
-    const message = formatSensitiveWarningMessage({
+describe("formatSensitiveWarningSummary", () => {
+  it("summarizes findings for a compact modal", () => {
+    const message = formatSensitiveWarningSummary({
+      findings: [
+        {
+          category: "credential",
+          rule: "api-key-marker",
+          filePath: "src/config.ts",
+          lineNumber: 18,
+          preview: "const API_KEY = <redacted>",
+        },
+        {
+          category: "credential",
+          rule: "password-marker",
+          filePath: "src/auth.ts",
+          lineNumber: 7,
+          preview: "const PASSWORD = <redacted>",
+        },
+      ],
+    })
+
+    assert.ok(message.includes("2 sensitive findings"))
+    assert.ok(message.includes("2 files"))
+    assert.ok(message.includes("Inspect the redacted report"))
+  })
+})
+
+describe("formatSensitiveWarningReport", () => {
+  it("formats the full warning block for the report tab", () => {
+    const message = formatSensitiveWarningReport({
       findings: [
         {
           category: "credential",
@@ -617,9 +646,28 @@ describe("formatSensitiveWarningMessage", () => {
     assert.ok(message.includes("[credential / api-key-marker]"))
     assert.ok(
       message.includes(
-        "The diff will be sent to an AI backend if you continue.",
+        'To continue, rerun the command and choose "Bypass Once".',
       ),
     )
+  })
+})
+
+describe("formatSensitiveWarningMessage", () => {
+  it("keeps the legacy alias mapped to the full report text", () => {
+    const message = formatSensitiveWarningMessage({
+      findings: [
+        {
+          category: "credential",
+          rule: "api-key-marker",
+          filePath: "src/config.ts",
+          lineNumber: 18,
+          preview: "const API_KEY = <redacted>",
+        },
+      ],
+    })
+
+    assert.ok(message.includes("Sensitive findings:"))
+    assert.ok(message.includes('choose "Bypass Once"'))
   })
 })
 

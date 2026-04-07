@@ -319,6 +319,10 @@ function formatBlockMessage(report: SensitiveReport, footer: string): string {
   return lines.join("\n")
 }
 
+function countFiles(report: SensitiveReport): number {
+  return new Set(report.findings.map((finding) => finding.filePath)).size
+}
+
 export function detectSensitiveReport(
   diff: string,
   changedFiles: string[],
@@ -379,9 +383,26 @@ export function detectSensitiveContent(
   return detectSensitiveReport(diff, changedFiles).findings.length > 0
 }
 
-export function formatSensitiveWarningMessage(report: SensitiveReport): string {
+export function formatSensitiveWarningSummary(report: SensitiveReport): string {
+  if (report.findings.length === 0) {
+    return "Sensitive content detected in diff. Inspect the redacted report before sending the diff to an AI backend."
+  }
+
+  const findings = report.findings.length
+  const files = countFiles(report)
+  const findingLabel = findings === 1 ? "finding" : "findings"
+  const fileLabel = files === 1 ? "file" : "files"
+
+  return `${findings} sensitive ${findingLabel} in ${files} ${fileLabel}. Inspect the redacted report before sending the diff to an AI backend.`
+}
+
+export function formatSensitiveWarningReport(report: SensitiveReport): string {
   return formatBlockMessage(
     report,
-    "Sensitive content detected in diff.\nThe diff will be sent to an AI backend if you continue.",
+    'Review the redacted findings above before sending the diff to an AI backend.\nTo continue, rerun the command and choose "Bypass Once".',
   )
+}
+
+export function formatSensitiveWarningMessage(report: SensitiveReport): string {
+  return formatSensitiveWarningReport(report)
 }
