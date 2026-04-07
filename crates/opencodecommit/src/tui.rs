@@ -2177,6 +2177,7 @@ mod tests {
             preview: PrPreview {
                 title: "PR title".to_owned(),
                 body: "PR body".to_owned(),
+                backend_failures: vec![],
             },
         });
         // With sidebar + panel + bar, tab should eventually reach sidebar
