@@ -507,7 +507,7 @@ fn handle_commit(
         allow_sensitive,
     };
 
-    let preview = match actions::generate_commit_preview(config, &request) {
+    let preview = match actions::generate_commit_preview_with_fallback(config, &request, |_| {}) {
         Ok(preview) => preview,
         Err(err) => {
             if text {
@@ -532,6 +532,7 @@ fn handle_commit(
                 "provider": preview.provider,
                 "files_analyzed": preview.files_analyzed,
                 "duration_ms": preview.duration_ms,
+                "backend_failures": preview.backend_failures,
             });
             println!("{}", serde_json::to_string(&output).unwrap());
         }
@@ -571,6 +572,7 @@ fn handle_commit(
             "provider": preview.provider,
             "files_analyzed": preview.files_analyzed,
             "duration_ms": preview.duration_ms,
+            "backend_failures": preview.backend_failures,
         });
         println!("{}", serde_json::to_string(&output).unwrap());
     }

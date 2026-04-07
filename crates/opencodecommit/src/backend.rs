@@ -214,7 +214,17 @@ pub struct Invocation {
 
 /// Build the command invocation for a given backend.
 pub fn build_invocation(cli_path: &Path, prompt: &str, config: &Config) -> Invocation {
-    match config.backend {
+    build_invocation_for(cli_path, prompt, config, config.backend)
+}
+
+/// Build the command invocation for a specific backend (used in failover).
+pub fn build_invocation_for(
+    cli_path: &Path,
+    prompt: &str,
+    config: &Config,
+    backend: CliBackend,
+) -> Invocation {
+    match backend {
         CliBackend::Opencode => Invocation {
             command: cli_path.to_owned(),
             args: vec![
@@ -283,8 +293,8 @@ pub fn strip_ansi(text: &str) -> String {
     RE.replace_all(text, "").to_string()
 }
 
-/// Execute a CLI invocation and return stdout.
-pub fn exec_cli(invocation: &Invocation) -> Result<String> {
+/// Execute a CLI invocation and return stdout, with a configurable timeout.
+pub fn exec_cli_with_timeout(invocation: &Invocation, timeout_secs: u64) -> Result<String> {
     let mut cmd = Command::new(&invocation.command);
     cmd.args(&invocation.args);
     cmd.stdout(Stdio::piped());
@@ -309,7 +319,7 @@ pub fn exec_cli(invocation: &Invocation) -> Result<String> {
     }
 
     // Wait with timeout
-    let timeout = Duration::from_secs(TIMEOUT_SECS);
+    let timeout = Duration::from_secs(timeout_secs);
     let start = std::time::Instant::now();
 
     loop {
@@ -340,7 +350,7 @@ pub fn exec_cli(invocation: &Invocation) -> Result<String> {
                 if start.elapsed() > timeout {
                     let _ = child.kill();
                     let _ = child.wait();
-                    return Err(Error::BackendTimeout(TIMEOUT_SECS));
+                    return Err(Error::BackendTimeout(timeout_secs));
                 }
                 std::thread::sleep(Duration::from_millis(50));
             }
@@ -351,6 +361,11 @@ pub fn exec_cli(invocation: &Invocation) -> Result<String> {
             }
         }
     }
+}
+
+/// Execute a CLI invocation and return stdout (default 120s timeout).
+pub fn exec_cli(invocation: &Invocation) -> Result<String> {
+    exec_cli_with_timeout(invocation, TIMEOUT_SECS)
 }
 
 #[cfg(test)]

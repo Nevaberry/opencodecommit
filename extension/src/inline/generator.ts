@@ -168,6 +168,7 @@ export async function generateBranchName(
   mode: BranchMode,
   existingBranches: string[],
   logger?: (msg: string) => void,
+  onProgress?: (msg: string) => void,
 ): Promise<string> {
   const logFn = logger ?? (() => {})
 
@@ -191,6 +192,7 @@ export async function generateBranchName(
   let response = ""
   for (const backend of backends) {
     try {
+      onProgress?.(`Trying ${backend}...`)
       response = await tryBackend(backend, prompt, config, logFn)
       logFn(`[${backend}] Success`)
       break
@@ -198,6 +200,7 @@ export async function generateBranchName(
       const msg = err instanceof Error ? err.message : String(err)
       logFn(`[${backend}] Failed: ${msg}`)
       errors.push(`${backend}: ${msg}`)
+      onProgress?.(`${backend} failed, trying next...`)
     }
   }
 
@@ -382,6 +385,7 @@ export async function generateCommitMessage(
   config: ExtensionConfig,
   mode?: CommitMode,
   logger?: (msg: string) => void,
+  onProgress?: (msg: string) => void,
 ): Promise<string> {
   const logFn = logger ?? (() => {})
   const activeMode = mode ?? config.commitMode
@@ -400,6 +404,7 @@ export async function generateCommitMessage(
   let response = ""
   for (const backend of backends) {
     try {
+      onProgress?.(`Trying ${backend}...`)
       response = await tryBackend(backend, prompt, config, logFn)
       logFn(`[${backend}] Success`)
       break
@@ -407,6 +412,7 @@ export async function generateCommitMessage(
       const msg = err instanceof Error ? err.message : String(err)
       logFn(`[${backend}] Failed: ${msg}`)
       errors.push(`${backend}: ${msg}`)
+      onProgress?.(`${backend} failed, trying next...`)
     }
   }
 
@@ -430,6 +436,7 @@ export async function refineCommitMessage(
   diff: string,
   config: ExtensionConfig,
   logger?: (msg: string) => void,
+  onProgress?: (msg: string) => void,
 ): Promise<string> {
   const logFn = logger ?? (() => {})
 
@@ -451,11 +458,13 @@ export async function refineCommitMessage(
   let response = ""
   for (const backend of backends) {
     try {
+      onProgress?.(`Trying ${backend}...`)
       response = await tryBackend(backend, prompt, config, logFn)
       break
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       errors.push(`${backend}: ${msg}`)
+      onProgress?.(`${backend} failed, trying next...`)
     }
   }
 

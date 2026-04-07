@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fmt;
 use std::path::{Path, PathBuf};
 
 use crate::Error;
@@ -14,6 +15,17 @@ pub enum CliBackend {
     Claude,
     Codex,
     Gemini,
+}
+
+impl fmt::Display for CliBackend {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CliBackend::Opencode => write!(f, "opencode"),
+            CliBackend::Claude => write!(f, "claude"),
+            CliBackend::Codex => write!(f, "codex"),
+            CliBackend::Gemini => write!(f, "gemini"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -115,6 +127,9 @@ pub struct Config {
     #[serde(default = "default_backend")]
     pub backend: CliBackend,
 
+    #[serde(default = "default_backend_order")]
+    pub backend_order: Vec<CliBackend>,
+
     #[serde(default = "default_commit_mode")]
     pub commit_mode: CommitMode,
 
@@ -191,6 +206,15 @@ fn default_backend() -> CliBackend {
     CliBackend::Opencode
 }
 
+fn default_backend_order() -> Vec<CliBackend> {
+    vec![
+        CliBackend::Codex,
+        CliBackend::Opencode,
+        CliBackend::Claude,
+        CliBackend::Gemini,
+    ]
+}
+
 fn default_commit_mode() -> CommitMode {
     CommitMode::Adaptive
 }
@@ -239,6 +263,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             backend: default_backend(),
+            backend_order: default_backend_order(),
             commit_mode: default_commit_mode(),
             sparkle_mode: default_commit_mode(),
             provider: default_provider(),
@@ -321,12 +346,22 @@ impl Config {
 
     /// Return the CLI path for the current backend.
     pub fn backend_cli_path(&self) -> &str {
-        match self.backend {
+        self.cli_path_for(self.backend)
+    }
+
+    /// Return the CLI path for a specific backend.
+    pub fn cli_path_for(&self, backend: CliBackend) -> &str {
+        match backend {
             CliBackend::Opencode => &self.cli_path,
             CliBackend::Claude => &self.claude_path,
             CliBackend::Codex => &self.codex_path,
             CliBackend::Gemini => &self.gemini_path,
         }
+    }
+
+    /// Return the effective backend order for failover.
+    pub fn effective_backend_order(&self) -> &[CliBackend] {
+        &self.backend_order
     }
 
     /// Return the model for the current backend.
@@ -398,6 +433,10 @@ mod tests {
     fn default_values_match_typescript() {
         let cfg = Config::default();
         assert_eq!(cfg.backend, CliBackend::Opencode);
+        assert_eq!(
+            cfg.backend_order,
+            vec![CliBackend::Codex, CliBackend::Opencode, CliBackend::Claude, CliBackend::Gemini]
+        );
         assert_eq!(cfg.commit_mode, CommitMode::Adaptive);
         assert_eq!(cfg.sparkle_mode, CommitMode::Adaptive);
         assert_eq!(cfg.provider, "openai");
