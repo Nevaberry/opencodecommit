@@ -5,13 +5,13 @@ AI commit messages via terminal AI agents. VSCodium / VS Code extension + standa
 **Security scanning built in** — diffs are scanned locally for secrets, source maps, and private keys before anything leaves your machine.
 
 [VSCodium Open VSX registry](https://open-vsx.org/extension/Nevaberry/opencodecommit)<br>
-[VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=Nevaberry.opencodecommit) · [npm](https://www.npmjs.com/package/@nevaberry/opencodecommit) · [crates.io](https://crates.io/crates/opencodecommit) · [GitHub](https://github.com/Nevaberry/opencodecommit)
+[VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=Nevaberry.opencodecommit) · [npm](https://www.npmjs.com/package/opencodecommit) · [scoped npm](https://www.npmjs.com/package/@nevaberry/opencodecommit) · [crates.io](https://crates.io/crates/opencodecommit) · [GitHub](https://github.com/Nevaberry/opencodecommit)
 
 ## Install
 
 **Extension:** Search "OpenCodeCommit" in VSCodium / VS Code, or `ext install Nevaberry.opencodecommit`
 
-**CLI:** `cargo install opencodecommit` or `npm i -g @nevaberry/opencodecommit` (installs `occ` command)
+**CLI:** `cargo install opencodecommit` or `npm i -g opencodecommit` (official unscoped alias: `@nevaberry/opencodecommit`)
 
 **Prerequisite:** At least one CLI backend:
 

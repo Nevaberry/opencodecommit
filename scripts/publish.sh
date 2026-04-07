@@ -132,9 +132,9 @@ fi
 if $DO_NPM; then
   echo "==> npm"
   echo "    Publishing opencodecommit (primary)"
-  (cd "${REPO_ROOT}/npm/opencodecommit-unscoped" && npm publish --access public)
-  echo "    Publishing @nevaberry/opencodecommit (redirect)"
   (cd "${REPO_ROOT}/npm/opencodecommit" && npm publish --access public)
+  echo "    Publishing @nevaberry/opencodecommit (redirect)"
+  (cd "${REPO_ROOT}/npm/nb-opencodecommit" && npm publish --access public)
   echo "    ✓ npm packages published"
 fi
 

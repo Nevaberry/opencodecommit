@@ -1,7 +1,7 @@
 {
-  "name": "@nevaberry/opencodecommit",
-  "version": "1.1.2",
-  "description": "Scoped alias for opencodecommit — install opencodecommit instead",
+  "name": "opencodecommit",
+  "version": "1.1.1",
+  "description": "AI-powered git commit message generator that delegates to terminal AI agents",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -13,10 +13,13 @@
   },
   "files": [
     "bin",
+    "scripts",
+    "platforms",
     "index.js"
   ],
   "scripts": {
-    "prepack": "cp ../../README.md . 2>/dev/null || true"
+    "prepack": "cp ../../README.md . 2>/dev/null || true",
+    "postinstall": "node scripts/postinstall.js"
   },
   "keywords": [
     "git",
@@ -29,8 +32,5 @@
   ],
   "engines": {
     "node": ">=18"
-  },
-  "dependencies": {
-    "opencodecommit": "1.1.1"
   }
 }
