@@ -43,7 +43,7 @@ fn panel_buttons(output: &OutputContent) -> &'static [&'static str] {
         OutputContent::CommitMessage { .. } => &["[c Commit]", "[s Shorten]", "[r Regenerate]"],
         OutputContent::SensitiveWarning { .. } => &["[a Allow & Continue]"],
         OutputContent::BranchPreview { .. } => &["[c Create Branch]", "[r Regenerate]"],
-        OutputContent::PrPreview { .. } => &["[s Submit PR]", "[r Regenerate]"],
+        OutputContent::PrPreview { .. } => &["[s Submit PR]", "[p Copy]", "[r Regenerate]"],
         OutputContent::HookMenu => &["[i Install Hook]", "[u Uninstall Hook]"],
         OutputContent::HookConfirm { .. } => &["[y Yes]", "[n No]"],
     }
@@ -350,7 +350,8 @@ fn panel_button_description(content: &OutputContent, index: usize) -> &'static s
         },
         OutputContent::PrPreview { .. } => match index {
             0 => "Submit PR via gh CLI",
-            1 => "Regenerate the PR title and body",
+            1 => "Copy PR title and body to clipboard",
+            2 => "Regenerate the PR title and body",
             _ => "",
         },
         OutputContent::HookMenu => match index {
@@ -595,9 +596,17 @@ fn activate_panel_button(app: &mut App, index: usize, tx: &Sender<WorkerMessage>
             1 => spawn_generate_branch(app, tx),
             _ => {}
         },
-        OutputContent::PrPreview { .. } => match index {
+        OutputContent::PrPreview { preview } => match index {
             0 => spawn_submit_pr(app, tx),
-            1 => spawn_generate_pr(app, tx),
+            1 => {
+                let text = format!("{}\n\n{}", preview.title, preview.body);
+                if copy_to_clipboard(&text) {
+                    app.set_info("PR copied to clipboard.");
+                } else {
+                    app.set_error("Clipboard copy failed. Select text manually.");
+                }
+            }
+            2 => spawn_generate_pr(app, tx),
             _ => {}
         },
         OutputContent::HookMenu => match index {
@@ -646,8 +655,16 @@ fn handle_panel_shortcut(app: &mut App, ch: char, tx: &Sender<WorkerMessage>) {
             'r' => spawn_generate_branch(app, tx),
             _ => {}
         },
-        OutputContent::PrPreview { .. } => match ch {
+        OutputContent::PrPreview { preview } => match ch {
             's' => spawn_submit_pr(app, tx),
+            'p' => {
+                let text = format!("{}\n\n{}", preview.title, preview.body);
+                if copy_to_clipboard(&text) {
+                    app.set_info("PR copied to clipboard.");
+                } else {
+                    app.set_error("Clipboard copy failed. Select text manually.");
+                }
+            }
             'r' => spawn_generate_pr(app, tx),
             _ => {}
         },
@@ -1213,6 +1230,7 @@ fn render_branch_output(frame: &mut Frame, area: Rect, preview: &BranchPreview, 
 }
 
 fn render_pr_output(frame: &mut Frame, area: Rect, preview: &PrPreview, app: &App) {
+    // Use only top/bottom borders so terminal text selection doesn't pick up │ characters
     let mut lines = vec![Line::styled(
         "PR PREVIEW — select text to copy, or press Submit PR",
         Style::default()
@@ -1238,7 +1256,7 @@ fn render_pr_output(frame: &mut Frame, area: Rect, preview: &PrPreview, app: &Ap
     let widget = Paragraph::new(lines)
         .block(
             Block::default()
-                .borders(Borders::ALL)
+                .borders(Borders::TOP | Borders::BOTTOM)
                 .border_style(Style::default().fg(Color::Magenta)),
         )
         .wrap(Wrap { trim: false })
