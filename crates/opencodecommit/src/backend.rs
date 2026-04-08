@@ -597,7 +597,10 @@ mod tests {
             Some("openrouter"),
         );
         assert_eq!(inv.args[5], "gpt-5.4");
-        assert!(inv.args.contains(&"model_provider=\"openrouter\"".to_owned()));
+        assert!(
+            inv.args
+                .contains(&"model_provider=\"openrouter\"".to_owned())
+        );
     }
 
     #[test]

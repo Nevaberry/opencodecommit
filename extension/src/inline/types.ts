@@ -57,6 +57,19 @@ export interface ExtensionConfig {
   codexModel: string
   codexProvider: string
   geminiModel: string
+  opencodePrProvider: string
+  opencodePrModel: string
+  opencodeCheapProvider: string
+  opencodeCheapModel: string
+  claudePrModel: string
+  claudeCheapModel: string
+  codexPrProvider: string
+  codexPrModel: string
+  codexCheapProvider: string
+  codexCheapModel: string
+  geminiPrModel: string
+  geminiCheapModel: string
+  prBaseBranch: string
   backendOrder: CliBackend[]
   branchMode: BranchMode
 }

@@ -50,6 +50,12 @@ const SKIP_PATTERNS = [
   /(?:^|\/)__pycache__\//,
 ]
 
+const TOTAL_CONTEXT_BUDGET = 30_000
+
+function shouldSkip(filePath: string): boolean {
+  return SKIP_PATTERNS.some((p) => p.test(filePath))
+}
+
 export function detectSensitiveContent(
   diff: string,
   changedFiles: string[],
@@ -57,76 +63,192 @@ export function detectSensitiveContent(
   return detectSensitiveReport(diff, changedFiles).findings.length > 0
 }
 
-const TOTAL_CONTEXT_BUDGET = 30_000
+export function filterDiff(diff: string): string {
+  if (!diff.trim()) return ""
 
-function shouldSkip(filePath: string): boolean {
-  return SKIP_PATTERNS.some((p) => p.test(filePath))
+  let result = ""
+  let currentSection = ""
+  let skipCurrent = false
+
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("diff --git ")) {
+      if (!skipCurrent && currentSection) {
+        result += currentSection
+      }
+
+      currentSection = `${line}\n`
+      const targetPath = line.split(" b/").at(-1)?.trim() ?? ""
+      skipCurrent = shouldSkip(targetPath)
+      continue
+    }
+
+    currentSection += `${line}\n`
+  }
+
+  if (!skipCurrent && currentSection) {
+    result += currentSection
+  }
+
+  return result
 }
 
-export function getRecentCommits(repoRoot: string): Promise<string[]> {
-  return new Promise((resolve) => {
-    const child = spawn("git", ["log", "--oneline", "-10"], {
+function runGitWithStatus(
+  repoRoot: string,
+  args: string[],
+): Promise<{ stdout: string; stderr: string; code: number }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn("git", args, {
       cwd: repoRoot,
       stdio: ["ignore", "pipe", "pipe"],
     })
 
     let stdout = ""
+    let stderr = ""
     child.stdout.on("data", (d: Buffer) => {
       stdout += d
     })
-
-    child.on("close", (code) => {
-      if (code === 0) {
-        resolve(
-          stdout
-            .trim()
-            .split("\n")
-            .filter((l) => l.trim()),
-        )
-      } else {
-        resolve([])
-      }
+    child.stderr.on("data", (d: Buffer) => {
+      stderr += d
     })
 
-    child.on("error", () => resolve([]))
+    child.on("close", (code) => {
+      resolve({
+        stdout: stdout.trim(),
+        stderr: stderr.trim(),
+        code: code ?? 1,
+      })
+    })
+
+    child.on("error", (err) => {
+      reject(new Error(`failed to run git: ${err.message}`))
+    })
   })
 }
 
-export function getRecentBranchNames(repoRoot: string): Promise<string[]> {
-  return new Promise((resolve) => {
-    const child = spawn(
-      "git",
-      ["branch", "--sort=-committerdate", "--format=%(refname:short)"],
-      {
-        cwd: repoRoot,
-        stdio: ["ignore", "pipe", "pipe"],
-      },
+async function runGit(repoRoot: string, args: string[]): Promise<string> {
+  const result = await runGitWithStatus(repoRoot, args)
+  if (result.code !== 0) {
+    throw new Error(
+      `git ${args.join(" ")} failed: ${result.stderr || `exit ${result.code}`}`,
     )
-
-    let stdout = ""
-    child.stdout.on("data", (d: Buffer) => {
-      stdout += d
-    })
-
-    child.on("close", (code) => {
-      if (code === 0) {
-        resolve(
-          stdout
-            .trim()
-            .split("\n")
-            .filter((l) => l.trim())
-            .slice(0, 20),
-        )
-      } else {
-        resolve([])
-      }
-    })
-
-    child.on("error", () => resolve([]))
-  })
+  }
+  return result.stdout
 }
 
-function extractChangedFilePaths(diff: string): string[] {
+export async function getRecentCommits(repoRoot: string): Promise<string[]> {
+  try {
+    const stdout = await runGit(repoRoot, ["log", "--oneline", "-10"])
+    return stdout
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
+export async function getRecentBranchNames(repoRoot: string): Promise<string[]> {
+  try {
+    const stdout = await runGit(repoRoot, [
+      "branch",
+      "--sort=-committerdate",
+      "--format=%(refname:short)",
+    ])
+    return stdout
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, 20)
+  } catch {
+    return []
+  }
+}
+
+export async function detectBaseBranch(
+  repoRoot: string,
+  explicitBase?: string,
+): Promise<string> {
+  if (explicitBase) return explicitBase
+
+  const upstream = await runGitWithStatus(repoRoot, [
+    "rev-parse",
+    "--abbrev-ref",
+    "@{upstream}",
+  ])
+  if (upstream.code === 0 && upstream.stdout) {
+    const branch = upstream.stdout.split("/").at(-1)?.trim()
+    if (branch) return branch
+  }
+
+  const main = await runGitWithStatus(repoRoot, ["rev-parse", "--verify", "main"])
+  if (main.code === 0) return "main"
+
+  const master = await runGitWithStatus(repoRoot, [
+    "rev-parse",
+    "--verify",
+    "master",
+  ])
+  if (master.code === 0) return "master"
+
+  throw new Error("could not detect base branch; set opencodecommit.prBaseBranch")
+}
+
+export async function getBranchDiff(
+  repoRoot: string,
+  baseBranch: string,
+): Promise<string> {
+  const diff = await runGit(repoRoot, ["diff", `${baseBranch}...HEAD`])
+  if (!diff) {
+    throw new Error("No changes found.")
+  }
+  return diff
+}
+
+export async function getCommitsAhead(
+  repoRoot: string,
+  baseBranch: string,
+): Promise<string[]> {
+  const output = await runGit(repoRoot, [
+    "log",
+    `${baseBranch}..HEAD`,
+    "--format=%H%n%s%n%n%b%n---",
+  ])
+
+  return output
+    .split(/\n?---\n?/)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+}
+
+export async function getBranchChangedFiles(
+  repoRoot: string,
+  baseBranch: string,
+): Promise<string[]> {
+  const output = await runGit(repoRoot, [
+    "diff",
+    `${baseBranch}...HEAD`,
+    "--name-only",
+  ])
+  if (!output) return []
+  return output
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+}
+
+export async function countCommitsAhead(
+  repoRoot: string,
+  baseBranch: string,
+): Promise<number> {
+  const output = await runGit(repoRoot, [
+    "rev-list",
+    "--count",
+    `${baseBranch}..HEAD`,
+  ])
+  return Number.parseInt(output, 10) || 0
+}
+
+export function extractChangedFilePaths(diff: string): string[] {
   const paths: string[] = []
   for (const line of diff.split("\n")) {
     const match = line.match(/^diff --git a\/.+ b\/(.+)$/)

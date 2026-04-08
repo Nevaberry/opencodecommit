@@ -2,7 +2,10 @@ use std::fmt;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use opencodecommit::backend::{build_invocation, build_invocation_for, build_invocation_with_model, detect_cli, exec_cli, exec_cli_with_timeout};
+use opencodecommit::backend::{
+    build_invocation, build_invocation_for, build_invocation_with_model, detect_cli, exec_cli,
+    exec_cli_with_timeout,
+};
 use opencodecommit::config::{BranchMode, CliBackend, CommitMode, Config, DiffSource};
 use opencodecommit::context::{self, CommitContext};
 use opencodecommit::git;
@@ -262,9 +265,7 @@ pub fn generate_commit_preview_with_fallback(
     let duration_ms = start.elapsed().as_millis();
 
     let message = match config.commit_mode {
-        CommitMode::Adaptive | CommitMode::AdaptiveOneliner => {
-            format_adaptive_message(&response)
-        }
+        CommitMode::Adaptive | CommitMode::AdaptiveOneliner => format_adaptive_message(&response),
         CommitMode::Conventional | CommitMode::ConventionalOneliner => {
             let parsed = parse_response(&response);
             format_commit_message(&parsed, config)
@@ -404,32 +405,55 @@ pub fn load_pr_context(config: &Config, explicit_base: Option<&str>) -> Result<P
     })
 }
 
-pub fn generate_pr_preview(config: &Config, explicit_base: Option<&str>) -> Result<PrPreview> {
+fn pr_commit_context(pr_ctx: &PrContext) -> CommitContext {
+    CommitContext {
+        diff: pr_ctx.diff.clone(),
+        recent_commits: pr_ctx.commits.clone(),
+        branch: pr_ctx.branch.clone(),
+        file_contents: vec![],
+        changed_files: pr_ctx.changed_files.clone(),
+        sensitive_findings: vec![],
+        has_sensitive_content: false,
+    }
+}
+
+fn pr_commit_onelines(commits: &[String]) -> Vec<String> {
+    commits
+        .iter()
+        .filter_map(|commit| {
+            let mut lines = commit
+                .lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty());
+            let first = lines.next()?;
+            Some(lines.next().unwrap_or(first).to_owned())
+        })
+        .collect()
+}
+
+fn generate_pr_preview_internal(
+    config: &Config,
+    explicit_base: Option<&str>,
+    timeout_secs: u64,
+) -> Result<PrPreview> {
     let pr_ctx = load_pr_context(config, explicit_base)?;
     let cli_path = detect_cli(config.backend, config.backend_cli_path())?;
 
     let pr_model = config.backend_pr_model();
     let cheap_model = config.backend_cheap_model();
 
-    // If both models are the same, use single-stage (build_pr_prompt-style)
     if pr_model == cheap_model || !pr_ctx.from_branch_diff {
-        // Single-stage: build a CommitContext-compatible call
-        let commit_ctx = CommitContext {
-            diff: pr_ctx.diff,
-            recent_commits: pr_ctx.commits,
-            branch: pr_ctx.branch,
-            file_contents: vec![],
-            changed_files: pr_ctx.changed_files,
-            sensitive_findings: vec![],
-            has_sensitive_content: false,
-        };
-        let prompt = build_pr_prompt(&commit_ctx, config);
+        let prompt = build_pr_prompt(&pr_commit_context(&pr_ctx), config);
         let invocation = if pr_model != config.backend_model() {
             let provider = match config.backend {
                 opencodecommit::config::CliBackend::Opencode
                 | opencodecommit::config::CliBackend::Codex => {
-                    let p = config.backend_pr_provider();
-                    if p.is_empty() { None } else { Some(p) }
+                    let provider = config.backend_pr_provider();
+                    if provider.is_empty() {
+                        None
+                    } else {
+                        Some(provider)
+                    }
                 }
                 _ => None,
             };
@@ -437,7 +461,8 @@ pub fn generate_pr_preview(config: &Config, explicit_base: Option<&str>) -> Resu
         } else {
             build_invocation(&cli_path, &prompt, config)
         };
-        let response = exec_cli(&invocation)?;
+
+        let response = exec_cli_with_timeout(&invocation, timeout_secs)?;
         let parsed: ParsedPr = parse_pr_response(&response);
         return Ok(PrPreview {
             title: parsed.title,
@@ -446,12 +471,14 @@ pub fn generate_pr_preview(config: &Config, explicit_base: Option<&str>) -> Resu
         });
     }
 
-    // Two-stage pipeline
-    // Stage 1: Summarize with cheap model
     let summary_prompt = build_pr_summary_prompt(&pr_ctx.diff, &pr_ctx.commits, config);
     let cheap_provider = {
-        let p = config.backend_cheap_provider();
-        if p.is_empty() { None } else { Some(p) }
+        let provider = config.backend_cheap_provider();
+        if provider.is_empty() {
+            None
+        } else {
+            Some(provider)
+        }
     };
     let summary_invocation = build_invocation_with_model(
         &cli_path,
@@ -460,34 +487,31 @@ pub fn generate_pr_preview(config: &Config, explicit_base: Option<&str>) -> Resu
         cheap_model,
         cheap_provider,
     );
-    let summary = exec_cli(&summary_invocation)?;
+    let summary = exec_cli_with_timeout(&summary_invocation, timeout_secs)?;
 
-    // Stage 2: Generate PR with expensive model
-    let commit_onelines: Vec<String> = pr_ctx
-        .commits
-        .iter()
-        .filter_map(|c| c.lines().nth(1)) // second line is the subject
-        .map(|s| s.to_owned())
-        .collect();
+    let commit_onelines = pr_commit_onelines(&pr_ctx.commits);
     let final_prompt = build_pr_final_prompt(&summary, &pr_ctx.branch, &commit_onelines, config);
     let pr_provider = {
-        let p = config.backend_pr_provider();
-        if p.is_empty() { None } else { Some(p) }
+        let provider = config.backend_pr_provider();
+        if provider.is_empty() {
+            None
+        } else {
+            Some(provider)
+        }
     };
-    let final_invocation = build_invocation_with_model(
-        &cli_path,
-        &final_prompt,
-        config,
-        pr_model,
-        pr_provider,
-    );
-    let response = exec_cli(&final_invocation)?;
+    let final_invocation =
+        build_invocation_with_model(&cli_path, &final_prompt, config, pr_model, pr_provider);
+    let response = exec_cli_with_timeout(&final_invocation, timeout_secs)?;
     let parsed: ParsedPr = parse_pr_response(&response);
     Ok(PrPreview {
         title: parsed.title,
         body: parsed.body,
         backend_failures: vec![],
     })
+}
+
+pub fn generate_pr_preview(config: &Config, explicit_base: Option<&str>) -> Result<PrPreview> {
+    generate_pr_preview_internal(config, explicit_base, 120)
 }
 
 /// Execute a prompt across backends with fallback, returning the response and failures.
@@ -506,8 +530,14 @@ fn exec_with_fallback(
             Ok(p) => p,
             Err(e) => {
                 let error = truncate_error(&e.to_string());
-                on_progress(BackendProgress::Failed { backend, error: error.clone() });
-                failures.push(BackendFailure { backend: backend.to_string(), error });
+                on_progress(BackendProgress::Failed {
+                    backend,
+                    error: error.clone(),
+                });
+                failures.push(BackendFailure {
+                    backend: backend.to_string(),
+                    error,
+                });
                 continue;
             }
         };
@@ -517,8 +547,14 @@ fn exec_with_fallback(
             Ok(response) => return Ok((response, backend, failures)),
             Err(e) => {
                 let error = truncate_error(&e.to_string());
-                on_progress(BackendProgress::Failed { backend, error: error.clone() });
-                failures.push(BackendFailure { backend: backend.to_string(), error });
+                on_progress(BackendProgress::Failed {
+                    backend,
+                    error: error.clone(),
+                });
+                failures.push(BackendFailure {
+                    backend: backend.to_string(),
+                    error,
+                });
             }
         }
     }
@@ -572,15 +608,42 @@ pub fn generate_pr_preview_with_fallback(
     config: &Config,
     on_progress: impl Fn(BackendProgress),
 ) -> Result<PrPreview> {
-    let context = build_context_preview(config)?;
-    let prompt = build_pr_prompt(&context, config);
-    let (response, _backend, failures) = exec_with_fallback(config, &prompt, &on_progress)?;
-    let parsed: ParsedPr = parse_pr_response(&response);
-    Ok(PrPreview {
-        title: parsed.title,
-        body: parsed.body,
-        backend_failures: failures,
-    })
+    let mut failures: Vec<BackendFailure> = vec![];
+
+    for &backend in config.effective_backend_order() {
+        on_progress(BackendProgress::Trying(backend));
+
+        let mut backend_config = config.clone();
+        backend_config.backend = backend;
+        backend_config.backend_order = vec![backend];
+
+        match generate_pr_preview_internal(&backend_config, None, FALLBACK_TIMEOUT_SECS) {
+            Ok(mut preview) => {
+                preview.backend_failures = failures;
+                return Ok(preview);
+            }
+            Err(err) => {
+                let error = truncate_error(&err.to_string());
+                on_progress(BackendProgress::Failed {
+                    backend,
+                    error: error.clone(),
+                });
+                failures.push(BackendFailure {
+                    backend: backend.to_string(),
+                    error,
+                });
+            }
+        }
+    }
+
+    let detail = failures
+        .iter()
+        .map(|failure| format!("{}: {}", failure.backend, failure.error))
+        .collect::<Vec<_>>()
+        .join("\n  ");
+    Err(ActionError::Occ(opencodecommit::Error::BackendExecution(
+        format!("All backends failed:\n  {detail}"),
+    )))
 }
 
 pub fn generate_changelog_preview_with_fallback(
@@ -784,8 +847,7 @@ mod tests {
                 allow_sensitive: false,
             };
 
-            let err = generate_commit_preview_with_fallback(&cfg, &request, |_| {})
-                .unwrap_err();
+            let err = generate_commit_preview_with_fallback(&cfg, &request, |_| {}).unwrap_err();
             assert!(matches!(err, ActionError::SensitiveContent(_)));
         });
 

@@ -297,7 +297,9 @@ pub fn get_commits_ahead(repo: &Path, base: &str) -> Result<Vec<String>> {
     let output = git(repo, &["log", &range, "--format=%H%n%s%n%n%b%n---"])?;
     Ok(output
         .split("---\n")
-        .chain(std::iter::once(output.rsplit_once("---").map_or("", |(_, r)| r)))
+        .chain(std::iter::once(
+            output.rsplit_once("---").map_or("", |(_, r)| r),
+        ))
         .map(|s| s.trim().to_owned())
         .filter(|s| !s.is_empty())
         .collect())
@@ -310,7 +312,11 @@ pub fn get_branch_changed_files(repo: &Path, base: &str) -> Result<Vec<String>> 
     if output.is_empty() {
         return Ok(vec![]);
     }
-    Ok(output.lines().filter(|l| !l.is_empty()).map(|l| l.to_owned()).collect())
+    Ok(output
+        .lines()
+        .filter(|l| !l.is_empty())
+        .map(|l| l.to_owned())
+        .collect())
 }
 
 /// Count the number of commits HEAD is ahead of the base branch.

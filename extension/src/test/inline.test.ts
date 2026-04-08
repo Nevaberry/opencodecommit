@@ -13,6 +13,12 @@ import {
   sanitizeResponse,
 } from "../inline/generator"
 import {
+  buildPrFinalPrompt,
+  buildPrPrompt,
+  buildPrSummaryPrompt,
+  parsePrResponse,
+} from "../inline/pr"
+import {
   detectSensitiveReport,
   formatSensitiveWarningMessage,
   formatSensitiveWarningReport,
@@ -61,6 +67,19 @@ function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
     codexModel: "gpt-5.4-mini",
     codexProvider: "",
     geminiModel: "",
+    opencodePrProvider: "openai",
+    opencodePrModel: "gpt-5.4",
+    opencodeCheapProvider: "openai",
+    opencodeCheapModel: "gpt-5.4-mini",
+    claudePrModel: "claude-opus-4-6",
+    claudeCheapModel: "claude-haiku-4-5",
+    codexPrProvider: "",
+    codexPrModel: "gpt-5.4",
+    codexCheapProvider: "",
+    codexCheapModel: "gpt-5.4-mini",
+    geminiPrModel: "gemini-3-flash-preview",
+    geminiCheapModel: "gemini-3.1-flash-lite-preview",
+    prBaseBranch: "",
     backendOrder: ["codex", "opencode", "claude", "gemini"],
     branchMode: "conventional" as BranchMode,
     ...overrides,
@@ -97,6 +116,75 @@ describe("backend helpers", () => {
     assert.deepStrictEqual(overridden.backendOrder, ["claude"])
     assert.strictEqual(overridden.codexModel, config.codexModel)
     assert.strictEqual(overridden.claudeModel, config.claudeModel)
+  })
+})
+
+describe("PR helpers", () => {
+  it("builds a single-stage PR prompt from diff context", () => {
+    const config = makeConfig()
+    const prompt = buildPrPrompt(
+      {
+        diff: "diff --git a/app.ts b/app.ts\n+console.log('ok')",
+        commits: ["abc1234 feat: add logging"],
+        branch: "feature/logging",
+      },
+      config,
+    )
+
+    assert.ok(
+      prompt.includes(
+        "You are an expert at writing pull request descriptions.",
+      ),
+    )
+    assert.ok(prompt.includes("Commits in this branch:"))
+    assert.ok(prompt.includes("feat: add logging"))
+    assert.ok(prompt.includes("Branch: feature/logging"))
+    assert.ok(prompt.includes("--- Git Diff ---"))
+  })
+
+  it("builds the two-stage PR prompts", () => {
+    const config = makeConfig()
+    const summaryPrompt = buildPrSummaryPrompt(
+      "diff --git a/app.ts b/app.ts\n+console.log('ok')",
+      [
+        "1234567890abcdef\nfeat: add logging\n\nmore detail",
+        "fedcba0987654321\nfix: handle empty state",
+      ],
+      config,
+    )
+    const finalPrompt = buildPrFinalPrompt(
+      "Summary bullet one\nSummary bullet two",
+      "feature/logging",
+      ["feat: add logging", "fix: handle empty state"],
+      config,
+    )
+
+    assert.ok(summaryPrompt.includes("Summarize the following changes"))
+    assert.ok(summaryPrompt.includes("feat: add logging"))
+    assert.ok(summaryPrompt.includes("fix: handle empty state"))
+    assert.ok(finalPrompt.includes("--- Change Summary (from code review) ---"))
+    assert.ok(finalPrompt.includes("Summary bullet one"))
+    assert.ok(finalPrompt.includes("Branch: feature/logging"))
+  })
+
+  it("parses structured PR responses", () => {
+    const draft = parsePrResponse(`TITLE: Add PR generation
+BODY:
+## Summary
+- add a PR generator
+
+## Test plan
+- bun run test`)
+
+    assert.strictEqual(draft.title, "Add PR generation")
+    assert.ok(draft.body.includes("## Summary"))
+    assert.ok(draft.body.includes("## Test plan"))
+  })
+
+  it("falls back when the model omits TITLE and BODY markers", () => {
+    const draft = parsePrResponse("Simple title\n\nBody paragraph")
+    assert.strictEqual(draft.title, "Simple title")
+    assert.strictEqual(draft.body, "Body paragraph")
   })
 })
 

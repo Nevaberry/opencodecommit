@@ -167,7 +167,6 @@ pub struct Config {
     pub gemini_model: String,
 
     // --- PR pipeline models ---
-
     #[serde(default = "default_opencode_pr_provider")]
     pub opencode_pr_provider: String,
 
@@ -571,7 +570,12 @@ mod tests {
         assert_eq!(cfg.backend, CliBackend::Opencode);
         assert_eq!(
             cfg.backend_order,
-            vec![CliBackend::Codex, CliBackend::Opencode, CliBackend::Claude, CliBackend::Gemini]
+            vec![
+                CliBackend::Codex,
+                CliBackend::Opencode,
+                CliBackend::Claude,
+                CliBackend::Gemini
+            ]
         );
         assert_eq!(cfg.commit_mode, CommitMode::Adaptive);
         assert_eq!(cfg.sparkle_mode, CommitMode::Adaptive);
@@ -780,11 +784,14 @@ prompt = "Generate: {{{{diff}}}}"
 
     #[test]
     fn pr_model_fields_deserialize() {
-        let cfg: Config = toml::from_str(r#"
+        let cfg: Config = toml::from_str(
+            r#"
 claude-pr-model = "claude-sonnet-4-6"
 claude-cheap-model = "claude-haiku-4-5"
 pr-base-branch = "develop"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         assert_eq!(cfg.claude_pr_model, "claude-sonnet-4-6");
         assert_eq!(cfg.claude_cheap_model, "claude-haiku-4-5");
         assert_eq!(cfg.pr_base_branch, "develop");

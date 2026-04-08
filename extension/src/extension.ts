@@ -8,6 +8,7 @@ import {
   generateCommitMessage,
   refineCommitMessage,
 } from "./inline/generator"
+import { type GeneratedPrDraft, generatePrDraft } from "./inline/pr"
 import type { SensitiveReport } from "./inline/sensitive"
 import {
   formatSensitiveWarningReport,
@@ -197,7 +198,13 @@ async function generateMessageInline(
   const onProgress = (msg: string) => {
     if (msg.includes("failed")) showAutoCloseToast(msg)
   }
-  const message = await generateCommitMessage(context, config, mode, log, onProgress)
+  const message = await generateCommitMessage(
+    context,
+    config,
+    mode,
+    log,
+    onProgress,
+  )
   log(`Generated message: "${message}"`)
   repo.inputBox.value = message
 }
@@ -232,6 +239,71 @@ async function refineMessageInline(repo: Repository) {
     onProgress,
   )
   repo.inputBox.value = message
+}
+
+function formatPrDraftDocument(draft: GeneratedPrDraft): string {
+  const metadata = [
+    `Branch: ${draft.context.branch}`,
+    draft.context.fromBranchDiff && draft.context.baseBranch
+      ? `Base: ${draft.context.baseBranch}`
+      : undefined,
+    draft.context.fromBranchDiff
+      ? `Commits ahead: ${draft.context.commitCount}`
+      : "Source: working tree diff",
+    draft.context.changedFiles.length > 0
+      ? `Files: ${draft.context.changedFiles.join(", ")}`
+      : undefined,
+  ].filter((line): line is string => Boolean(line))
+
+  return [
+    "# PR Draft",
+    "",
+    `Title: ${draft.title}`,
+    "",
+    draft.body || "_No body generated._",
+    "",
+    "---",
+    ...metadata.map((line) => `- ${line}`),
+  ].join("\n")
+}
+
+async function generatePrInline(repo: Repository) {
+  const config = getInlineConfig()
+  log(`PR backend order: [${config.backendOrder.join(", ")}]`)
+
+  let workingDiff: string | undefined
+  try {
+    workingDiff = await getDiff(repo, config.diffSource)
+    log(`PR working diff length: ${workingDiff.length} chars`)
+  } catch {
+    log(
+      "No working diff available for PR generation, falling back to branch diff",
+    )
+  }
+
+  const branchName = repo.state.HEAD?.name ?? "unknown"
+  const onProgress = (msg: string) => {
+    if (msg.includes("failed")) showAutoCloseToast(msg)
+  }
+
+  const draft = await generatePrDraft(
+    repo.rootUri.fsPath,
+    branchName,
+    config,
+    workingDiff,
+    log,
+    onProgress,
+  )
+
+  log(
+    `Generated PR draft: title="${draft.title}", base=${draft.context.baseBranch || "(working tree)"}, fromBranchDiff=${draft.context.fromBranchDiff}`,
+  )
+
+  const document = await vscode.workspace.openTextDocument({
+    language: "markdown",
+    content: formatPrDraftDocument(draft),
+  })
+  await vscode.window.showTextDocument(document, { preview: false })
 }
 
 // ---------------------------------------------------------------------------
@@ -307,6 +379,29 @@ async function refineMessage(arg?: { rootUri?: vscode.Uri }) {
   )
 
   vscode.commands.executeCommand("workbench.view.scm")
+}
+
+async function generatePr(arg?: { rootUri?: vscode.Uri }) {
+  const repo = resolveRepository(arg)
+  if (!repo) {
+    vscode.window.showErrorMessage("No git repository found.")
+    return
+  }
+
+  await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.SourceControl,
+      title: "Generating PR draft...",
+    },
+    async () => {
+      try {
+        await generatePrInline(repo)
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+        vscode.window.showErrorMessage(`OpenCodeCommit: ${msg}`)
+      }
+    },
+  )
 }
 
 async function generateBranchInline(mode: BranchMode, repo: Repository) {
@@ -436,6 +531,9 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("opencodecommit.refine", (arg) =>
       refineMessage(arg),
     ),
+    vscode.commands.registerCommand("opencodecommit.generatePr", (arg) =>
+      generatePr(arg),
+    ),
     vscode.commands.registerCommand("opencodecommit.generateBranch", (arg) =>
       generateBranch(cfg.get<BranchMode>("branchMode", "conventional"), arg),
     ),
@@ -516,6 +614,19 @@ export function activate(context: vscode.ExtensionContext) {
           "commitTemplate",
           "custom.emojis",
           "refine.defaultFeedback",
+          "opencodePRProvider",
+          "opencodePRModel",
+          "opencodeCheapProvider",
+          "opencodeCheapModel",
+          "claudePRModel",
+          "claudeCheapModel",
+          "codexPRProvider",
+          "codexPRModel",
+          "codexCheapProvider",
+          "codexCheapModel",
+          "geminiPRModel",
+          "geminiCheapModel",
+          "prBaseBranch",
         ]
         for (const key of keys) {
           await cfg.update(key, undefined, vscode.ConfigurationTarget.Global)
@@ -542,6 +653,12 @@ export function activate(context: vscode.ExtensionContext) {
       log(`DIAGNOSE: Provider: ${config.provider}, Model: ${config.model}`)
       log(
         `DIAGNOSE: Claude model: ${config.claudeModel}, Codex model: ${config.codexModel}`,
+      )
+      log(
+        `DIAGNOSE: PR models: opencode=${config.opencodePrModel}, claude=${config.claudePrModel}, codex=${config.codexPrModel}, gemini=${config.geminiPrModel}`,
+      )
+      log(
+        `DIAGNOSE: Cheap PR models: opencode=${config.opencodeCheapModel}, claude=${config.claudeCheapModel}, codex=${config.codexCheapModel}, gemini=${config.geminiCheapModel}`,
       )
       log(`DIAGNOSE: Commit mode: ${config.commitMode}`)
       log(`DIAGNOSE: Diff source: ${config.diffSource}`)

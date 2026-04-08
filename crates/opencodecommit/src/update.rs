@@ -40,9 +40,7 @@ pub fn detect_install_source() -> InstallSource {
     // cargo: binary lives in $CARGO_HOME/bin/ (default ~/.cargo/bin/)
     let cargo_bin = std::env::var("CARGO_HOME")
         .map(|h| PathBuf::from(h).join("bin"))
-        .or_else(|_| {
-            std::env::var("HOME").map(|h| PathBuf::from(h).join(".cargo").join("bin"))
-        });
+        .or_else(|_| std::env::var("HOME").map(|h| PathBuf::from(h).join(".cargo").join("bin")));
     if let Ok(bin_dir) = cargo_bin {
         if let Ok(canon) = std::fs::canonicalize(&bin_dir) {
             if exe.starts_with(&canon) {
@@ -212,15 +210,11 @@ pub fn run_update(source: InstallSource) -> Result<(), String> {
                 Err(format!("cargo exited with {status}"))
             }
         }
-        InstallSource::Unknown => {
-            Err(
-                "Could not detect installation source.\n\
+        InstallSource::Unknown => Err("Could not detect installation source.\n\
                  Update manually with one of:\n  \
                  npm install -g opencodecommit\n  \
                  cargo install opencodecommit"
-                    .to_owned(),
-            )
-        }
+            .to_owned()),
     }
 }
 
@@ -264,7 +258,8 @@ mod tests {
         let json = serde_json::to_string(&cache).unwrap();
         std::fs::write(&path, &json).unwrap();
 
-        let loaded: UpdateCache = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        let loaded: UpdateCache =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
         assert_eq!(loaded.latest_version, "1.2.0");
         assert_eq!(loaded.last_check_epoch, 1712505600);
 

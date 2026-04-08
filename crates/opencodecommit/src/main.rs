@@ -381,6 +381,7 @@ fn apply_backend_overrides(
     cli_path: &Option<String>,
 ) {
     config.backend = backend.to_config();
+    config.backend_order = vec![config.backend];
     if let Some(provider) = provider {
         config.provider = provider.clone();
     }
@@ -862,7 +863,11 @@ fn main() {
         } => {
             let mut cfg = load_config_or_exit(config.as_deref(), text);
             apply_backend_overrides(&mut cfg, &backend, &provider, &model, &cli_path);
-            let base_ref = if base == "main" { None } else { Some(base.as_str()) };
+            let base_ref = if base == "main" {
+                None
+            } else {
+                Some(base.as_str())
+            };
             handle_pr(&cfg, text, base_ref);
         }
         Commands::Hook { action } => handle_hook(action),
@@ -899,5 +904,16 @@ mod tests {
             }
             _ => panic!("expected tui command"),
         }
+    }
+
+    #[test]
+    fn backend_override_locks_backend_order() {
+        let mut config = Config::default();
+        config.backend_order = vec![CliBackend::Codex, CliBackend::Opencode];
+
+        apply_backend_overrides(&mut config, &CliBackendArg::Claude, &None, &None, &None);
+
+        assert_eq!(config.backend, CliBackend::Claude);
+        assert_eq!(config.backend_order, vec![CliBackend::Claude]);
     }
 }

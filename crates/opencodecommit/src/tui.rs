@@ -19,8 +19,8 @@ use ratatui::{Frame, Terminal};
 use opencodecommit::config::CliBackend;
 
 use crate::actions::{
-    self, ActionError, BackendProgress, BranchPreview, CommitPreview, CommitRequest, HookOperation, PrContext,
-    PrPreview, RepoSummary,
+    self, ActionError, BackendProgress, BranchPreview, CommitPreview, CommitRequest, HookOperation,
+    PrContext, PrPreview, RepoSummary,
 };
 
 type TuiTerminal = Terminal<CrosstermBackend<io::Stdout>>;
@@ -244,7 +244,7 @@ struct App {
     should_quit: bool,
     // File sidebar state
     file_groups: Vec<CommitGroup>,
-    selected_file: usize,     // 0 = [All], then indexed into flattened list
+    selected_file: usize, // 0 = [All], then indexed into flattened list
     file_sidebar_scroll: usize,
     base_branch: String,
     commit_count: usize,
@@ -296,7 +296,11 @@ impl App {
         if self.file_groups.is_empty() {
             return 0;
         }
-        1 + self.file_groups.iter().map(|g| g.files.len()).sum::<usize>()
+        1 + self
+            .file_groups
+            .iter()
+            .map(|g| g.files.len())
+            .sum::<usize>()
     }
 
     /// Get the file path for the currently selected sidebar entry.
@@ -454,6 +458,7 @@ impl App {
 
     fn set_backend(&mut self, backend: CliBackend) {
         self.config.backend = backend;
+        self.config.backend_order = vec![backend];
         self.repo.backend_label = backend_label(backend);
         self.repo.backend_path = None;
         self.repo.backend_error = None;
@@ -1118,7 +1123,11 @@ fn spawn_run_hook(app: &mut App, tx: &Sender<WorkerMessage>, operation: HookOper
 
 // ── Worker message handling ──
 
-fn format_success_notice(action: &str, provider: &str, failures: &[actions::BackendFailure]) -> String {
+fn format_success_notice(
+    action: &str,
+    provider: &str,
+    failures: &[actions::BackendFailure],
+) -> String {
     if failures.is_empty() {
         format!("{action}.")
     } else {
@@ -1139,7 +1148,12 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
                 }
                 BackendProgress::Failed { backend, error } => {
                     // Update the existing "Trying" entry to "Failed"
-                    if let Some(entry) = app.backend_log.iter_mut().rev().find(|e| e.backend == backend) {
+                    if let Some(entry) = app
+                        .backend_log
+                        .iter_mut()
+                        .rev()
+                        .find(|e| e.backend == backend)
+                    {
                         entry.status = BackendLogStatus::Failed(error);
                     }
                 }
@@ -1151,7 +1165,11 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
             app.backend_log.clear();
             match result {
                 Ok(preview) => {
-                    let notice = format_success_notice("Generated commit message", &preview.provider, &preview.backend_failures);
+                    let notice = format_success_notice(
+                        "Generated commit message",
+                        &preview.provider,
+                        &preview.backend_failures,
+                    );
                     app.set_info(notice);
                     app.set_output(OutputContent::CommitMessage { preview });
                 }
@@ -1167,7 +1185,11 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
             app.backend_log.clear();
             match result {
                 Ok(preview) => {
-                    let notice = format_success_notice("Shortened commit message", &preview.provider, &preview.backend_failures);
+                    let notice = format_success_notice(
+                        "Shortened commit message",
+                        &preview.provider,
+                        &preview.backend_failures,
+                    );
                     app.set_info(notice);
                     app.set_output(OutputContent::CommitMessage { preview });
                 }
@@ -1203,7 +1225,11 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
             app.backend_log.clear();
             match result {
                 Ok(preview) => {
-                    let failed: Vec<&str> = preview.backend_failures.iter().map(|f| f.backend.as_str()).collect();
+                    let failed: Vec<&str> = preview
+                        .backend_failures
+                        .iter()
+                        .map(|f| f.backend.as_str())
+                        .collect();
                     let notice = if failed.is_empty() {
                         "Generated branch name.".to_owned()
                     } else {
@@ -1237,7 +1263,11 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
                             app.diff_text = ctx.diff.clone();
                         }
                     }
-                    let failed: Vec<&str> = preview.backend_failures.iter().map(|f| f.backend.as_str()).collect();
+                    let failed: Vec<&str> = preview
+                        .backend_failures
+                        .iter()
+                        .map(|f| f.backend.as_str())
+                        .collect();
                     let notice = if failed.is_empty() {
                         "Generated PR preview.".to_owned()
                     } else {
@@ -1370,10 +1400,7 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw("  "),
-        Span::styled(
-            &app.repo.repo_name,
-            Style::default().fg(Color::DarkGray),
-        ),
+        Span::styled(&app.repo.repo_name, Style::default().fg(Color::DarkGray)),
         Span::raw("  branch: "),
         Span::styled(&app.repo.branch, Style::default().fg(Color::Green)),
     ];
@@ -1383,7 +1410,10 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
         spans.push(Span::raw("  "));
         spans.push(Span::styled("<->", Style::default().fg(Color::DarkGray)));
         spans.push(Span::raw("  "));
-        spans.push(Span::styled(&app.base_branch, Style::default().fg(Color::Cyan)));
+        spans.push(Span::styled(
+            &app.base_branch,
+            Style::default().fg(Color::Cyan),
+        ));
         spans.push(Span::styled(
             format!("  ({} commits ahead)", app.commit_count),
             Style::default().fg(Color::DarkGray),
@@ -1472,7 +1502,10 @@ fn render_file_sidebar(frame: &mut Frame, area: Rect, app: &App) {
             };
             // Show just the filename, truncated to fit
             let display = if file.len() > (area.width as usize).saturating_sub(4) {
-                format!("  …{}", &file[file.len().saturating_sub(area.width as usize - 5)..])
+                format!(
+                    "  …{}",
+                    &file[file.len().saturating_sub(area.width as usize - 5)..]
+                )
             } else {
                 format!("  {file}")
             };
@@ -1513,7 +1546,11 @@ fn render_diff(frame: &mut Frame, area: Rect, app: &App) {
     if app.diff_text.is_empty() {
         let msg = Paragraph::new("No changes detected.")
             .style(Style::default().fg(Color::DarkGray))
-            .block(Block::default().borders(Borders::ALL).title(Line::from("Diff")));
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(Line::from("Diff")),
+            );
         frame.render_widget(msg, area);
         return;
     }
@@ -1527,7 +1564,11 @@ fn render_diff(frame: &mut Frame, area: Rect, app: &App) {
 
     let lines: Vec<Line> = display_diff.lines().map(style_diff_line).collect();
     let diff = Paragraph::new(lines)
-        .block(Block::default().borders(Borders::ALL).title(Line::from("Diff")))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(Line::from("Diff")),
+        )
         .scroll((app.diff_scroll, 0));
     frame.render_widget(diff, area);
 }
@@ -1866,13 +1907,15 @@ fn render_pending_overlay(
 ) {
     // Dynamic height: 3 (border + title line + border) + 1 per log entry + 1 blank separator if log present
     let log_lines = backend_log.len();
-    let height = if log_lines > 0 { 4 + log_lines as u16 } else { 5 };
+    let height = if log_lines > 0 {
+        4 + log_lines as u16
+    } else {
+        5
+    };
     let overlay = centered_rect(48, height, area);
     let spinner = ["-", "\\", "|", "/"][tick % 4];
 
-    let mut lines: Vec<Line<'_>> = vec![
-        Line::from(format!("{spinner} {}", pending.label())),
-    ];
+    let mut lines: Vec<Line<'_>> = vec![Line::from(format!("{spinner} {}", pending.label()))];
 
     if !backend_log.is_empty() {
         lines.push(Line::from(""));
@@ -1896,8 +1939,8 @@ fn render_pending_overlay(
     }
 
     frame.render_widget(Clear, overlay);
-    let widget = Paragraph::new(lines)
-        .block(Block::default().title("Working").borders(Borders::ALL));
+    let widget =
+        Paragraph::new(lines).block(Block::default().title("Working").borders(Borders::ALL));
     frame.render_widget(widget, overlay);
 }
 
@@ -2195,7 +2238,10 @@ mod tests {
         app.set_output(OutputContent::BackendMenu);
         let text = render_text(&app, 100, 24);
         assert!(text.contains("BACKEND SELECTOR"), "missing backend title");
-        assert!(text.contains("Current backend: Codex CLI"), "missing current backend");
+        assert!(
+            text.contains("Current backend: Codex CLI"),
+            "missing current backend"
+        );
         assert!(text.contains("[c Codex]"), "missing codex action");
         assert!(text.contains("[o OpenCode]"), "missing opencode action");
     }
@@ -2266,6 +2312,17 @@ mod tests {
         let text = render_text(&app, 120, 24);
         assert!(text.contains("<->"), "missing base branch separator");
         assert!(text.contains("3 commits ahead"), "missing commit count");
+    }
+
+    #[test]
+    fn backend_picker_locks_backend_order() {
+        let mut app = test_app();
+        app.config.backend_order = vec![CliBackend::Codex, CliBackend::Opencode];
+
+        app.set_backend(CliBackend::Gemini);
+
+        assert_eq!(app.config.backend, CliBackend::Gemini);
+        assert_eq!(app.config.backend_order, vec![CliBackend::Gemini]);
     }
 
     #[test]

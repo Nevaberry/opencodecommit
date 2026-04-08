@@ -1,7 +1,7 @@
 {
   "name": "opencodecommit",
   "displayName": "OpenCodeCommit",
-  "description": "AI commit messages via OpenCode, Claude Code, or Codex CLI — supports every major LLM provider from a single extension",
+  "description": "AI commit messages via OpenCode, Claude Code, or Codex CLI \u2014 supports every major LLM provider from a single extension",
   "version": "1.3.0",
   "publisher": "Nevaberry",
   "license": "MIT",
@@ -36,89 +36,94 @@
     "commands": [
       {
         "command": "opencodecommit.generate",
-        "title": "OpenCodeCommit: Generate Message",
+        "title": "occ: Generate Message",
         "icon": "$(sparkle)"
       },
       {
         "command": "opencodecommit.generateAdaptive",
-        "title": "OpenCodeCommit: Generate Adaptive"
+        "title": "occ: Generate Adaptive"
       },
       {
         "command": "opencodecommit.generateAdaptiveOneliner",
-        "title": "OpenCodeCommit: Generate Adaptive Oneliner"
+        "title": "occ: Generate Adaptive Oneliner"
       },
       {
         "command": "opencodecommit.generateConventional",
-        "title": "OpenCodeCommit: Generate Conventional"
+        "title": "occ: Generate Conventional"
       },
       {
         "command": "opencodecommit.generateConventionalOneliner",
-        "title": "OpenCodeCommit: Generate Conventional Oneliner"
+        "title": "occ: Generate Conventional Oneliner"
       },
       {
         "command": "opencodecommit.refine",
-        "title": "OpenCodeCommit: Refine Message",
+        "title": "occ: Refine Message",
         "icon": "$(edit)"
       },
       {
+        "command": "opencodecommit.generatePr",
+        "title": "occ: Generate PR",
+        "icon": "$(git-pull-request)"
+      },
+      {
         "command": "opencodecommit.switchLanguage",
-        "title": "OpenCodeCommit: Switch Language",
+        "title": "occ: Switch Language",
         "icon": "$(globe)"
       },
       {
         "command": "opencodecommit.openSettings",
-        "title": "OpenCodeCommit: Settings",
+        "title": "occ: Settings",
         "icon": "$(gear)"
       },
       {
         "command": "opencodecommit.resetSettings",
-        "title": "OpenCodeCommit: Reset Settings to Defaults",
+        "title": "occ: Reset Settings to Defaults",
         "icon": "$(refresh)"
       },
       {
         "command": "opencodecommit.diagnose",
-        "title": "OpenCodeCommit: Diagnose",
+        "title": "occ: Diagnose",
         "icon": "$(bug)"
       },
       {
         "command": "opencodecommit.generateBranch",
-        "title": "OpenCodeCommit: Generate Branch Name",
+        "title": "occ: Generate Branch Name",
         "icon": "$(git-branch)"
       },
       {
         "command": "opencodecommit.generateBranchAdaptive",
-        "title": "OpenCodeCommit: Generate Branch (Adaptive)"
+        "title": "occ: Generate Branch (Adaptive)"
       },
       {
         "command": "opencodecommit.generateBranchConventional",
-        "title": "OpenCodeCommit: Generate Branch (Conventional)"
+        "title": "occ: Generate Branch (Conventional)"
       },
       {
         "command": "opencodecommit.generateAdaptiveCodex",
-        "title": "OpenCodeCommit: Generate Adaptive via Codex"
+        "title": "occ: Generate Adaptive via Codex"
       },
       {
         "command": "opencodecommit.generateAdaptiveOpencode",
-        "title": "OpenCodeCommit: Generate Adaptive via OpenCode"
+        "title": "occ: Generate Adaptive via OpenCode"
       },
       {
         "command": "opencodecommit.generateAdaptiveClaude",
-        "title": "OpenCodeCommit: Generate Adaptive via Claude"
+        "title": "occ: Generate Adaptive via Claude"
       },
       {
         "command": "opencodecommit.generateAdaptiveGemini",
-        "title": "OpenCodeCommit: Generate Adaptive via Gemini"
+        "title": "occ: Generate Adaptive via Gemini"
       }
     ],
     "submenus": [
       {
         "id": "opencodecommit.menu",
-        "label": "OpenCodeCommit",
+        "label": "occ",
         "icon": "$(ellipsis)"
       },
       {
         "id": "opencodecommit.commitAdaptiveBackendMenu",
-        "label": "Commit Adaptive Backend"
+        "label": "occ: Commit Adaptive Backend"
       }
     ],
     "menus": {
@@ -158,6 +163,10 @@
         {
           "command": "opencodecommit.refine",
           "group": "2_actions"
+        },
+        {
+          "command": "opencodecommit.generatePr",
+          "group": "2_actions@5"
         },
         {
           "command": "opencodecommit.switchLanguage",
@@ -270,6 +279,84 @@
           "default": "",
           "description": "Gemini CLI path. Auto-detected if empty."
         },
+        "opencodecommit.opencodePRProvider": {
+          "order": 30,
+          "type": "string",
+          "default": "openai",
+          "description": "OpenCode provider for the final PR generation step."
+        },
+        "opencodecommit.opencodePRModel": {
+          "order": 31,
+          "type": "string",
+          "default": "gpt-5.4",
+          "description": "OpenCode model for the final PR generation step."
+        },
+        "opencodecommit.opencodeCheapProvider": {
+          "order": 32,
+          "type": "string",
+          "default": "openai",
+          "description": "OpenCode provider for the cheap PR summarization step."
+        },
+        "opencodecommit.opencodeCheapModel": {
+          "order": 33,
+          "type": "string",
+          "default": "gpt-5.4-mini",
+          "description": "OpenCode model for the cheap PR summarization step."
+        },
+        "opencodecommit.claudePRModel": {
+          "order": 34,
+          "type": "string",
+          "default": "claude-opus-4-6",
+          "description": "Claude model for the final PR generation step."
+        },
+        "opencodecommit.claudeCheapModel": {
+          "order": 35,
+          "type": "string",
+          "default": "claude-haiku-4-5",
+          "description": "Claude model for the cheap PR summarization step."
+        },
+        "opencodecommit.codexPRProvider": {
+          "order": 36,
+          "type": "string",
+          "default": "",
+          "description": "Codex provider override for the final PR generation step."
+        },
+        "opencodecommit.codexPRModel": {
+          "order": 37,
+          "type": "string",
+          "default": "gpt-5.4",
+          "description": "Codex model for the final PR generation step."
+        },
+        "opencodecommit.codexCheapProvider": {
+          "order": 38,
+          "type": "string",
+          "default": "",
+          "description": "Codex provider override for the cheap PR summarization step."
+        },
+        "opencodecommit.codexCheapModel": {
+          "order": 39,
+          "type": "string",
+          "default": "gpt-5.4-mini",
+          "description": "Codex model for the cheap PR summarization step."
+        },
+        "opencodecommit.geminiPRModel": {
+          "order": 40,
+          "type": "string",
+          "default": "gemini-3-flash-preview",
+          "description": "Gemini model for the final PR generation step."
+        },
+        "opencodecommit.geminiCheapModel": {
+          "order": 41,
+          "type": "string",
+          "default": "gemini-3.1-flash-lite-preview",
+          "description": "Gemini model for the cheap PR summarization step."
+        },
+        "opencodecommit.prBaseBranch": {
+          "order": 42,
+          "type": "string",
+          "default": "",
+          "description": "Optional base branch override for PR generation. Leave empty to auto-detect."
+        },
         "opencodecommit.backendOrder": {
           "order": 4,
           "type": "array",
@@ -315,31 +402,31 @@
               "label": "English",
               "instruction": "Write the commit message in English.",
               "baseModule": "You are an expert at writing git commit messages.\nAnalyze the code changes and generate a specific, descriptive commit message.\n\nBe specific about WHAT changed. Describe the actual functionality, file, or behavior affected.\nNever write vague messages like \"update code\", \"make changes\", or \"update files\".\n\nRespond with ONLY the commit message. No explanations, no code blocks, no markdown.",
-              "adaptiveFormat": "Match the style of the recent commits shown below. Adapt to whatever conventions\nthe project uses — the recent commits are your primary guide.\n\nIf the recent commits use conventional commits (type: description), follow that format.\nIf they use custom prefixes (e.g. developer initials, dates, version numbers, or\nnon-standard categories like private, public, dev, production), match that style.\nIf no clear style exists, fall back to: type: description\n\nCommon conventional types for reference (use these as defaults when no other style is apparent):\nfeat, fix, docs, style, refactor, test, perf, security, revert, chore\n\nBe specific about what changed — do not write vague messages like \"update code\".\n\nRecent commits:\n{recentCommits}",
+              "adaptiveFormat": "Match the style of the recent commits shown below. Adapt to whatever conventions\nthe project uses \u2014 the recent commits are your primary guide.\n\nIf the recent commits use conventional commits (type: description), follow that format.\nIf they use custom prefixes (e.g. developer initials, dates, version numbers, or\nnon-standard categories like private, public, dev, production), match that style.\nIf no clear style exists, fall back to: type: description\n\nCommon conventional types for reference (use these as defaults when no other style is apparent):\nfeat, fix, docs, style, refactor, test, perf, security, revert, chore\n\nBe specific about what changed \u2014 do not write vague messages like \"update code\".\n\nRecent commits:\n{recentCommits}",
               "conventionalFormat": "Use conventional commit format: type(scope): description\n\nChoose the type that best matches the actual changes:\n- feat: new features or capabilities\n- fix: bug fixes, error corrections\n- docs: documentation, README, markdown, comments, JSDoc/rustdoc changes\n- style: formatting, whitespace, semicolons (no logic change)\n- refactor: code restructuring without behavior change\n- test: adding or modifying tests\n- perf: performance improvements\n- security: security fixes, vulnerability patches, auth hardening\n- revert: reverting previous changes\n- chore: build process, dependencies, tooling (only if nothing else fits)\nScope: derive from the primary area affected (optional, omit if unclear).\nUse imperative mood. No period at end. Lowercase after colon.",
               "multilineLength": "If the change is simple, use a single line under 72 characters.\nIf the change is complex with multiple aspects, add a body after a blank line\nwith bullet points (prefix each with \"- \"). Wrap at 72 characters.",
               "onelinerLength": "Write exactly one line, no body. Maximum 72 characters.",
-              "sensitiveContentNote": "The diff contains sensitive content (API keys, credentials, or env variables).\nMention this naturally in the first line of the commit message, e.g. \"add API keys for payment service\"\nor \"configure production env variables\". Just acknowledge what is being committed — no warnings or caveats."
+              "sensitiveContentNote": "The diff contains sensitive content (API keys, credentials, or env variables).\nMention this naturally in the first line of the commit message, e.g. \"add API keys for payment service\"\nor \"configure production env variables\". Just acknowledge what is being committed \u2014 no warnings or caveats."
             },
             {
               "label": "Suomi",
-              "instruction": "Kirjoita commit-viesti suomeksi. Käytä selkeää, lyhyttä ja teknistä kieltä. Tyyppietuliitteet (feat, fix, docs jne.) pysyvät englanniksi, mutta kuvaus suomeksi.",
-              "baseModule": "Olet asiantuntija git-commit-viestien kirjoittamisessa.\nAnalysoi koodimuutokset ja luo tarkka, kuvaava commit-viesti.\n\nOle tarkka siitä, MITÄ muuttui. Kuvaile varsinainen toiminnallisuus, tiedosto tai käyttäytyminen, jota muutos koskee.\nÄlä koskaan kirjoita epämääräisiä viestejä kuten \"päivitä koodi\", \"tee muutoksia\" tai \"päivitä tiedostoja\".\n\nVastaa VAIN commit-viestillä. Ei selityksiä, ei koodilohkoja, ei markdownia.",
-              "adaptiveFormat": "Noudata alla näkyvien viimeaikaisten committien tyyliä. Mukaudu projektin käyttämiin käytäntöihin\n— viimeaikaiset commitit ovat ensisijainen oppaasi.\n\nJos viimeaikaiset commitit käyttävät conventional commits -muotoa (tyyppi: kuvaus), noudata sitä.\nJos ne käyttävät mukautettuja etuliitteitä (esim. kehittäjän nimikirjaimet, päivämäärät, versionumerot tai\nepästandardeja kategorioita kuten private, public, dev, production), noudata sitä tyyliä.\nJos selkeää tyyliä ei ole, käytä oletusta: tyyppi: kuvaus\n\nYleiset conventional-tyypit viitteeksi (käytä näitä oletuksena kun muuta tyyliä ei ole):\nfeat, fix, docs, style, refactor, test, perf, security, revert, chore\n\nOle tarkka siitä mitä muuttui — älä kirjoita epämääräisiä viestejä kuten \"päivitä koodi\".\n\nViimeaikaiset commitit:\n{recentCommits}",
-              "conventionalFormat": "Käytä conventional commit -muotoa: tyyppi(laajuus): kuvaus\n\nValitse tyyppi, joka parhaiten vastaa varsinaisia muutoksia:\n- feat: uudet ominaisuudet tai toiminnallisuudet\n- fix: bugikorjaukset, virheiden korjaukset\n- docs: dokumentaatio, README, markdown, kommentit, JSDoc/rustdoc-muutokset\n- style: muotoilu, välilyönnit, puolipisteet (ei logiikkamuutosta)\n- refactor: koodin uudelleenjärjestely ilman käyttäytymismuutosta\n- test: testien lisääminen tai muokkaaminen\n- perf: suorituskykyparannukset\n- security: tietoturvakorjaukset, haavoittuvuuspaikkaukset, autentikoinnin vahvistaminen\n- revert: aiempien muutosten peruuttaminen\n- chore: rakennusprosessi, riippuvuudet, työkalut (vain jos mikään muu ei sovi)\nLaajuus: johda ensisijaisesta vaikutusalueesta (valinnainen, jätä pois jos epäselvä).\nKäytä imperatiivimuotoa. Ei pistettä loppuun. Pieni alkukirjain kaksoispisteen jälkeen.",
-              "multilineLength": "Jos muutos on yksinkertainen, käytä yhtä riviä alle 72 merkkiä.\nJos muutos on monimutkainen ja sisältää useita näkökohtia, lisää runko tyhjän rivin jälkeen\nluettelomerkeillä (aloita kukin merkillä \"- \"). Rivitä 72 merkissä.",
-              "onelinerLength": "Kirjoita täsmälleen yksi rivi, ei runkoa. Enintään 72 merkkiä.",
-              "sensitiveContentNote": "Diff sisältää arkaluonteista sisältöä (API-avaimia, tunnistetietoja tai ympäristömuuttujia).\nMainitse tämä luonnollisesti commit-viestin ensimmäisellä rivillä, esim. \"lisää API-avaimet maksupalvelulle\"\ntai \"määritä tuotantoympäristön muuttujat\". Totea vain mitä commitoidaan — ei varoituksia tai varaumia."
+              "instruction": "Kirjoita commit-viesti suomeksi. K\u00e4yt\u00e4 selke\u00e4\u00e4, lyhytt\u00e4 ja teknist\u00e4 kielt\u00e4. Tyyppietuliitteet (feat, fix, docs jne.) pysyv\u00e4t englanniksi, mutta kuvaus suomeksi.",
+              "baseModule": "Olet asiantuntija git-commit-viestien kirjoittamisessa.\nAnalysoi koodimuutokset ja luo tarkka, kuvaava commit-viesti.\n\nOle tarkka siit\u00e4, MIT\u00c4 muuttui. Kuvaile varsinainen toiminnallisuus, tiedosto tai k\u00e4ytt\u00e4ytyminen, jota muutos koskee.\n\u00c4l\u00e4 koskaan kirjoita ep\u00e4m\u00e4\u00e4r\u00e4isi\u00e4 viestej\u00e4 kuten \"p\u00e4ivit\u00e4 koodi\", \"tee muutoksia\" tai \"p\u00e4ivit\u00e4 tiedostoja\".\n\nVastaa VAIN commit-viestill\u00e4. Ei selityksi\u00e4, ei koodilohkoja, ei markdownia.",
+              "adaptiveFormat": "Noudata alla n\u00e4kyvien viimeaikaisten committien tyyli\u00e4. Mukaudu projektin k\u00e4ytt\u00e4miin k\u00e4yt\u00e4nt\u00f6ihin\n\u2014 viimeaikaiset commitit ovat ensisijainen oppaasi.\n\nJos viimeaikaiset commitit k\u00e4ytt\u00e4v\u00e4t conventional commits -muotoa (tyyppi: kuvaus), noudata sit\u00e4.\nJos ne k\u00e4ytt\u00e4v\u00e4t mukautettuja etuliitteit\u00e4 (esim. kehitt\u00e4j\u00e4n nimikirjaimet, p\u00e4iv\u00e4m\u00e4\u00e4r\u00e4t, versionumerot tai\nep\u00e4standardeja kategorioita kuten private, public, dev, production), noudata sit\u00e4 tyyli\u00e4.\nJos selke\u00e4\u00e4 tyyli\u00e4 ei ole, k\u00e4yt\u00e4 oletusta: tyyppi: kuvaus\n\nYleiset conventional-tyypit viitteeksi (k\u00e4yt\u00e4 n\u00e4it\u00e4 oletuksena kun muuta tyyli\u00e4 ei ole):\nfeat, fix, docs, style, refactor, test, perf, security, revert, chore\n\nOle tarkka siit\u00e4 mit\u00e4 muuttui \u2014 \u00e4l\u00e4 kirjoita ep\u00e4m\u00e4\u00e4r\u00e4isi\u00e4 viestej\u00e4 kuten \"p\u00e4ivit\u00e4 koodi\".\n\nViimeaikaiset commitit:\n{recentCommits}",
+              "conventionalFormat": "K\u00e4yt\u00e4 conventional commit -muotoa: tyyppi(laajuus): kuvaus\n\nValitse tyyppi, joka parhaiten vastaa varsinaisia muutoksia:\n- feat: uudet ominaisuudet tai toiminnallisuudet\n- fix: bugikorjaukset, virheiden korjaukset\n- docs: dokumentaatio, README, markdown, kommentit, JSDoc/rustdoc-muutokset\n- style: muotoilu, v\u00e4lily\u00f6nnit, puolipisteet (ei logiikkamuutosta)\n- refactor: koodin uudelleenj\u00e4rjestely ilman k\u00e4ytt\u00e4ytymismuutosta\n- test: testien lis\u00e4\u00e4minen tai muokkaaminen\n- perf: suorituskykyparannukset\n- security: tietoturvakorjaukset, haavoittuvuuspaikkaukset, autentikoinnin vahvistaminen\n- revert: aiempien muutosten peruuttaminen\n- chore: rakennusprosessi, riippuvuudet, ty\u00f6kalut (vain jos mik\u00e4\u00e4n muu ei sovi)\nLaajuus: johda ensisijaisesta vaikutusalueesta (valinnainen, j\u00e4t\u00e4 pois jos ep\u00e4selv\u00e4).\nK\u00e4yt\u00e4 imperatiivimuotoa. Ei pistett\u00e4 loppuun. Pieni alkukirjain kaksoispisteen j\u00e4lkeen.",
+              "multilineLength": "Jos muutos on yksinkertainen, k\u00e4yt\u00e4 yht\u00e4 rivi\u00e4 alle 72 merkki\u00e4.\nJos muutos on monimutkainen ja sis\u00e4lt\u00e4\u00e4 useita n\u00e4k\u00f6kohtia, lis\u00e4\u00e4 runko tyhj\u00e4n rivin j\u00e4lkeen\nluettelomerkeill\u00e4 (aloita kukin merkill\u00e4 \"- \"). Rivit\u00e4 72 merkiss\u00e4.",
+              "onelinerLength": "Kirjoita t\u00e4sm\u00e4lleen yksi rivi, ei runkoa. Enint\u00e4\u00e4n 72 merkki\u00e4.",
+              "sensitiveContentNote": "Diff sis\u00e4lt\u00e4\u00e4 arkaluonteista sis\u00e4lt\u00f6\u00e4 (API-avaimia, tunnistetietoja tai ymp\u00e4rist\u00f6muuttujia).\nMainitse t\u00e4m\u00e4 luonnollisesti commit-viestin ensimm\u00e4isell\u00e4 rivill\u00e4, esim. \"lis\u00e4\u00e4 API-avaimet maksupalvelulle\"\ntai \"m\u00e4\u00e4rit\u00e4 tuotantoymp\u00e4rist\u00f6n muuttujat\". Totea vain mit\u00e4 commitoidaan \u2014 ei varoituksia tai varaumia."
             },
             {
               "label": "Custom (example)",
               "instruction": "Write the commit message in your preferred language and style.",
               "baseModule": "You are an expert at writing git commit messages.\nAnalyze the code changes and generate a specific, descriptive commit message.\n\nBe specific about WHAT changed. Describe the actual functionality, file, or behavior affected.\nNever write vague messages like \"update code\", \"make changes\", or \"update files\".\n\nRespond with ONLY the commit message. No explanations, no code blocks, no markdown.",
-              "adaptiveFormat": "Match the style of the recent commits shown below. Adapt to whatever conventions\nthe project uses — the recent commits are your primary guide.\n\nIf the recent commits use conventional commits (type: description), follow that format.\nIf they use custom prefixes (e.g. developer initials, dates, version numbers, or\nnon-standard categories like private, public, dev, production), match that style.\nIf no clear style exists, fall back to: type: description\n\nCommon conventional types for reference (use these as defaults when no other style is apparent):\nfeat, fix, docs, style, refactor, test, perf, security, revert, chore\n\nBe specific about what changed — do not write vague messages like \"update code\".\n\nRecent commits:\n{recentCommits}",
+              "adaptiveFormat": "Match the style of the recent commits shown below. Adapt to whatever conventions\nthe project uses \u2014 the recent commits are your primary guide.\n\nIf the recent commits use conventional commits (type: description), follow that format.\nIf they use custom prefixes (e.g. developer initials, dates, version numbers, or\nnon-standard categories like private, public, dev, production), match that style.\nIf no clear style exists, fall back to: type: description\n\nCommon conventional types for reference (use these as defaults when no other style is apparent):\nfeat, fix, docs, style, refactor, test, perf, security, revert, chore\n\nBe specific about what changed \u2014 do not write vague messages like \"update code\".\n\nRecent commits:\n{recentCommits}",
               "conventionalFormat": "Use conventional commit format: type(scope): description\n\nChoose the type that best matches the actual changes:\n- feat: new features or capabilities\n- fix: bug fixes, error corrections\n- docs: documentation, README, markdown, comments, JSDoc/rustdoc changes\n- style: formatting, whitespace, semicolons (no logic change)\n- refactor: code restructuring without behavior change\n- test: adding or modifying tests\n- perf: performance improvements\n- security: security fixes, vulnerability patches, auth hardening\n- revert: reverting previous changes\n- chore: build process, dependencies, tooling (only if nothing else fits)\nScope: derive from the primary area affected (optional, omit if unclear).\nUse imperative mood. No period at end. Lowercase after colon.",
               "multilineLength": "If the change is simple, use a single line under 72 characters.\nIf the change is complex with multiple aspects, add a body after a blank line\nwith bullet points (prefix each with \"- \"). Wrap at 72 characters.",
               "onelinerLength": "Write exactly one line, no body. Maximum 72 characters.",
-              "sensitiveContentNote": "The diff contains sensitive content (API keys, credentials, or env variables).\nMention this naturally in the first line of the commit message, e.g. \"add API keys for payment service\"\nor \"configure production env variables\". Just acknowledge what is being committed — no warnings or caveats."
+              "sensitiveContentNote": "The diff contains sensitive content (API keys, credentials, or env variables).\nMention this naturally in the first line of the commit message, e.g. \"add API keys for payment service\"\nor \"configure production env variables\". Just acknowledge what is being committed \u2014 no warnings or caveats."
             }
           ],
           "items": {
@@ -383,7 +470,7 @@
               "instruction"
             ]
           },
-          "markdownDescription": "Language configurations with prompt modules. Each language can define its own prompts. Only `label` and `instruction` are required — missing prompt modules fall back to the first language's values. Edit in settings.json for full control."
+          "markdownDescription": "Language configurations with prompt modules. Each language can define its own prompts. Only `label` and `instruction` are required \u2014 missing prompt modules fall back to the first language's values. Edit in settings.json for full control."
         },
         "opencodecommit.showLanguageSelector": {
           "order": 3,

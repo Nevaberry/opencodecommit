@@ -153,11 +153,7 @@ pub fn build_pr_prompt(context: &CommitContext, config: &Config) -> String {
 }
 
 /// Build stage-1 summarization prompt for the two-stage PR pipeline.
-pub fn build_pr_summary_prompt(
-    diff: &str,
-    commits: &[String],
-    config: &Config,
-) -> String {
+pub fn build_pr_summary_prompt(diff: &str, commits: &[String], config: &Config) -> String {
     let commit_text = if commits.is_empty() {
         "(no commit messages available)".to_owned()
     } else {

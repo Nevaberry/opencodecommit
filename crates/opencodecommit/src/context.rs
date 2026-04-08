@@ -546,8 +546,14 @@ diff --git a/src/utils.rs b/src/utils.rs
 ";
         let filtered = filter_diff(diff);
         assert!(filtered.contains("src/main.rs"), "should keep source files");
-        assert!(filtered.contains("src/utils.rs"), "should keep source files");
-        assert!(!filtered.contains("package-lock.json"), "should remove lock files");
+        assert!(
+            filtered.contains("src/utils.rs"),
+            "should keep source files"
+        );
+        assert!(
+            !filtered.contains("package-lock.json"),
+            "should remove lock files"
+        );
     }
 
     #[test]
