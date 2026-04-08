@@ -35,6 +35,7 @@ Desktop.ini
 
 # Environment / secrets
 .env
+*.env
 .env.*
 .env.local
 *.pem
