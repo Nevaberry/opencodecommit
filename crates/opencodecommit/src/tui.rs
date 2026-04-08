@@ -46,12 +46,10 @@ fn panel_buttons(output: &OutputContent) -> &'static [&'static str] {
     match output {
         OutputContent::CommitMessage { .. } => &["[c Commit]", "[s Shorten]", "[r Regenerate]"],
         OutputContent::SensitiveWarning { report } => {
-            if !report.has_blocking_findings() {
-                &["[c Continue]"]
-            } else if allows_sensitive_bypass(report.enforcement) {
-                &["[a Bypass Once]"]
+            if !report.has_blocking_findings() || allows_sensitive_bypass(report.enforcement) {
+                &["[c Continue]", "[x Cancel]"]
             } else {
-                &[]
+                &["[x Cancel]"]
             }
         }
         OutputContent::BranchPreview { .. } => &["[c Create Branch]", "[r Regenerate]"],
@@ -562,14 +560,15 @@ fn panel_button_description(content: &OutputContent, index: usize) -> &'static s
             _ => "",
         },
         OutputContent::SensitiveWarning { report } => {
-            if index > 0 {
-                ""
-            } else if !report.has_blocking_findings() {
-                "Continue after reviewing the sensitive-content warning"
-            } else if allows_sensitive_bypass(report.enforcement) {
-                "Bypass sensitive-content blocking once and continue generating"
-            } else {
-                ""
+            let can_continue =
+                !report.has_blocking_findings() || allows_sensitive_bypass(report.enforcement);
+            match index {
+                0 if can_continue && !report.has_blocking_findings() => {
+                    "Continue after reviewing the sensitive-content warning"
+                }
+                0 if can_continue => "Continue once despite blocking sensitive findings",
+                0 | 1 => "Cancel and close the sensitive-content warning panel",
+                _ => "",
             }
         }
         OutputContent::BranchPreview { .. } => match index {
@@ -878,12 +877,19 @@ fn activate_panel_button(app: &mut App, index: usize, tx: &Sender<WorkerMessage>
             _ => {}
         },
         OutputContent::SensitiveWarning { report } => {
-            if index == 0
-                && (!report.has_blocking_findings() || allows_sensitive_bypass(report.enforcement))
-            {
-                app.sensitive_blocked = false;
-                app.clear_output();
-                spawn_generate_commit(app, tx, true);
+            let can_continue =
+                !report.has_blocking_findings() || allows_sensitive_bypass(report.enforcement);
+            match index {
+                0 if can_continue => {
+                    app.sensitive_blocked = false;
+                    app.clear_output();
+                    spawn_generate_commit(app, tx, true);
+                }
+                0 | 1 => {
+                    app.sensitive_blocked = false;
+                    app.clear_output();
+                }
+                _ => {}
             }
         }
         OutputContent::BranchPreview { .. } => match index {
@@ -951,7 +957,7 @@ fn handle_panel_shortcut(app: &mut App, ch: char, tx: &Sender<WorkerMessage>) {
             let continue_key = if !report.has_blocking_findings() {
                 Some('c')
             } else if allows_sensitive_bypass(report.enforcement) {
-                Some('a')
+                Some('c')
             } else {
                 None
             };
@@ -959,6 +965,9 @@ fn handle_panel_shortcut(app: &mut App, ch: char, tx: &Sender<WorkerMessage>) {
                 app.sensitive_blocked = false;
                 app.clear_output();
                 spawn_generate_commit(app, tx, true);
+            } else if ch == 'x' {
+                app.sensitive_blocked = false;
+                app.clear_output();
             }
         }
         OutputContent::BranchPreview { .. } => match ch {
@@ -1451,7 +1460,7 @@ fn output_panel_height(app: &App) -> u16 {
         }
         Some(OutputContent::SensitiveWarning { report }) => {
             let lines = report.findings.len() as u16;
-            (lines + 6).min(15)
+            (lines + 7).min(20)
         }
         Some(OutputContent::BranchPreview { .. }) => 7,
         Some(OutputContent::PrPreview { preview }) => {
@@ -1757,7 +1766,19 @@ fn render_commit_output(frame: &mut Frame, area: Rect, preview: &CommitPreview, 
 }
 
 fn render_sensitive_output(frame: &mut Frame, area: Rect, report: &SensitiveReport, app: &App) {
-    let mut lines = vec![Line::styled(
+    let has_actions = !panel_buttons(&OutputContent::SensitiveWarning {
+        report: report.clone(),
+    })
+    .is_empty();
+    let footer = if !report.has_blocking_findings() {
+        "Warnings only. Continue, inspect the diff, or cancel."
+    } else if allows_sensitive_bypass(report.enforcement) {
+        "Continue once from this screen or remove the findings."
+    } else {
+        "Strict sensitive mode is active. Remove the findings or lower enforcement."
+    };
+
+    let mut body_lines = vec![Line::styled(
         if report.has_blocking_findings() {
             "SENSITIVE CONTENT BLOCKED"
         } else {
@@ -1777,40 +1798,47 @@ fn render_sensitive_output(frame: &mut Frame, area: Rect, report: &SensitiveRepo
             Some(line) => format!("{}:{}", finding.file_path, line),
             None => finding.file_path.clone(),
         };
-        lines.push(Line::from(vec![
+        body_lines.push(Line::from(vec![
             Span::styled(location, Style::default().fg(Color::Yellow)),
             Span::raw(" · "),
             Span::styled(&finding.preview, Style::default().fg(Color::DarkGray)),
         ]));
     }
 
-    lines.push(Line::raw(""));
-    if !panel_buttons(&OutputContent::SensitiveWarning {
-        report: report.clone(),
-    })
-    .is_empty()
-    {
-        lines.push(render_panel_button_line(app));
-    }
-    lines.push(Line::styled(
-        if !report.has_blocking_findings() {
-            "Warnings only. Continue, inspect the diff, or cancel."
-        } else if allows_sensitive_bypass(report.enforcement) {
-            "Generation blocked until resolved or bypassed once."
-        } else {
-            "Strict sensitive mode is active. Remove the findings or lower enforcement."
-        },
-        Style::default().fg(Color::DarkGray),
-    ));
-
-    let widget = Paragraph::new(lines).block(Block::default().borders(Borders::ALL).border_style(
-        Style::default().fg(if report.has_blocking_findings() {
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(if report.has_blocking_findings() {
             Color::Red
         } else {
             Color::Yellow
-        }),
-    ));
-    frame.render_widget(widget, area);
+        }));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    if inner.height == 0 {
+        return;
+    }
+
+    let footer_lines = if has_actions {
+        vec![
+            render_panel_button_line(app),
+            Line::styled(footer, Style::default().fg(Color::DarkGray)),
+        ]
+    } else {
+        vec![Line::styled(footer, Style::default().fg(Color::DarkGray))]
+    };
+    let footer_height = (footer_lines.len() as u16).min(inner.height);
+    let chunks = Layout::vertical([
+        Constraint::Min(inner.height.saturating_sub(footer_height)),
+        Constraint::Length(footer_height),
+    ])
+    .split(inner);
+
+    frame.render_widget(
+        Paragraph::new(body_lines).scroll((app.output_scroll, 0)),
+        chunks[0],
+    );
+    frame.render_widget(Paragraph::new(footer_lines), chunks[1]);
 }
 
 fn render_branch_output(frame: &mut Frame, area: Rect, preview: &BranchPreview, app: &App) {
@@ -2214,7 +2242,81 @@ mod tests {
         let text = render_text(&app, 100, 24);
         assert!(text.contains("SENSITIVE"), "missing sensitive header");
         assert!(text.contains(".env:1"), "missing finding location");
-        assert!(text.contains("Bypass Once"), "missing bypass button");
+        assert!(text.contains("Continue"), "missing continue button");
+        assert!(text.contains("Cancel"), "missing cancel button");
+    }
+
+    #[test]
+    fn sensitive_warning_keeps_actions_visible_with_many_findings() {
+        let mut findings = Vec::new();
+        for index in 1..=20 {
+            findings.push(opencodecommit::sensitive::SensitiveFinding {
+                category: "token",
+                rule: "openai-project-key",
+                file_path: format!(".env.{index}"),
+                line_number: Some(index),
+                preview: "OPENAI_API_KEY=<redacted>".to_owned(),
+                tier: opencodecommit::sensitive::SensitiveTier::ConfirmedSecret,
+                severity: opencodecommit::sensitive::SensitiveSeverity::Block,
+            });
+        }
+
+        let mut app = test_app();
+        app.set_output(OutputContent::SensitiveWarning {
+            report: SensitiveReport::from_findings_with_enforcement(
+                findings,
+                opencodecommit::sensitive::SensitiveEnforcement::BlockHigh,
+            ),
+        });
+
+        let text = render_text(&app, 100, 24);
+        assert!(
+            text.contains("Continue"),
+            "continue button should remain visible"
+        );
+        assert!(
+            text.contains("Cancel"),
+            "cancel button should remain visible"
+        );
+    }
+
+    #[test]
+    fn sensitive_warning_body_scrolls_while_footer_stays_visible() {
+        let mut findings = Vec::new();
+        for index in 1..=20 {
+            findings.push(opencodecommit::sensitive::SensitiveFinding {
+                category: "token",
+                rule: "openai-project-key",
+                file_path: format!(".env.{index}"),
+                line_number: Some(index),
+                preview: format!("OPENAI_API_KEY_<redacted>_{index}"),
+                tier: opencodecommit::sensitive::SensitiveTier::ConfirmedSecret,
+                severity: opencodecommit::sensitive::SensitiveSeverity::Block,
+            });
+        }
+
+        let mut app = test_app();
+        app.set_output(OutputContent::SensitiveWarning {
+            report: SensitiveReport::from_findings_with_enforcement(
+                findings,
+                opencodecommit::sensitive::SensitiveEnforcement::BlockHigh,
+            ),
+        });
+        app.output_scroll = 8;
+
+        let text = render_text(&app, 100, 24);
+        assert!(
+            text.contains(".env.9:9"),
+            "scrolled body should show later findings"
+        );
+        assert!(
+            text.contains("Continue"),
+            "footer should stay visible while scrolling"
+        );
+        assert!(
+            text.contains("Cancel"),
+            "footer should stay visible while scrolling"
+        );
     }
 
     #[test]
