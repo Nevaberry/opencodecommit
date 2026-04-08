@@ -4,10 +4,24 @@
 
 use crate::config::LanguageConfig;
 
-/// Returns the five default languages: English, Finnish, Japanese, Chinese,
-/// Custom (example).
+/// Returns the twelve default languages: English, Finnish, Japanese, Chinese,
+/// Spanish, Portuguese, French, Korean, Russian, Vietnamese, German, Custom
+/// (example).
 pub fn default_languages() -> Vec<LanguageConfig> {
-    vec![english(), finnish(), japanese(), chinese(), custom()]
+    vec![
+        english(),
+        finnish(),
+        japanese(),
+        chinese(),
+        spanish(),
+        portuguese(),
+        french(),
+        korean(),
+        russian(),
+        vietnamese(),
+        german(),
+        custom(),
+    ]
 }
 
 fn english() -> LanguageConfig {
@@ -59,6 +73,97 @@ fn chinese() -> LanguageConfig {
         multiline_length: Some(ZH_MULTILINE_LENGTH.to_owned()),
         oneliner_length: Some(ZH_ONELINER_LENGTH.to_owned()),
         sensitive_content_note: Some(ZH_SENSITIVE_NOTE.to_owned()),
+    }
+}
+
+fn spanish() -> LanguageConfig {
+    LanguageConfig {
+        label: "Spanish".to_owned(),
+        instruction: "Escribe el mensaje de commit en español. Usa un lenguaje técnico, claro y breve. Los prefijos de tipo (feat, fix, docs, etc.) deben permanecer en inglés, pero la descripción debe estar en español.".to_owned(),
+        base_module: Some(ES_BASE_MODULE.to_owned()),
+        adaptive_format: Some(ES_ADAPTIVE_FORMAT.to_owned()),
+        conventional_format: Some(ES_CONVENTIONAL_FORMAT.to_owned()),
+        multiline_length: Some(ES_MULTILINE_LENGTH.to_owned()),
+        oneliner_length: Some(ES_ONELINER_LENGTH.to_owned()),
+        sensitive_content_note: Some(ES_SENSITIVE_NOTE.to_owned()),
+    }
+}
+
+fn portuguese() -> LanguageConfig {
+    LanguageConfig {
+        label: "Portuguese".to_owned(),
+        instruction: "Escreva a mensagem de commit em português. Use uma linguagem técnica, clara e curta. Os prefixos de tipo (feat, fix, docs etc.) devem permanecer em inglês, mas a descrição deve estar em português.".to_owned(),
+        base_module: Some(PT_BASE_MODULE.to_owned()),
+        adaptive_format: Some(PT_ADAPTIVE_FORMAT.to_owned()),
+        conventional_format: Some(PT_CONVENTIONAL_FORMAT.to_owned()),
+        multiline_length: Some(PT_MULTILINE_LENGTH.to_owned()),
+        oneliner_length: Some(PT_ONELINER_LENGTH.to_owned()),
+        sensitive_content_note: Some(PT_SENSITIVE_NOTE.to_owned()),
+    }
+}
+
+fn french() -> LanguageConfig {
+    LanguageConfig {
+        label: "French".to_owned(),
+        instruction: "Rédige le message de commit en français. Utilise un langage technique, clair et concis. Les préfixes de type (feat, fix, docs, etc.) doivent rester en anglais, mais la description doit être en français.".to_owned(),
+        base_module: Some(FR_BASE_MODULE.to_owned()),
+        adaptive_format: Some(FR_ADAPTIVE_FORMAT.to_owned()),
+        conventional_format: Some(FR_CONVENTIONAL_FORMAT.to_owned()),
+        multiline_length: Some(FR_MULTILINE_LENGTH.to_owned()),
+        oneliner_length: Some(FR_ONELINER_LENGTH.to_owned()),
+        sensitive_content_note: Some(FR_SENSITIVE_NOTE.to_owned()),
+    }
+}
+
+fn korean() -> LanguageConfig {
+    LanguageConfig {
+        label: "Korean".to_owned(),
+        instruction: "커밋 메시지를 한국어로 작성하세요. 명확하고 간결한 기술적 표현을 사용하세요. 타입 접두사(feat, fix, docs 등)는 영어로 유지하고 설명은 한국어로 작성하세요.".to_owned(),
+        base_module: Some(KO_BASE_MODULE.to_owned()),
+        adaptive_format: Some(KO_ADAPTIVE_FORMAT.to_owned()),
+        conventional_format: Some(KO_CONVENTIONAL_FORMAT.to_owned()),
+        multiline_length: Some(KO_MULTILINE_LENGTH.to_owned()),
+        oneliner_length: Some(KO_ONELINER_LENGTH.to_owned()),
+        sensitive_content_note: Some(KO_SENSITIVE_NOTE.to_owned()),
+    }
+}
+
+fn russian() -> LanguageConfig {
+    LanguageConfig {
+        label: "Russian".to_owned(),
+        instruction: "Пиши сообщение коммита на русском языке. Используй ясный, краткий и технический стиль. Префиксы типа (feat, fix, docs и т. д.) должны оставаться на английском, а описание должно быть на русском.".to_owned(),
+        base_module: Some(RU_BASE_MODULE.to_owned()),
+        adaptive_format: Some(RU_ADAPTIVE_FORMAT.to_owned()),
+        conventional_format: Some(RU_CONVENTIONAL_FORMAT.to_owned()),
+        multiline_length: Some(RU_MULTILINE_LENGTH.to_owned()),
+        oneliner_length: Some(RU_ONELINER_LENGTH.to_owned()),
+        sensitive_content_note: Some(RU_SENSITIVE_NOTE.to_owned()),
+    }
+}
+
+fn vietnamese() -> LanguageConfig {
+    LanguageConfig {
+        label: "Vietnamese".to_owned(),
+        instruction: "Hãy viết commit message bằng tiếng Việt. Dùng cách diễn đạt kỹ thuật, rõ ràng và ngắn gọn. Các tiền tố loại (feat, fix, docs, v.v.) giữ nguyên bằng tiếng Anh, còn phần mô tả viết bằng tiếng Việt.".to_owned(),
+        base_module: Some(VI_BASE_MODULE.to_owned()),
+        adaptive_format: Some(VI_ADAPTIVE_FORMAT.to_owned()),
+        conventional_format: Some(VI_CONVENTIONAL_FORMAT.to_owned()),
+        multiline_length: Some(VI_MULTILINE_LENGTH.to_owned()),
+        oneliner_length: Some(VI_ONELINER_LENGTH.to_owned()),
+        sensitive_content_note: Some(VI_SENSITIVE_NOTE.to_owned()),
+    }
+}
+
+fn german() -> LanguageConfig {
+    LanguageConfig {
+        label: "German".to_owned(),
+        instruction: "Schreibe die Commit-Nachricht auf Deutsch. Verwende eine klare, knappe und technische Formulierung. Typ-Präfixe (feat, fix, docs usw.) bleiben auf Englisch, aber die Beschreibung soll auf Deutsch sein.".to_owned(),
+        base_module: Some(DE_BASE_MODULE.to_owned()),
+        adaptive_format: Some(DE_ADAPTIVE_FORMAT.to_owned()),
+        conventional_format: Some(DE_CONVENTIONAL_FORMAT.to_owned()),
+        multiline_length: Some(DE_MULTILINE_LENGTH.to_owned()),
+        oneliner_length: Some(DE_ONELINER_LENGTH.to_owned()),
+        sensitive_content_note: Some(DE_SENSITIVE_NOTE.to_owned()),
     }
 }
 
@@ -310,6 +415,412 @@ const ZH_SENSITIVE_NOTE: &str = "\
 差异中包含敏感内容（API 密钥、凭据或环境变量）。
 请在提交信息第一行中自然提到这一点，例如“添加支付服务 API 密钥”
 或“配置生产环境变量”。只需如实说明提交内容，不要加入警告或说明。";
+
+// ---------------------------------------------------------------------------
+// Spanish prompt modules
+// ---------------------------------------------------------------------------
+
+const ES_BASE_MODULE: &str = "\
+Eres experto en escribir mensajes de commit de git.
+Analiza los cambios de código y genera un mensaje de commit específico y descriptivo.
+
+Sé específico sobre QUÉ cambió. Describe la funcionalidad, el archivo o el comportamiento real afectado.
+Nunca escribas mensajes vagos como \"actualiza código\", \"haz cambios\" o \"actualiza archivos\".
+
+Responde SOLO con el mensaje de commit. Sin explicaciones, sin bloques de código y sin markdown.";
+
+const ES_ADAPTIVE_FORMAT: &str = "\
+Sigue el estilo de los commits recientes que se muestran abajo. Adáptate a las convenciones que use el proyecto: los commits recientes son tu guía principal.
+
+Si los commits recientes usan conventional commits (tipo: descripción), sigue ese formato.
+Si usan prefijos personalizados (por ejemplo, iniciales del desarrollador, fechas, números de versión o categorías no estándar como private, public, dev o production), imita ese estilo.
+Si no hay un estilo claro, usa como alternativa: tipo: descripción
+
+Tipos convencionales comunes como referencia (úsalos por defecto si no hay otro estilo claro):
+feat, fix, docs, style, refactor, test, perf, security, revert, chore
+
+Sé específico sobre lo que cambió; no escribas mensajes vagos como \"actualiza código\".
+
+Commits recientes:
+{recentCommits}";
+
+const ES_CONVENTIONAL_FORMAT: &str = "\
+Usa el formato conventional commit: type(scope): description
+
+Elige el tipo que mejor encaje con los cambios reales:
+- feat: nuevas funcionalidades o capacidades
+- fix: correcciones de bugs o errores
+- docs: documentación, README, markdown, comentarios, cambios en JSDoc/rustdoc
+- style: formato, espacios, punto y coma (sin cambios de lógica)
+- refactor: reorganización del código sin cambiar el comportamiento
+- test: añadir o modificar pruebas
+- perf: mejoras de rendimiento
+- security: correcciones de seguridad, parches de vulnerabilidades, refuerzo de autenticación
+- revert: revertir cambios anteriores
+- chore: build, dependencias, herramientas (solo si nada más encaja)
+Scope: dedúcelo a partir del área principal afectada (opcional, omítelo si no está claro).
+Usa modo imperativo. Sin punto final. Si empiezas en inglés después de los dos puntos, usa minúscula.";
+
+const ES_MULTILINE_LENGTH: &str = "\
+Si el cambio es simple, usa una sola línea de menos de 72 caracteres.
+Si el cambio es complejo y tiene varios aspectos, añade un cuerpo después de una línea en blanco
+con viñetas (cada una debe empezar con \"- \"). Ajusta a 72 caracteres.";
+
+const ES_ONELINER_LENGTH: &str = "\
+Escribe exactamente una línea, sin cuerpo. Máximo 72 caracteres.";
+
+const ES_SENSITIVE_NOTE: &str = "\
+El diff contiene contenido sensible (claves API, credenciales o variables de entorno).
+Menciónalo de forma natural en la primera línea del mensaje de commit, por ejemplo: \"añade claves API para el servicio de pagos\"
+o \"configura variables de entorno de producción\". Solo indica lo que se está confirmando; sin advertencias ni matices.";
+
+// ---------------------------------------------------------------------------
+// Portuguese prompt modules
+// ---------------------------------------------------------------------------
+
+const PT_BASE_MODULE: &str = "\
+Você é especialista em escrever mensagens de commit do git.
+Analise as alterações no código e gere uma mensagem de commit específica e descritiva.
+
+Seja específico sobre O QUE mudou. Descreva a funcionalidade, o arquivo ou o comportamento realmente afetado.
+Nunca escreva mensagens vagas como \"atualiza código\", \"faz mudanças\" ou \"atualiza arquivos\".
+
+Responda APENAS com a mensagem de commit. Sem explicações, sem blocos de código e sem markdown.";
+
+const PT_ADAPTIVE_FORMAT: &str = "\
+Siga o estilo dos commits recentes mostrados abaixo. Adapte-se às convenções usadas pelo projeto: os commits recentes são sua principal referência.
+
+Se os commits recentes usam conventional commits (tipo: descrição), siga esse formato.
+Se usam prefixos personalizados (por exemplo, iniciais do desenvolvedor, datas, números de versão ou categorias não padrão como private, public, dev ou production), acompanhe esse estilo.
+Se não houver um estilo claro, use como padrão: tipo: descrição
+
+Tipos convencionais comuns como referência (use-os por padrão quando não houver outro estilo claro):
+feat, fix, docs, style, refactor, test, perf, security, revert, chore
+
+Seja específico sobre o que mudou; não escreva mensagens vagas como \"atualiza código\".
+
+Commits recentes:
+{recentCommits}";
+
+const PT_CONVENTIONAL_FORMAT: &str = "\
+Use o formato conventional commit: type(scope): description
+
+Escolha o tipo que melhor corresponde às mudanças reais:
+- feat: novos recursos ou capacidades
+- fix: correções de bugs ou erros
+- docs: documentação, README, markdown, comentários, alterações em JSDoc/rustdoc
+- style: formatação, espaços, ponto e vírgula (sem mudança de lógica)
+- refactor: reorganização do código sem mudar o comportamento
+- test: adicionar ou modificar testes
+- perf: melhorias de desempenho
+- security: correções de segurança, patches de vulnerabilidades, reforço de autenticação
+- revert: reverter alterações anteriores
+- chore: build, dependências, ferramentas (somente se nada mais se encaixar)
+Scope: derive da principal área afetada (opcional, omita se não estiver claro).
+Use o modo imperativo. Sem ponto final. Se começar em inglês após os dois-pontos, use minúscula.";
+
+const PT_MULTILINE_LENGTH: &str = "\
+Se a mudança for simples, use uma única linha com menos de 72 caracteres.
+Se a mudança for complexa e tiver vários aspectos, adicione um corpo após uma linha em branco
+com marcadores (cada item deve começar com \"- \"). Quebre em 72 caracteres.";
+
+const PT_ONELINER_LENGTH: &str = "\
+Escreva exatamente uma linha, sem corpo. Máximo de 72 caracteres.";
+
+const PT_SENSITIVE_NOTE: &str = "\
+O diff contém conteúdo sensível (chaves de API, credenciais ou variáveis de ambiente).
+Mencione isso naturalmente na primeira linha da mensagem de commit, por exemplo: \"adiciona chaves de API para o serviço de pagamentos\"
+ou \"configura variáveis de ambiente de produção\". Apenas descreva o que está sendo commitado, sem avisos nem ressalvas.";
+
+// ---------------------------------------------------------------------------
+// French prompt modules
+// ---------------------------------------------------------------------------
+
+const FR_BASE_MODULE: &str = "\
+Tu es expert dans la rédaction de messages de commit git.
+Analyse les changements de code et génère un message de commit précis et descriptif.
+
+Sois précis sur CE qui a changé. Décris la fonctionnalité, le fichier ou le comportement réellement affecté.
+N’écris jamais de messages vagues comme \"mettre à jour le code\", \"faire des changements\" ou \"mettre à jour des fichiers\".
+
+Réponds UNIQUEMENT avec le message de commit. Pas d’explications, pas de blocs de code, pas de markdown.";
+
+const FR_ADAPTIVE_FORMAT: &str = "\
+Suis le style des commits récents affichés ci-dessous. Adapte-toi aux conventions utilisées par le projet : les commits récents sont ton guide principal.
+
+Si les commits récents utilisent le format conventional commits (type: description), respecte ce format.
+S’ils utilisent des préfixes personnalisés (par exemple des initiales de développeur, des dates, des numéros de version ou des catégories non standard comme private, public, dev ou production), reproduis ce style.
+S’il n’y a pas de style clair, utilise par défaut : type: description
+
+Types conventionnels courants à titre de référence (utilise-les par défaut si aucun autre style clair n’apparaît) :
+feat, fix, docs, style, refactor, test, perf, security, revert, chore
+
+Sois précis sur ce qui a changé ; n’écris pas de messages vagues comme \"mettre à jour le code\".
+
+Commits récents :
+{recentCommits}";
+
+const FR_CONVENTIONAL_FORMAT: &str = "\
+Utilise le format conventional commit : type(scope): description
+
+Choisis le type qui correspond le mieux aux changements réels :
+- feat: nouvelles fonctionnalités ou capacités
+- fix: corrections de bugs ou d’erreurs
+- docs: documentation, README, markdown, commentaires, changements JSDoc/rustdoc
+- style: mise en forme, espaces, points-virgules (sans changement de logique)
+- refactor: réorganisation du code sans changement de comportement
+- test: ajout ou modification de tests
+- perf: améliorations de performance
+- security: correctifs de sécurité, patchs de vulnérabilités, renforcement de l’authentification
+- revert: annulation de changements précédents
+- chore: build, dépendances, outillage (uniquement si rien d’autre ne convient)
+Scope: déduis-le de la zone principale touchée (optionnel, omets-le si ce n’est pas clair).
+Utilise l’impératif. Pas de point final. Si tu commences en anglais après les deux-points, mets en minuscule.";
+
+const FR_MULTILINE_LENGTH: &str = "\
+Si le changement est simple, utilise une seule ligne de moins de 72 caractères.
+Si le changement est complexe avec plusieurs aspects, ajoute un corps après une ligne vide
+avec des puces (chacune doit commencer par \"- \"). Retour à la ligne à 72 caractères.";
+
+const FR_ONELINER_LENGTH: &str = "\
+Écris exactement une seule ligne, sans corps. Maximum 72 caractères.";
+
+const FR_SENSITIVE_NOTE: &str = "\
+Le diff contient du contenu sensible (clés API, identifiants ou variables d’environnement).
+Mentionne-le naturellement dans la première ligne du message de commit, par exemple : \"ajoute des clés API pour le service de paiement\"
+ou \"configure les variables d’environnement de production\". Indique simplement ce qui est commit, sans avertissement ni réserve.";
+
+// ---------------------------------------------------------------------------
+// Korean prompt modules
+// ---------------------------------------------------------------------------
+
+const KO_BASE_MODULE: &str = "\
+당신은 git 커밋 메시지를 작성하는 전문가입니다.
+코드 변경을 분석하고 구체적이고 설명적인 커밋 메시지를 생성하세요.
+
+무엇이 바뀌었는지 구체적으로 작성하세요. 실제로 영향을 받는 기능, 파일 또는 동작을 설명하세요.
+\"코드 업데이트\", \"변경 적용\", \"파일 업데이트\"처럼 모호한 메시지는 절대 작성하지 마세요.
+
+커밋 메시지만 응답하세요. 설명, 코드 블록, 마크다운은 포함하지 마세요.";
+
+const KO_ADAPTIVE_FORMAT: &str = "\
+아래에 표시된 최근 커밋의 스타일을 따르세요. 프로젝트가 사용하는 규칙에 맞추되, 최근 커밋을 가장 중요한 기준으로 삼으세요.
+
+최근 커밋이 conventional commits 형식(type: description)을 사용하면 그 형식을 따르세요.
+개발자 이니셜, 날짜, 버전 번호, 또는 private/public/dev/production 같은 비표준 카테고리처럼 사용자 정의 접두사를 사용하면 그 스타일에 맞추세요.
+명확한 스타일이 없으면 기본값으로 type: description을 사용하세요.
+
+참고용 일반 conventional type(다른 명확한 스타일이 없을 때 기본으로 사용):
+feat, fix, docs, style, refactor, test, perf, security, revert, chore
+
+무엇이 바뀌었는지 구체적으로 작성하세요. \"코드 업데이트\" 같은 모호한 메시지는 쓰지 마세요.
+
+최근 커밋:
+{recentCommits}";
+
+const KO_CONVENTIONAL_FORMAT: &str = "\
+conventional commit 형식을 사용하세요: type(scope): description
+
+실제 변경에 가장 잘 맞는 type을 선택하세요:
+- feat: 새로운 기능 또는 역량 추가
+- fix: 버그 수정, 오류 수정
+- docs: 문서, README, markdown, 주석, JSDoc/rustdoc 변경
+- style: 포맷팅, 공백, 세미콜론(로직 변경 없음)
+- refactor: 동작 변경 없는 코드 재구성
+- test: 테스트 추가 또는 수정
+- perf: 성능 개선
+- security: 보안 수정, 취약점 패치, 인증 강화
+- revert: 이전 변경 되돌리기
+- chore: 빌드, 의존성, 도구 작업(다른 type이 맞지 않을 때만)
+Scope: 주로 영향을 받는 영역에서 도출하세요(선택 사항, 불명확하면 생략).
+명령형을 사용하세요. 끝에 마침표를 붙이지 마세요. 콜론 뒤를 영어로 시작하면 소문자를 사용하세요.";
+
+const KO_MULTILINE_LENGTH: &str = "\
+변경이 단순하면 72자 미만의 한 줄로 작성하세요.
+변경이 복잡하고 여러 측면이 있으면 빈 줄 뒤에 본문을 추가하고
+각 항목을 \"- \"로 시작하는 글머리표 목록으로 작성하세요. 72자 기준으로 줄바꿈하세요.";
+
+const KO_ONELINER_LENGTH: &str = "\
+본문 없이 정확히 한 줄만 작성하세요. 최대 72자입니다.";
+
+const KO_SENSITIVE_NOTE: &str = "\
+diff에 민감한 내용(API 키, 자격 증명, 환경 변수)이 포함되어 있습니다.
+이를 커밋 메시지 첫 줄에서 자연스럽게 언급하세요. 예: \"결제 서비스용 API 키 추가\"
+또는 \"운영 환경 변수 설정\". 커밋되는 내용을 그대로 언급하면 되며, 경고나 단서는 넣지 마세요.";
+
+// ---------------------------------------------------------------------------
+// Russian prompt modules
+// ---------------------------------------------------------------------------
+
+const RU_BASE_MODULE: &str = "\
+Ты эксперт по написанию git commit-сообщений.
+Проанализируй изменения в коде и сгенерируй конкретное и описательное сообщение коммита.
+
+Пиши точно, ЧТО изменилось. Опиши фактическую функциональность, файл или поведение, которых касается изменение.
+Никогда не пиши расплывчатые сообщения вроде \"обновить код\", \"внести изменения\" или \"обновить файлы\".
+
+Ответь ТОЛЬКО сообщением коммита. Без объяснений, без блоков кода и без markdown.";
+
+const RU_ADAPTIVE_FORMAT: &str = "\
+Следуй стилю недавних коммитов, показанных ниже. Подстраивайся под соглашения проекта: недавние коммиты — твой главный ориентир.
+
+Если недавние коммиты используют формат conventional commits (type: description), придерживайся его.
+Если они используют пользовательские префиксы (например, инициалы разработчика, даты, номера версий или нестандартные категории вроде private, public, dev, production), повторяй этот стиль.
+Если явного стиля нет, используй вариант по умолчанию: type: description
+
+Распространённые conventional types для справки (используй их по умолчанию, если нет другого явного стиля):
+feat, fix, docs, style, refactor, test, perf, security, revert, chore
+
+Пиши конкретно, что изменилось; не используй расплывчатые сообщения вроде \"обновить код\".
+
+Недавние коммиты:
+{recentCommits}";
+
+const RU_CONVENTIONAL_FORMAT: &str = "\
+Используй формат conventional commit: type(scope): description
+
+Выбери тип, который лучше всего соответствует реальным изменениям:
+- feat: новые функции или возможности
+- fix: исправления багов и ошибок
+- docs: документация, README, markdown, комментарии, изменения JSDoc/rustdoc
+- style: форматирование, пробелы, точки с запятой (без изменения логики)
+- refactor: перестройка кода без изменения поведения
+- test: добавление или изменение тестов
+- perf: улучшения производительности
+- security: исправления безопасности, патчи уязвимостей, усиление аутентификации
+- revert: откат предыдущих изменений
+- chore: сборка, зависимости, инструменты (только если ничего другого не подходит)
+Scope: выведи из основной затронутой области (необязательно, пропусти, если неясно).
+Используй повелительное наклонение. Без точки в конце. Если после двоеточия начинаешь по-английски, используй строчную букву.";
+
+const RU_MULTILINE_LENGTH: &str = "\
+Если изменение простое, используй одну строку короче 72 символов.
+Если изменение сложное и включает несколько аспектов, добавь тело после пустой строки
+с маркерами (каждый пункт должен начинаться с \"- \"). Переноси строки на 72 символах.";
+
+const RU_ONELINER_LENGTH: &str = "\
+Напиши ровно одну строку, без тела. Максимум 72 символа.";
+
+const RU_SENSITIVE_NOTE: &str = "\
+Diff содержит чувствительный контент (API-ключи, учётные данные или переменные окружения).
+Естественно упомяни это в первой строке сообщения коммита, например: \"добавить API-ключи для платёжного сервиса\"
+или \"настроить переменные окружения для production\". Просто укажи, что именно коммитится, без предупреждений и оговорок.";
+
+// ---------------------------------------------------------------------------
+// Vietnamese prompt modules
+// ---------------------------------------------------------------------------
+
+const VI_BASE_MODULE: &str = "\
+Bạn là chuyên gia viết git commit message.
+Hãy phân tích các thay đổi trong mã và tạo một commit message cụ thể, mô tả rõ ràng.
+
+Hãy nêu rõ CÁI GÌ đã thay đổi. Mô tả đúng chức năng, tệp hoặc hành vi thực sự bị ảnh hưởng.
+Tuyệt đối không viết các message mơ hồ như \"cập nhật code\", \"thực hiện thay đổi\" hoặc \"cập nhật tệp\".
+
+Chỉ trả về commit message. Không giải thích, không khối mã, không markdown.";
+
+const VI_ADAPTIVE_FORMAT: &str = "\
+Hãy làm theo phong cách của các commit gần đây được hiển thị bên dưới. Thích nghi với quy ước mà dự án đang dùng; các commit gần đây là chỉ dẫn quan trọng nhất của bạn.
+
+Nếu các commit gần đây dùng conventional commits (type: description), hãy theo đúng định dạng đó.
+Nếu chúng dùng tiền tố tuỳ chỉnh (ví dụ: viết tắt tên người phát triển, ngày tháng, số phiên bản hoặc các danh mục không chuẩn như private, public, dev, production), hãy bám theo đúng phong cách đó.
+Nếu không có phong cách rõ ràng, hãy dùng mặc định: type: description
+
+Các conventional type phổ biến để tham khảo (dùng mặc định khi không có phong cách rõ ràng khác):
+feat, fix, docs, style, refactor, test, perf, security, revert, chore
+
+Hãy nêu cụ thể điều gì đã thay đổi; đừng viết các message mơ hồ như \"cập nhật code\".
+
+Các commit gần đây:
+{recentCommits}";
+
+const VI_CONVENTIONAL_FORMAT: &str = "\
+Hãy dùng định dạng conventional commit: type(scope): description
+
+Chọn type phù hợp nhất với thay đổi thực tế:
+- feat: tính năng hoặc khả năng mới
+- fix: sửa lỗi, sửa bug
+- docs: tài liệu, README, markdown, comment, thay đổi JSDoc/rustdoc
+- style: định dạng, khoảng trắng, dấu chấm phẩy (không đổi logic)
+- refactor: tái cấu trúc mã nhưng không đổi hành vi
+- test: thêm hoặc chỉnh sửa test
+- perf: cải thiện hiệu năng
+- security: sửa lỗi bảo mật, vá lỗ hổng, tăng cường xác thực
+- revert: hoàn tác thay đổi trước đó
+- chore: build, dependency, công cụ (chỉ dùng khi không type nào khác phù hợp)
+Scope: suy ra từ khu vực chính bị ảnh hưởng (không bắt buộc, bỏ qua nếu không rõ).
+Dùng câu mệnh lệnh. Không chấm câu ở cuối. Nếu bắt đầu bằng tiếng Anh sau dấu hai chấm, hãy dùng chữ thường.";
+
+const VI_MULTILINE_LENGTH: &str = "\
+Nếu thay đổi đơn giản, hãy dùng một dòng dưới 72 ký tự.
+Nếu thay đổi phức tạp và có nhiều khía cạnh, hãy thêm phần nội dung sau một dòng trống
+với danh sách gạch đầu dòng (mỗi mục bắt đầu bằng \"- \"). Ngắt dòng ở 72 ký tự.";
+
+const VI_ONELINER_LENGTH: &str = "\
+Viết đúng một dòng, không có phần nội dung. Tối đa 72 ký tự.";
+
+const VI_SENSITIVE_NOTE: &str = "\
+Diff có chứa nội dung nhạy cảm (API key, thông tin xác thực hoặc biến môi trường).
+Hãy nhắc đến điều này một cách tự nhiên ở dòng đầu của commit message, ví dụ: \"thêm API key cho dịch vụ thanh toán\"
+hoặc \"cấu hình biến môi trường production\". Chỉ cần nêu đúng nội dung đang được commit, không thêm cảnh báo hay lưu ý.";
+
+// ---------------------------------------------------------------------------
+// German prompt modules
+// ---------------------------------------------------------------------------
+
+const DE_BASE_MODULE: &str = "\
+Du bist Experte für das Schreiben von Git-Commit-Nachrichten.
+Analysiere die Codeänderungen und erstelle eine konkrete, aussagekräftige Commit-Nachricht.
+
+Sei präzise darin, WAS sich geändert hat. Beschreibe die tatsächliche Funktionalität, Datei oder das Verhalten, das betroffen ist.
+Schreibe niemals vage Nachrichten wie \"Code aktualisieren\", \"Änderungen vornehmen\" oder \"Dateien aktualisieren\".
+
+Antworte NUR mit der Commit-Nachricht. Keine Erklärungen, keine Codeblöcke, kein Markdown.";
+
+const DE_ADAPTIVE_FORMAT: &str = "\
+Folge dem Stil der zuletzt gezeigten Commits unten. Passe dich an die im Projekt verwendeten Konventionen an — die letzten Commits sind dein wichtigster Anhaltspunkt.
+
+Wenn die letzten Commits Conventional Commits (type: description) verwenden, halte dich an dieses Format.
+Wenn sie benutzerdefinierte Präfixe nutzen (z. B. Entwickler-Initialen, Daten, Versionsnummern oder nicht standardisierte Kategorien wie private, public, dev, production), übernimm diesen Stil.
+Wenn kein klarer Stil erkennbar ist, verwende als Standard: type: description
+
+Gängige Conventional Types als Referenz (verwende diese standardmäßig, wenn kein anderer Stil klar erkennbar ist):
+feat, fix, docs, style, refactor, test, perf, security, revert, chore
+
+Sei präzise dabei, was sich geändert hat — schreibe keine vagen Nachrichten wie \"Code aktualisieren\".
+
+Letzte Commits:
+{recentCommits}";
+
+const DE_CONVENTIONAL_FORMAT: &str = "\
+Verwende das Conventional-Commit-Format: type(scope): description
+
+Wähle den Typ, der am besten zu den tatsächlichen Änderungen passt:
+- feat: neue Funktionen oder Fähigkeiten
+- fix: Fehlerbehebungen, Korrekturen
+- docs: Dokumentation, README, Markdown, Kommentare, JSDoc/rustdoc-Änderungen
+- style: Formatierung, Leerzeichen, Semikolons (keine Logikänderung)
+- refactor: Umstrukturierung des Codes ohne Verhaltensänderung
+- test: Tests hinzufügen oder ändern
+- perf: Performance-Verbesserungen
+- security: Sicherheitsfixes, Patches für Schwachstellen, härtere Authentifizierung
+- revert: frühere Änderungen zurücknehmen
+- chore: Build-Prozess, Abhängigkeiten, Tooling (nur wenn nichts anderes passt)
+Scope: leite ihn aus dem primär betroffenen Bereich ab (optional, weglassen wenn unklar).
+Verwende den Imperativ. Kein Punkt am Ende. Wenn du nach dem Doppelpunkt mit Englisch beginnst, verwende Kleinschreibung.";
+
+const DE_MULTILINE_LENGTH: &str = "\
+Wenn die Änderung einfach ist, verwende eine einzelne Zeile mit weniger als 72 Zeichen.
+Wenn die Änderung komplex ist und mehrere Aspekte hat, füge nach einer Leerzeile einen Textkörper hinzu
+mit Aufzählungspunkten (jeder beginnt mit \"- \"). Bei 72 Zeichen umbrechen.";
+
+const DE_ONELINER_LENGTH: &str = "\
+Schreibe genau eine Zeile, keinen Textkörper. Maximal 72 Zeichen.";
+
+const DE_SENSITIVE_NOTE: &str = "\
+Der Diff enthält sensible Inhalte (API-Schlüssel, Zugangsdaten oder Umgebungsvariablen).
+Erwähne das natürlich in der ersten Zeile der Commit-Nachricht, z. B. \"API-Schlüssel für Zahlungsdienst hinzufügen\"
+oder \"Produktions-Umgebungsvariablen konfigurieren\". Benenne einfach, was committet wird — keine Warnungen oder Einschränkungen.";
 
 // ---------------------------------------------------------------------------
 // Non-language-specific structural prompts (branch, PR, changelog, refine)
