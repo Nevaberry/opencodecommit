@@ -1,4 +1,6 @@
 import * as assert from "node:assert"
+import * as fs from "node:fs"
+import * as path from "node:path"
 import { describe, it } from "node:test"
 import { backendLabel, withBackendOverride } from "../inline/backends"
 import type { CommitContext } from "../inline/context"
@@ -19,12 +21,58 @@ import {
   parsePrResponse,
 } from "../inline/pr"
 import {
+  type SensitiveFinding,
+  type SensitiveReport,
   detectSensitiveReport,
   formatSensitiveWarningMessage,
   formatSensitiveWarningReport,
   formatSensitiveWarningSummary,
 } from "../inline/sensitive"
 import type { BranchMode, ExtensionConfig } from "../inline/types"
+
+interface SharedScenarioFinding {
+  category: string
+  rule: string
+  filePath: string
+  lineNumber?: number
+  preview: string
+  tier: SensitiveFinding["tier"]
+  severity: SensitiveFinding["severity"]
+}
+
+interface SharedScenario {
+  name: string
+  diff: string
+  changedFiles: string[]
+  expectedFindings: SharedScenarioFinding[]
+}
+
+function makeSensitiveReport(
+  findings: SensitiveFinding[] = [],
+  overrides: Partial<SensitiveReport> = {},
+): SensitiveReport {
+  const blockingCount = overrides.blockingCount ?? 0
+  const warningCount = overrides.warningCount ?? findings.length
+  return {
+    findings,
+    enforcement: "warn",
+    warningCount,
+    blockingCount,
+    hasFindings: findings.length > 0,
+    hasBlockingFindings: blockingCount > 0,
+    ...overrides,
+  }
+}
+
+function loadSharedScenarios(): SharedScenario[] {
+  const fixturePath = path.resolve(
+    __dirname,
+    "../../../test-fixtures/sensitive-scenarios.json",
+  )
+  return JSON.parse(
+    fs.readFileSync(fixturePath, "utf8"),
+  ) as SharedScenario[]
+}
 
 function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
   return {
@@ -82,6 +130,10 @@ function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
     prBaseBranch: "",
     backendOrder: ["codex", "opencode", "claude", "gemini"],
     branchMode: "conventional" as BranchMode,
+    sensitive: {
+      enforcement: "warn",
+      allowlist: [],
+    },
     ...overrides,
   }
 }
@@ -96,7 +148,7 @@ function makeContext(overrides: Partial<CommitContext> = {}): CommitContext {
     branch: "feature/my-branch",
     fileContents: [],
     changedFiles: ["src/app.ts"],
-    sensitiveReport: { findings: [] },
+    sensitiveReport: makeSensitiveReport(),
     hasSensitiveContent: false,
     ...overrides,
   }
@@ -579,27 +631,27 @@ describe("detectSensitiveContent", () => {
 
   it("detects API_KEY in added lines", () => {
     const diff = `diff --git a/config.ts b/config.ts
-+const API_KEY = "sk-abc123"`
++const API_KEY = "sk-proj-abcdefghijklmnopqrstuvwxyz1234567890"`
     assert.strictEqual(detectSensitiveContent(diff, ["config.ts"]), true)
   })
 
   it("detects SECRET_KEY in added lines", () => {
-    const diff = `+  SECRET_KEY: "my-secret"`
+    const diff = `+  SECRET_KEY: "Alpha9981Zeta"`
     assert.strictEqual(detectSensitiveContent(diff, ["config.ts"]), true)
   })
 
   it("detects ACCESS_TOKEN in added lines", () => {
-    const diff = `+export const ACCESS_TOKEN = process.env.TOKEN`
+    const diff = `+export const ACCESS_TOKEN = "Alpha9981Zeta99"`
     assert.strictEqual(detectSensitiveContent(diff, ["auth.ts"]), true)
   })
 
   it("detects PASSWORD in added lines", () => {
-    const diff = `+  DB_PASSWORD=hunter2`
+    const diff = `+  DB_PASSWORD=Alpha9981Zeta`
     assert.strictEqual(detectSensitiveContent(diff, ["config.ts"]), true)
   })
 
   it("detects sk- prefixed keys", () => {
-    const diff = `+  key: "sk-abcdefghijklmnopqrstuvwxyz"`
+    const diff = `+  key: "sk-proj-abcdefghijklmnopqrstuvwxyz1234567890"`
     assert.strictEqual(detectSensitiveContent(diff, ["config.ts"]), true)
   })
 
@@ -665,119 +717,188 @@ index 1234567..0000000
 @@ -1 +0,0 @@
 -API_KEY=secret`
     const report = detectSensitiveReport(diff, [".env"])
-    assert.deepStrictEqual(report, { findings: [] })
+    assert.deepStrictEqual(report, makeSensitiveReport())
   })
 
-  it("records line numbers and keeps the full line preview", () => {
-    const diff = `diff --git a/src/config.ts b/src/config.ts
-index 1234567..89abcde 100644
---- a/src/config.ts
-+++ b/src/config.ts
-@@ -10,0 +11,2 @@
-+const API_KEY = "sk-abcdefghijklmnopqrstuvwxyz";
-+const safe = true;`
-    const report = detectSensitiveReport(diff, ["src/config.ts"])
-    assert.strictEqual(report.findings.length, 1)
-    assert.strictEqual(report.findings[0].filePath, "src/config.ts")
-    assert.strictEqual(report.findings[0].lineNumber, 11)
-    assert.strictEqual(
-      report.findings[0].preview,
-      'const API_KEY = "sk-abcdefghijklmnopqrstuvwxyz";',
-    )
+  it("matches the shared detector scenarios", () => {
+    for (const scenario of loadSharedScenarios()) {
+      const report = detectSensitiveReport(scenario.diff, scenario.changedFiles)
+      assert.strictEqual(
+        report.findings.length,
+        scenario.expectedFindings.length,
+        scenario.name,
+      )
+
+      report.findings.forEach((finding, index) => {
+        const expected = scenario.expectedFindings[index]
+        const actual = {
+          category: finding.category,
+          rule: finding.rule,
+          filePath: finding.filePath,
+          preview: finding.preview,
+          tier: finding.tier,
+          severity: finding.severity,
+          ...(finding.lineNumber !== undefined
+            ? { lineNumber: finding.lineNumber }
+            : {}),
+        }
+        assert.deepStrictEqual(
+          actual,
+          {
+            category: expected.category,
+            rule: expected.rule,
+            filePath: expected.filePath,
+            preview: expected.preview,
+            tier: expected.tier,
+            severity: expected.severity,
+            ...(expected.lineNumber !== undefined
+              ? { lineNumber: expected.lineNumber }
+              : {}),
+          },
+          scenario.name,
+        )
+      })
+    }
   })
 
-  it("detects non-example IPv4 literals", () => {
-    const diff = `diff --git a/src/app.ts b/src/app.ts
---- a/src/app.ts
-    +++ b/src/app.ts
-@@ -1 +1,2 @@
-+const host = "10.24.8.12";`
-    const report = detectSensitiveReport(diff, ["src/app.ts"])
-    assert.strictEqual(report.findings.length, 1)
-    assert.strictEqual(report.findings[0].rule, "ipv4-address")
-    assert.strictEqual(report.findings[0].preview, 'const host = "10.24.8.12";')
-  })
+  it("applies allowlist entries to path-only findings", () => {
+    const report = detectSensitiveReport("diff", [".env"], {
+      allowlist: [{ pathRegex: "\\.env$", rule: "env-file" }],
+    })
 
-  it("allows documentation example IPv4 literals", () => {
-    const diff = `diff --git a/README.md b/README.md
---- a/README.md
-+++ b/README.md
-@@ -1 +1,2 @@
-+Example server: 203.0.113.10`
-    const report = detectSensitiveReport(diff, ["README.md"])
-    assert.deepStrictEqual(report, { findings: [] })
+    assert.deepStrictEqual(report, makeSensitiveReport())
   })
 })
 
 describe("formatSensitiveWarningSummary", () => {
   it("summarizes findings for a compact modal", () => {
-    const message = formatSensitiveWarningSummary({
-      findings: [
+    const message = formatSensitiveWarningSummary(
+      makeSensitiveReport(
+        [
+          {
+            category: "credential",
+            rule: "generic-secret-assignment",
+            filePath: "src/config.ts",
+            lineNumber: 18,
+            preview: 'const API_KEY = <redacted>',
+            tier: "suspicious",
+            severity: "warn",
+          },
+          {
+            category: "artifact",
+            rule: "env-file",
+            filePath: ".env.production",
+            preview: ".env.production",
+            tier: "sensitive-artifact",
+            severity: "block",
+          },
+        ],
         {
-          category: "credential",
-          rule: "api-key-marker",
-          filePath: "src/config.ts",
-          lineNumber: 18,
-          preview: 'const API_KEY = "sk-example"',
+          enforcement: "block-high",
+          warningCount: 1,
+          blockingCount: 1,
+          hasFindings: true,
+          hasBlockingFindings: true,
         },
-        {
-          category: "credential",
-          rule: "password-marker",
-          filePath: "src/auth.ts",
-          lineNumber: 7,
-          preview: 'const PASSWORD = "secret"',
-        },
-      ],
-    })
+      ),
+    )
 
-    assert.ok(message.includes("2 sensitive findings"))
+    assert.ok(message.includes("1 blocking finding"))
+    assert.ok(message.includes("1 warning finding"))
     assert.ok(message.includes("2 files"))
-    assert.ok(message.includes("Inspect the report"))
   })
 })
 
 describe("formatSensitiveWarningReport", () => {
-  it("formats the full warning block for the report tab", () => {
-    const message = formatSensitiveWarningReport({
-      findings: [
+  it("formats the full warning block for blocking findings", () => {
+    const message = formatSensitiveWarningReport(
+      makeSensitiveReport(
+        [
+          {
+            category: "credential",
+            rule: "generic-secret-assignment",
+            filePath: "src/config.ts",
+            lineNumber: 18,
+            preview: 'const API_KEY = <redacted>',
+            tier: "suspicious",
+            severity: "warn",
+          },
+          {
+            category: "token",
+            rule: "openai-project-key",
+            filePath: ".env.example",
+            lineNumber: 2,
+            preview: "OPENAI_API_KEY=<redacted>",
+            tier: "confirmed-secret",
+            severity: "block",
+          },
+        ],
         {
-          category: "credential",
-          rule: "api-key-marker",
-          filePath: "src/config.ts",
-          lineNumber: 18,
-          preview: 'const API_KEY = "sk-example"',
+          enforcement: "block-high",
+          warningCount: 1,
+          blockingCount: 1,
+          hasFindings: true,
+          hasBlockingFindings: true,
         },
-      ],
-    })
-
-    assert.ok(message.includes("Sensitive findings:"))
-    assert.ok(message.includes("src/config.ts:18"))
-    assert.ok(message.includes("[credential / api-key-marker]"))
-    assert.ok(message.includes('const API_KEY = "sk-example"'))
-    assert.ok(
-      message.includes(
-        'To continue, rerun the command and choose "Bypass Once".',
       ),
     )
+
+    assert.ok(message.includes("Sensitive findings:"))
+    assert.ok(message.includes("BLOCK .env.example:2"))
+    assert.ok(message.includes("WARN src/config.ts:18"))
+    assert.ok(message.includes("[confirmed-secret / openai-project-key]"))
+    assert.ok(message.includes('choose "Bypass Once"'))
+  })
+
+  it("formats the full warning block for warn-only findings", () => {
+    const message = formatSensitiveWarningReport(
+      makeSensitiveReport(
+        [
+          {
+            category: "network",
+            rule: "public-ipv4",
+            filePath: "src/network.ts",
+            lineNumber: 3,
+            preview: 'const ingress = "<redacted-ip>"',
+            tier: "suspicious",
+            severity: "warn",
+          },
+        ],
+        {
+          warningCount: 1,
+          hasFindings: true,
+        },
+      ),
+    )
+
+    assert.ok(message.includes("WARN src/network.ts:3"))
+    assert.ok(message.includes("Warnings only"))
   })
 })
 
 describe("formatSensitiveWarningMessage", () => {
   it("keeps the legacy alias mapped to the full report text", () => {
-    const message = formatSensitiveWarningMessage({
-      findings: [
+    const report = makeSensitiveReport(
+      [
         {
           category: "credential",
-          rule: "api-key-marker",
+          rule: "generic-secret-assignment",
           filePath: "src/config.ts",
           lineNumber: 18,
-          preview: 'const API_KEY = "sk-example"',
+          preview: 'const API_KEY = <redacted>',
+          tier: "suspicious",
+          severity: "warn",
         },
       ],
-    })
+      {
+        warningCount: 1,
+        hasFindings: true,
+      },
+    )
+    const message = formatSensitiveWarningMessage(report)
 
     assert.ok(message.includes("Sensitive findings:"))
-    assert.ok(message.includes('choose "Bypass Once"'))
+    assert.ok(message.includes("Warnings only"))
   })
 })
 

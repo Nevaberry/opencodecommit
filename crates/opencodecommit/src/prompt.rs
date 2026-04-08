@@ -232,6 +232,7 @@ mod tests {
             branch: "feature/my-branch".to_owned(),
             file_contents: vec![],
             changed_files: vec!["src/app.ts".to_owned()],
+            sensitive_report: crate::sensitive::SensitiveReport::from_findings(vec![]),
             sensitive_findings: vec![],
             has_sensitive_content: false,
         };

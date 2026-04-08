@@ -1,6 +1,18 @@
 import type { Event, Uri } from "vscode"
 
 export type CliBackend = "opencode" | "claude" | "codex" | "gemini"
+export type SensitiveEnforcement =
+  | "warn"
+  | "block-high"
+  | "block-all"
+  | "strict-high"
+  | "strict-all"
+
+export interface SensitiveAllowlistEntry {
+  pathRegex?: string
+  rule?: string
+  valueRegex?: string
+}
 
 export type CommitMode =
   | "adaptive"
@@ -72,6 +84,10 @@ export interface ExtensionConfig {
   prBaseBranch: string
   backendOrder: CliBackend[]
   branchMode: BranchMode
+  sensitive: {
+    enforcement: SensitiveEnforcement
+    allowlist: SensitiveAllowlistEntry[]
+  }
 }
 
 export interface GitExtension {

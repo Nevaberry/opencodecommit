@@ -2,9 +2,12 @@ use std::path::Path;
 use std::sync::LazyLock;
 
 use crate::Result;
-use crate::config::DiffSource;
+use crate::config::{Config, SensitiveConfig};
 use crate::git;
-use crate::sensitive::{SensitiveFinding, scan_diff_for_sensitive_content};
+use crate::sensitive::{
+    SensitiveFinding, SensitiveReport, scan_diff_for_sensitive_content,
+    scan_diff_for_sensitive_content_with_options,
+};
 
 /// Truncation strategy applied to a file.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -42,6 +45,7 @@ pub struct CommitContext {
     pub branch: String,
     pub file_contents: Vec<FileContext>,
     pub changed_files: Vec<String>,
+    pub sensitive_report: SensitiveReport,
     pub sensitive_findings: Vec<SensitiveFinding>,
     pub has_sensitive_content: bool,
 }
@@ -85,12 +89,29 @@ static SKIP_PATTERNS: LazyLock<Vec<regex::Regex>> = LazyLock::new(|| {
 
 /// Detect if the diff or changed files contain sensitive content.
 pub fn detect_sensitive_content(diff: &str, changed_files: &[String]) -> bool {
-    !detect_sensitive_findings(diff, changed_files).is_empty()
+    detect_sensitive_report(diff, changed_files, None).has_findings()
 }
 
 /// Return structured findings for sensitive content matches.
 pub fn detect_sensitive_findings(diff: &str, changed_files: &[String]) -> Vec<SensitiveFinding> {
-    scan_diff_for_sensitive_content(diff, changed_files).findings
+    detect_sensitive_report(diff, changed_files, None).findings
+}
+
+/// Return the full sensitive report for the provided diff.
+pub fn detect_sensitive_report(
+    diff: &str,
+    changed_files: &[String],
+    sensitive: Option<&SensitiveConfig>,
+) -> SensitiveReport {
+    match sensitive {
+        Some(sensitive) => scan_diff_for_sensitive_content_with_options(
+            diff,
+            changed_files,
+            sensitive.enforcement,
+            &sensitive.allowlist,
+        ),
+        None => scan_diff_for_sensitive_content(diff, changed_files),
+    }
 }
 
 /// Check if a file should be skipped for context reading.
@@ -316,13 +337,14 @@ pub fn get_file_contents(
 }
 
 /// Gather full context for commit message generation.
-pub fn gather_context(repo_root: &Path, diff_source: DiffSource) -> Result<CommitContext> {
-    let diff = git::get_diff(diff_source, repo_root)?;
+pub fn gather_context(repo_root: &Path, config: &Config) -> Result<CommitContext> {
+    let diff = git::get_diff(config.diff_source, repo_root)?;
     let recent_commits = git::get_recent_commits(repo_root, 10).unwrap_or_default();
     let branch = git::get_branch_name(repo_root).unwrap_or_else(|_| "unknown".to_owned());
     let changed_files = extract_changed_file_paths(&diff);
-    let sensitive_findings = detect_sensitive_findings(&diff, &changed_files);
-    let has_sensitive_content = !sensitive_findings.is_empty();
+    let sensitive_report = detect_sensitive_report(&diff, &changed_files, Some(&config.sensitive));
+    let sensitive_findings = sensitive_report.findings.clone();
+    let has_sensitive_content = sensitive_report.has_findings();
     let file_contents = get_file_contents(&changed_files, repo_root, &diff);
 
     Ok(CommitContext {
@@ -331,6 +353,7 @@ pub fn gather_context(repo_root: &Path, diff_source: DiffSource) -> Result<Commi
         branch,
         file_contents,
         changed_files,
+        sensitive_report,
         sensitive_findings,
         has_sensitive_content,
     })
@@ -373,31 +396,31 @@ mod tests {
 
     #[test]
     fn detects_api_key_in_added_lines() {
-        let diff = "diff --git a/config.ts b/config.ts\n+const API_KEY = \"sk-abc123\"";
+        let diff = "diff --git a/config.ts b/config.ts\n+const API_KEY = \"sk-proj-abcdefghijklmnopqrstuvwxyz1234567890\"";
         assert!(detect_sensitive_content(diff, &["config.ts".to_owned()]));
     }
 
     #[test]
     fn detects_secret_key_in_added_lines() {
-        let diff = "+  SECRET_KEY: \"my-secret\"";
+        let diff = "+  SECRET_KEY: \"Alpha9981Zeta\"";
         assert!(detect_sensitive_content(diff, &["config.ts".to_owned()]));
     }
 
     #[test]
     fn detects_access_token_in_added_lines() {
-        let diff = "+export const ACCESS_TOKEN = process.env.TOKEN";
+        let diff = "+export const ACCESS_TOKEN = \"Alpha9981Zeta99\"";
         assert!(detect_sensitive_content(diff, &["auth.ts".to_owned()]));
     }
 
     #[test]
     fn detects_password_in_added_lines() {
-        let diff = "+  DB_PASSWORD=hunter2";
+        let diff = "+  DB_PASSWORD=Alpha9981Zeta";
         assert!(detect_sensitive_content(diff, &["config.ts".to_owned()]));
     }
 
     #[test]
     fn detects_sk_prefixed_keys() {
-        let diff = "+  key: \"sk-abcdefghijklmnopqrstuvwxyz\"";
+        let diff = "+  key: \"sk-proj-abcdefghijklmnopqrstuvwxyz1234567890\"";
         assert!(detect_sensitive_content(diff, &["config.ts".to_owned()]));
     }
 
