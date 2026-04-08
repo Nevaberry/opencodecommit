@@ -1,3 +1,4 @@
+import { backendLabel } from "./backends"
 import {
   buildInvocation,
   detectCli,
@@ -17,6 +18,15 @@ interface ParsedCommit {
   type: string
   message: string
   description?: string
+}
+
+function throwBackendErrors(backends: CliBackend[], errors: string[]): never {
+  if (backends.length === 1 && errors.length === 1) {
+    throw new Error(`${backendLabel(backends[0])} failed: ${errors[0]}`)
+  }
+
+  const detail = errors.join("\n  ")
+  throw new Error(`All backends failed:\n  ${detail}`)
 }
 
 const TYPE_PATTERN =
@@ -205,8 +215,7 @@ export async function generateBranchName(
   }
 
   if (!response.trim()) {
-    const detail = errors.join("\n  ")
-    throw new Error(`All backends failed:\n  ${detail}`)
+    throwBackendErrors(backends, errors)
   }
 
   return formatBranchName(response)
@@ -417,8 +426,7 @@ export async function generateCommitMessage(
   }
 
   if (!response.trim()) {
-    const detail = errors.join("\n  ")
-    throw new Error(`All backends failed:\n  ${detail}`)
+    throwBackendErrors(backends, errors)
   }
 
   if (activeMode.startsWith("adaptive")) {

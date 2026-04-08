@@ -282,7 +282,7 @@ export function buildInvocation(
     }
 
     case "gemini": {
-      const geminiArgs = ["-p"]
+      const geminiArgs = ["-p", prompt]
       if (config.geminiModel) {
         geminiArgs.push("-m", config.geminiModel)
       }
@@ -293,7 +293,6 @@ export function buildInvocation(
           args: geminiArgs,
           timeout: 120_000,
         },
-        stdin: prompt,
       }
     }
   }

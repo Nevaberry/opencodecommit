@@ -1,6 +1,8 @@
 import * as assert from "node:assert"
+import { readFileSync } from "node:fs"
 import { describe, it } from "node:test"
 import { backendLabel, withBackendOverride } from "../inline/backends"
+import { buildInvocation } from "../inline/cli"
 import type { CommitContext } from "../inline/context"
 import { detectSensitiveContent } from "../inline/context"
 import {
@@ -116,6 +118,50 @@ describe("backend helpers", () => {
     assert.deepStrictEqual(overridden.backendOrder, ["claude"])
     assert.strictEqual(overridden.codexModel, config.codexModel)
     assert.strictEqual(overridden.claudeModel, config.claudeModel)
+  })
+
+  it("passes Gemini prompts as a prompt argument", () => {
+    const config = makeConfig({ geminiModel: "gemini-2.5-flash" })
+    const { invocation, stdin } = buildInvocation(
+      "/usr/bin/gemini",
+      "summarize the diff",
+      config,
+      "gemini",
+    )
+
+    assert.deepStrictEqual(invocation.args, [
+      "-p",
+      "summarize the diff",
+      "-m",
+      "gemini-2.5-flash",
+      "--output-format",
+      "text",
+    ])
+    assert.strictEqual(stdin, undefined)
+  })
+})
+
+describe("extension manifest", () => {
+  it("registers the PR backend submenu commands", () => {
+    const manifest = JSON.parse(
+      readFileSync("package.json", "utf8"),
+    )
+
+    const commands = manifest.contributes.commands.map(
+      (command: { command: string }) => command.command,
+    )
+    assert.ok(commands.includes("opencodecommit.generatePrCodex"))
+    assert.ok(commands.includes("opencodecommit.generatePrOpencode"))
+    assert.ok(commands.includes("opencodecommit.generatePrClaude"))
+    assert.ok(commands.includes("opencodecommit.generatePrGemini"))
+
+    const submenus = manifest.contributes.submenus.map(
+      (submenu: { id: string }) => submenu.id,
+    )
+    assert.ok(submenus.includes("opencodecommit.prBackendMenu"))
+
+    const prBackendMenu = manifest.contributes.menus["opencodecommit.prBackendMenu"]
+    assert.strictEqual(prBackendMenu.length, 4)
   })
 })
 

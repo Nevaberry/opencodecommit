@@ -270,7 +270,7 @@ pub fn build_invocation_for(
             }
         }
         CliBackend::Gemini => {
-            let mut args = vec!["-p".to_owned()];
+            let mut args = vec!["-p".to_owned(), prompt.to_owned()];
             if !config.gemini_model.is_empty() {
                 args.push("-m".to_owned());
                 args.push(config.gemini_model.clone());
@@ -280,7 +280,7 @@ pub fn build_invocation_for(
             Invocation {
                 command: cli_path.to_owned(),
                 args,
-                stdin: Some(prompt.to_owned()),
+                stdin: None,
             }
         }
     }
@@ -349,7 +349,7 @@ pub fn build_invocation_with_model(
             }
         }
         CliBackend::Gemini => {
-            let mut args = vec!["-p".to_owned()];
+            let mut args = vec!["-p".to_owned(), prompt.to_owned()];
             if !model.is_empty() {
                 args.push("-m".to_owned());
                 args.push(model.to_owned());
@@ -359,7 +359,7 @@ pub fn build_invocation_with_model(
             Invocation {
                 command: cli_path.to_owned(),
                 args,
-                stdin: Some(prompt.to_owned()),
+                stdin: None,
             }
         }
     }
@@ -529,24 +529,27 @@ mod tests {
         };
         let inv = build_invocation(Path::new("/usr/bin/gemini"), "hello", &config);
         assert_eq!(inv.args[0], "-p");
-        assert_eq!(inv.args[1], "-m");
-        assert_eq!(inv.args[2], "gemini-2.5-flash");
-        assert_eq!(inv.args[3], "--output-format");
-        assert_eq!(inv.args[4], "text");
-        assert_eq!(inv.stdin.as_deref(), Some("hello"));
+        assert_eq!(inv.args[1], "hello");
+        assert_eq!(inv.args[2], "-m");
+        assert_eq!(inv.args[3], "gemini-2.5-flash");
+        assert_eq!(inv.args[4], "--output-format");
+        assert_eq!(inv.args[5], "text");
+        assert_eq!(inv.stdin, None);
     }
 
     #[test]
     fn build_invocation_gemini_no_model() {
         let config = Config {
             backend: CliBackend::Gemini,
+            gemini_model: String::new(),
             ..Config::default()
         };
         let inv = build_invocation(Path::new("/usr/bin/gemini"), "hello", &config);
         assert_eq!(inv.args[0], "-p");
-        assert_eq!(inv.args[1], "--output-format");
-        assert_eq!(inv.args[2], "text");
-        assert_eq!(inv.stdin.as_deref(), Some("hello"));
+        assert_eq!(inv.args[1], "hello");
+        assert_eq!(inv.args[2], "--output-format");
+        assert_eq!(inv.args[3], "text");
+        assert_eq!(inv.stdin, None);
     }
 
     #[test]
@@ -616,7 +619,11 @@ mod tests {
             "gemini-3-flash-preview",
             None,
         );
-        assert_eq!(inv.args[2], "gemini-3-flash-preview");
+        assert_eq!(inv.args[0], "-p");
+        assert_eq!(inv.args[1], "hello");
+        assert_eq!(inv.args[2], "-m");
+        assert_eq!(inv.args[3], "gemini-3-flash-preview");
+        assert_eq!(inv.stdin, None);
     }
 
     #[test]

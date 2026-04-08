@@ -66,6 +66,22 @@
         "icon": "$(git-pull-request)"
       },
       {
+        "command": "opencodecommit.generatePrCodex",
+        "title": "occ: Generate PR via Codex"
+      },
+      {
+        "command": "opencodecommit.generatePrOpencode",
+        "title": "occ: Generate PR via OpenCode"
+      },
+      {
+        "command": "opencodecommit.generatePrClaude",
+        "title": "occ: Generate PR via Claude"
+      },
+      {
+        "command": "opencodecommit.generatePrGemini",
+        "title": "occ: Generate PR via Gemini"
+      },
+      {
         "command": "opencodecommit.switchLanguage",
         "title": "occ: Switch Language",
         "icon": "$(globe)"
@@ -124,6 +140,10 @@
       {
         "id": "opencodecommit.commitAdaptiveBackendMenu",
         "label": "occ: Commit Adaptive Backend"
+      },
+      {
+        "id": "opencodecommit.prBackendMenu",
+        "label": "occ: Generate PR Backend"
       }
     ],
     "menus": {
@@ -169,6 +189,10 @@
           "group": "2_actions@5"
         },
         {
+          "submenu": "opencodecommit.prBackendMenu",
+          "group": "2_actions@6"
+        },
+        {
           "command": "opencodecommit.switchLanguage",
           "group": "3_language"
         },
@@ -212,6 +236,24 @@
         },
         {
           "command": "opencodecommit.generateAdaptiveGemini",
+          "group": "1_backend"
+        }
+      ],
+      "opencodecommit.prBackendMenu": [
+        {
+          "command": "opencodecommit.generatePrCodex",
+          "group": "1_backend"
+        },
+        {
+          "command": "opencodecommit.generatePrOpencode",
+          "group": "1_backend"
+        },
+        {
+          "command": "opencodecommit.generatePrClaude",
+          "group": "1_backend"
+        },
+        {
+          "command": "opencodecommit.generatePrGemini",
           "group": "1_backend"
         }
       ]
@@ -270,7 +312,7 @@
         "opencodecommit.geminiCLIModel": {
           "order": 28,
           "type": "string",
-          "default": "",
+          "default": "gemini-2.5-flash",
           "description": "Gemini CLI model (e.g. gemini-2.5-flash, gemini-2.5-pro). If empty, Gemini CLI uses its default. Passed as -m to gemini CLI."
         },
         "opencodecommit.geminiCLIPath": {

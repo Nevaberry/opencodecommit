@@ -1,6 +1,7 @@
 import {
   backendCheapModel,
   backendCheapProvider,
+  backendLabel,
   backendModel,
   backendPrModel,
   backendPrProvider,
@@ -72,6 +73,15 @@ Commits:
 {diff}
 
 Respond with a structured summary. No markdown code blocks.`
+
+function throwBackendErrors(backends: CliBackend[], errors: string[]): never {
+  if (backends.length === 1 && errors.length === 1) {
+    throw new Error(`${backendLabel(backends[0])} failed: ${errors[0]}`)
+  }
+
+  const detail = errors.join("\n  ")
+  throw new Error(`All backends failed:\n  ${detail}`)
+}
 
 export function buildPrPrompt(
   context: Pick<PrContext, "diff" | "commits" | "branch">,
@@ -339,5 +349,5 @@ export async function generatePrDraft(
     }
   }
 
-  throw new Error(`All backends failed:\n  ${errors.join("\n  ")}`)
+  throwBackendErrors(config.backendOrder, errors)
 }
