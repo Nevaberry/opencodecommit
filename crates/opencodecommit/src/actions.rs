@@ -2,13 +2,13 @@ use std::fmt;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use opencodecommit::backend::{build_invocation, build_invocation_for, build_invocation_with_model, detect_cli, exec_cli, exec_cli_with_timeout};
+use opencodecommit::backend::{build_invocation, build_invocation_for, detect_cli, exec_cli, exec_cli_with_timeout};
 use opencodecommit::config::{BranchMode, CliBackend, CommitMode, Config, DiffSource};
 use opencodecommit::context::{self, CommitContext};
 use opencodecommit::git;
 use opencodecommit::prompt::{
-    build_branch_prompt, build_changelog_prompt, build_pr_final_prompt, build_pr_prompt,
-    build_pr_summary_prompt, build_prompt, build_refine_prompt,
+    build_branch_prompt, build_changelog_prompt, build_pr_prompt, build_prompt,
+    build_refine_prompt,
 };
 use opencodecommit::response::{
     self, ParsedCommit, ParsedPr, format_adaptive_message, format_branch_name,
@@ -354,42 +354,6 @@ pub fn commit_message(message: &str, used_stdin: bool) -> Result<CommitResult> {
     })
 }
 
-pub fn generate_branch_preview(
-    config: &Config,
-    description: Option<&str>,
-    branch_mode: BranchMode,
-) -> Result<BranchPreview> {
-    let repo_root = git::get_repo_root()?;
-
-    let diff = if description.is_none() {
-        Some(git::get_diff(config.diff_source, &repo_root)?)
-    } else {
-        None
-    };
-
-    let existing_branches = if branch_mode == BranchMode::Adaptive {
-        git::get_recent_branch_names(&repo_root, 20).unwrap_or_default()
-    } else {
-        vec![]
-    };
-
-    let prompt = build_branch_prompt(
-        description.unwrap_or(""),
-        diff.as_deref(),
-        config,
-        branch_mode,
-        &existing_branches,
-    );
-    let cli_path = detect_cli(config.backend, config.backend_cli_path())?;
-    let invocation = build_invocation(&cli_path, &prompt, config);
-    let response = exec_cli(&invocation)?;
-
-    Ok(BranchPreview {
-        name: format_branch_name(&response),
-        backend_failures: vec![],
-    })
-}
-
 pub fn create_branch(name: &str) -> Result<BranchResult> {
     let repo_root = git::get_repo_root()?;
     git::create_and_checkout_branch(&repo_root, name)?;
@@ -450,104 +414,6 @@ pub fn load_pr_context(config: &Config, explicit_base: Option<&str>) -> Result<P
         commit_count: count,
         changed_files,
         from_branch_diff: true,
-    })
-}
-
-pub fn generate_pr_preview(config: &Config, explicit_base: Option<&str>) -> Result<PrPreview> {
-    let pr_ctx = load_pr_context(config, explicit_base)?;
-    let cli_path = detect_cli(config.backend, config.backend_cli_path())?;
-
-    let pr_model = config.backend_pr_model();
-    let cheap_model = config.backend_cheap_model();
-
-    // If both models are the same, use single-stage (build_pr_prompt-style)
-    if pr_model == cheap_model || !pr_ctx.from_branch_diff {
-        // Single-stage: build a CommitContext-compatible call
-        let commit_ctx = CommitContext {
-            diff: pr_ctx.diff,
-            recent_commits: pr_ctx.commits,
-            branch: pr_ctx.branch,
-            file_contents: vec![],
-            changed_files: pr_ctx.changed_files,
-            sensitive_findings: vec![],
-            has_sensitive_content: false,
-        };
-        let prompt = build_pr_prompt(&commit_ctx, config);
-        let invocation = if pr_model != config.backend_model() {
-            let provider = match config.backend {
-                opencodecommit::config::CliBackend::Opencode
-                | opencodecommit::config::CliBackend::Codex => {
-                    let p = config.backend_pr_provider();
-                    if p.is_empty() { None } else { Some(p) }
-                }
-                _ => None,
-            };
-            build_invocation_with_model(&cli_path, &prompt, config, pr_model, provider)
-        } else {
-            build_invocation(&cli_path, &prompt, config)
-        };
-        let response = exec_cli(&invocation)?;
-        let parsed: ParsedPr = parse_pr_response(&response);
-        return Ok(PrPreview {
-            title: parsed.title,
-            body: parsed.body,
-            backend_failures: vec![],
-        });
-    }
-
-    // Two-stage pipeline
-    // Stage 1: Summarize with cheap model
-    let summary_prompt = build_pr_summary_prompt(&pr_ctx.diff, &pr_ctx.commits, config);
-    let cheap_provider = {
-        let p = config.backend_cheap_provider();
-        if p.is_empty() { None } else { Some(p) }
-    };
-    let summary_invocation = build_invocation_with_model(
-        &cli_path,
-        &summary_prompt,
-        config,
-        cheap_model,
-        cheap_provider,
-    );
-    let summary = exec_cli(&summary_invocation)?;
-
-    // Stage 2: Generate PR with expensive model
-    let commit_onelines: Vec<String> = pr_ctx
-        .commits
-        .iter()
-        .filter_map(|c| c.lines().nth(1)) // second line is the subject
-        .map(|s| s.to_owned())
-        .collect();
-    let final_prompt = build_pr_final_prompt(&summary, &pr_ctx.branch, &commit_onelines, config);
-    let pr_provider = {
-        let p = config.backend_pr_provider();
-        if p.is_empty() { None } else { Some(p) }
-    };
-    let final_invocation = build_invocation_with_model(
-        &cli_path,
-        &final_prompt,
-        config,
-        pr_model,
-        pr_provider,
-    );
-    let response = exec_cli(&final_invocation)?;
-    let parsed: ParsedPr = parse_pr_response(&response);
-    Ok(PrPreview {
-        title: parsed.title,
-        body: parsed.body,
-        backend_failures: vec![],
-    })
-}
-
-pub fn generate_changelog_preview(config: &Config) -> Result<ChangelogPreview> {
-    let context = build_context_preview(config)?;
-    let prompt = build_changelog_prompt(&context, config);
-    let cli_path = detect_cli(config.backend, config.backend_cli_path())?;
-    let invocation = build_invocation(&cli_path, &prompt, config);
-    let response = exec_cli(&invocation)?;
-    Ok(ChangelogPreview {
-        entry: response::sanitize_response(&response),
-        backend_failures: vec![],
     })
 }
 
