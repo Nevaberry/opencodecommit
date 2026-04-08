@@ -554,6 +554,21 @@ impl Config {
         None
     }
 
+    fn materialize_default_config_path() -> crate::Result<Option<PathBuf>> {
+        if let Some(path) = Self::default_config_path() {
+            return Ok(Some(path));
+        }
+
+        let Some(dir) = Self::default_config_dir() else {
+            return Ok(None);
+        };
+
+        let path = dir.join("config.toml");
+        let config = Self::default();
+        config.save_to_path(&path)?;
+        Ok(Some(path))
+    }
+
     /// Load config from a TOML file. Missing fields get defaults.
     pub fn load(path: &Path) -> crate::Result<Self> {
         let content = std::fs::read_to_string(path).map_err(|e| {
@@ -575,6 +590,9 @@ impl Config {
         }
         if let Some(path) = Self::default_config_path() {
             return Self::load(&path);
+        }
+        if Self::materialize_default_config_path()?.is_some() {
+            return Ok(Self::default());
         }
         Ok(Self::default())
     }
@@ -651,6 +669,9 @@ pub const DEFAULT_EMOJIS: &[(&str, &str)] = &[
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{LazyLock, Mutex};
+
+    static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
     use std::io::Write;
 
     #[test]
@@ -904,9 +925,46 @@ prompt = "Generate: {{{{diff}}}}"
 
     #[test]
     fn load_or_default_with_no_file() {
+        let _env_guard = ENV_LOCK.lock().unwrap();
+        let temp_root = std::env::temp_dir().join(format!(
+            "occ-load-or-default-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let config_root = temp_root.join("xdg");
+        let config_path = config_root.join("opencodecommit").join("config.toml");
+        let previous_xdg = std::env::var_os("XDG_CONFIG_HOME");
+
+        let _ = std::fs::remove_dir_all(&temp_root);
+
+        unsafe {
+            std::env::set_var("XDG_CONFIG_HOME", &config_root);
+        }
+
         let cfg = Config::load_or_default(None).unwrap();
+
+        let serialized = std::fs::read_to_string(&config_path).unwrap();
         assert_eq!(cfg.backend, CliBackend::Opencode);
         assert_eq!(cfg.model, "gpt-5.4-mini");
+        assert!(config_path.exists());
+        assert!(serialized.contains("backend-order"));
+        assert!(serialized.contains("sensitive"));
+        assert!(serialized.contains("[[languages]]"));
+        assert!(serialized.contains("base-module"));
+        assert!(serialized.contains("sensitive-content-note"));
+
+        match previous_xdg {
+            Some(value) => unsafe {
+                std::env::set_var("XDG_CONFIG_HOME", value);
+            },
+            None => unsafe {
+                std::env::remove_var("XDG_CONFIG_HOME");
+            },
+        }
+        let _ = std::fs::remove_dir_all(&temp_root);
     }
 
     #[test]
