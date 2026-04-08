@@ -594,10 +594,12 @@ mod tests {
         assert!(!cfg.use_emojis);
         assert!(cfg.use_lower_case);
         assert_eq!(cfg.commit_template, "{{type}}: {{message}}");
-        assert_eq!(cfg.languages.len(), 3);
+        assert_eq!(cfg.languages.len(), 5);
         assert_eq!(cfg.languages[0].label, "English");
-        assert_eq!(cfg.languages[1].label, "Suomi");
-        assert_eq!(cfg.languages[2].label, "Custom (example)");
+        assert_eq!(cfg.languages[1].label, "Finnish");
+        assert_eq!(cfg.languages[2].label, "Japanese");
+        assert_eq!(cfg.languages[3].label, "Chinese");
+        assert_eq!(cfg.languages[4].label, "Custom (example)");
         assert_eq!(cfg.active_language, "English");
         assert_eq!(cfg.refine.default_feedback, "make it shorter");
         assert!(cfg.custom.prompt.is_empty());
@@ -612,8 +614,14 @@ mod tests {
             "Write the commit message in English."
         );
 
-        cfg.active_language = "Suomi".to_owned();
+        cfg.active_language = "Finnish".to_owned();
         assert!(cfg.active_language_instruction().contains("suomeksi"));
+
+        cfg.active_language = "Japanese".to_owned();
+        assert!(cfg.active_language_instruction().contains("日本語"));
+
+        cfg.active_language = "Chinese".to_owned();
+        assert!(cfg.active_language_instruction().contains("中文"));
 
         cfg.active_language = "Nonexistent".to_owned();
         assert_eq!(
@@ -643,7 +651,7 @@ mod tests {
     #[test]
     fn active_prompt_modules_finnish() {
         let cfg = Config {
-            active_language: "Suomi".to_owned(),
+            active_language: "Finnish".to_owned(),
             ..Config::default()
         };
         let mods = cfg.active_prompt_modules();
@@ -653,6 +661,30 @@ mod tests {
             mods.conventional_format
                 .contains("conventional commit -muotoa")
         );
+    }
+
+    #[test]
+    fn active_prompt_modules_japanese() {
+        let cfg = Config {
+            active_language: "Japanese".to_owned(),
+            ..Config::default()
+        };
+        let mods = cfg.active_prompt_modules();
+        assert!(mods.base_module.contains("コミットメッセージ"));
+        assert!(mods.adaptive_format.contains("最近のコミット"));
+        assert!(mods.conventional_format.contains("conventional commit 形式"));
+    }
+
+    #[test]
+    fn active_prompt_modules_chinese() {
+        let cfg = Config {
+            active_language: "Chinese".to_owned(),
+            ..Config::default()
+        };
+        let mods = cfg.active_prompt_modules();
+        assert!(mods.base_module.contains("提交信息"));
+        assert!(mods.adaptive_format.contains("最近的提交"));
+        assert!(mods.conventional_format.contains("conventional commit 格式"));
     }
 
     #[test]
