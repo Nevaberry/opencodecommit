@@ -1,5 +1,6 @@
 import * as vscode from "vscode"
 
+import { backendLabel, withBackendOverride } from "./inline/backends"
 import { getConfig as getInlineConfig } from "./inline/config"
 import { gatherContext, getRecentBranchNames } from "./inline/context"
 import {
@@ -15,6 +16,7 @@ import {
 import type {
   BranchMode,
   Change,
+  CliBackend,
   CommitMode,
   GitExtension,
   Repository,
@@ -148,8 +150,14 @@ async function getDiff(
   )
 }
 
-async function generateMessageInline(mode: CommitMode, repo: Repository) {
-  const config = getInlineConfig()
+async function generateMessageInline(
+  mode: CommitMode,
+  repo: Repository,
+  backendOverride?: CliBackend,
+) {
+  const config = backendOverride
+    ? withBackendOverride(getInlineConfig(), backendOverride)
+    : getInlineConfig()
   log(`Mode: ${mode}, Backend order: [${config.backendOrder.join(", ")}]`)
 
   const diff = await getDiff(repo, config.diffSource)
@@ -233,6 +241,7 @@ async function refineMessageInline(repo: Repository) {
 async function generateMessage(
   mode: CommitMode,
   arg?: { rootUri?: vscode.Uri },
+  backendOverride?: CliBackend,
 ) {
   const repo = resolveRepository(arg)
   if (!repo) {
@@ -240,14 +249,18 @@ async function generateMessage(
     return
   }
 
+  const title = backendOverride
+    ? `Generating commit message with ${backendLabel(backendOverride)}...`
+    : "Generating commit message..."
+
   await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.SourceControl,
-      title: "Generating commit message...",
+      title,
     },
     async () => {
       try {
-        await generateMessageInline(mode, repo)
+        await generateMessageInline(mode, repo, backendOverride)
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err)
         if (msg.includes("CLI not found")) {
@@ -391,6 +404,22 @@ export function activate(context: vscode.ExtensionContext) {
     ),
     vscode.commands.registerCommand("opencodecommit.generateAdaptive", (arg) =>
       generateMessage("adaptive", arg),
+    ),
+    vscode.commands.registerCommand(
+      "opencodecommit.generateAdaptiveCodex",
+      (arg) => generateMessage("adaptive", arg, "codex"),
+    ),
+    vscode.commands.registerCommand(
+      "opencodecommit.generateAdaptiveOpencode",
+      (arg) => generateMessage("adaptive", arg, "opencode"),
+    ),
+    vscode.commands.registerCommand(
+      "opencodecommit.generateAdaptiveClaude",
+      (arg) => generateMessage("adaptive", arg, "claude"),
+    ),
+    vscode.commands.registerCommand(
+      "opencodecommit.generateAdaptiveGemini",
+      (arg) => generateMessage("adaptive", arg, "gemini"),
     ),
     vscode.commands.registerCommand(
       "opencodecommit.generateAdaptiveOneliner",

@@ -220,55 +220,6 @@ fn load_commit_context(
     Ok((context, diff_origin))
 }
 
-pub fn generate_commit_preview(config: &Config, request: &CommitRequest) -> Result<CommitPreview> {
-    let (mut context, diff_origin) = load_commit_context(config, request.stdin_diff.as_deref())?;
-
-    if context.has_sensitive_content && !request.allow_sensitive {
-        return Err(ActionError::SensitiveContent(
-            SensitiveReport::from_findings(context.sensitive_findings.clone()),
-        ));
-    }
-
-    truncate_diff(&mut context, config.max_diff_length);
-
-    let prompt = if let Some(current_message) = request.refine.as_deref() {
-        let feedback = request
-            .feedback
-            .as_deref()
-            .unwrap_or(&config.refine.default_feedback);
-        build_refine_prompt(current_message, feedback, &context.diff, config)
-    } else {
-        build_prompt(&context, config, Some(config.commit_mode))
-    };
-
-    let cli_path = detect_cli(config.backend, config.backend_cli_path())?;
-    let invocation = build_invocation(&cli_path, &prompt, config);
-    let start = Instant::now();
-    let response = exec_cli(&invocation)?;
-    let duration_ms = start.elapsed().as_millis();
-
-    let message = match config.commit_mode {
-        CommitMode::Adaptive | CommitMode::AdaptiveOneliner => format_adaptive_message(&response),
-        CommitMode::Conventional | CommitMode::ConventionalOneliner => {
-            let parsed = parse_response(&response);
-            format_commit_message(&parsed, config)
-        }
-    };
-    let parsed = parse_response(&response);
-
-    Ok(CommitPreview {
-        message,
-        parsed,
-        provider: format!("{}", config.backend),
-        files_analyzed: context.changed_files.len(),
-        duration_ms,
-        changed_files: context.changed_files,
-        branch: context.branch,
-        diff_origin,
-        backend_failures: vec![],
-    })
-}
-
 /// Truncate an error message to the first line and ~80 chars for progress display.
 fn truncate_error(err: &str) -> String {
     let first_line = err.lines().next().unwrap_or(err);
@@ -535,18 +486,6 @@ pub fn generate_pr_preview(config: &Config, explicit_base: Option<&str>) -> Resu
     Ok(PrPreview {
         title: parsed.title,
         body: parsed.body,
-        backend_failures: vec![],
-    })
-}
-
-pub fn generate_changelog_preview(config: &Config) -> Result<ChangelogPreview> {
-    let context = build_context_preview(config)?;
-    let prompt = build_changelog_prompt(&context, config);
-    let cli_path = detect_cli(config.backend, config.backend_cli_path())?;
-    let invocation = build_invocation(&cli_path, &prompt, config);
-    let response = exec_cli(&invocation)?;
-    Ok(ChangelogPreview {
-        entry: response::sanitize_response(&response),
         backend_failures: vec![],
     })
 }
@@ -845,7 +784,8 @@ mod tests {
                 allow_sensitive: false,
             };
 
-            let err = generate_commit_preview(&cfg, &request).unwrap_err();
+            let err = generate_commit_preview_with_fallback(&cfg, &request, |_| {})
+                .unwrap_err();
             assert!(matches!(err, ActionError::SensitiveContent(_)));
         });
 

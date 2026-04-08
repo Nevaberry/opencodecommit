@@ -2,7 +2,7 @@
   "name": "opencodecommit",
   "displayName": "OpenCodeCommit",
   "description": "AI commit messages via OpenCode, Claude Code, or Codex CLI — supports every major LLM provider from a single extension",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "publisher": "Nevaberry",
   "license": "MIT",
   "repository": {
@@ -92,6 +92,22 @@
       {
         "command": "opencodecommit.generateBranchConventional",
         "title": "OpenCodeCommit: Generate Branch (Conventional)"
+      },
+      {
+        "command": "opencodecommit.generateAdaptiveCodex",
+        "title": "OpenCodeCommit: Generate Adaptive via Codex"
+      },
+      {
+        "command": "opencodecommit.generateAdaptiveOpencode",
+        "title": "OpenCodeCommit: Generate Adaptive via OpenCode"
+      },
+      {
+        "command": "opencodecommit.generateAdaptiveClaude",
+        "title": "OpenCodeCommit: Generate Adaptive via Claude"
+      },
+      {
+        "command": "opencodecommit.generateAdaptiveGemini",
+        "title": "OpenCodeCommit: Generate Adaptive via Gemini"
       }
     ],
     "submenus": [
@@ -99,6 +115,10 @@
         "id": "opencodecommit.menu",
         "label": "OpenCodeCommit",
         "icon": "$(ellipsis)"
+      },
+      {
+        "id": "opencodecommit.commitAdaptiveBackendMenu",
+        "label": "Commit Adaptive Backend"
       }
     ],
     "menus": {
@@ -118,6 +138,10 @@
         {
           "command": "opencodecommit.generateAdaptive",
           "group": "1_modes"
+        },
+        {
+          "submenu": "opencodecommit.commitAdaptiveBackendMenu",
+          "group": "1_modes@5"
         },
         {
           "command": "opencodecommit.generateAdaptiveOneliner",
@@ -162,6 +186,24 @@
         {
           "command": "opencodecommit.generateBranchConventional",
           "group": "4_branch"
+        }
+      ],
+      "opencodecommit.commitAdaptiveBackendMenu": [
+        {
+          "command": "opencodecommit.generateAdaptiveCodex",
+          "group": "1_backend"
+        },
+        {
+          "command": "opencodecommit.generateAdaptiveOpencode",
+          "group": "1_backend"
+        },
+        {
+          "command": "opencodecommit.generateAdaptiveClaude",
+          "group": "1_backend"
+        },
+        {
+          "command": "opencodecommit.generateAdaptiveGemini",
+          "group": "1_backend"
         }
       ]
     },

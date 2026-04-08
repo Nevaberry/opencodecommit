@@ -184,6 +184,10 @@ enum Commands {
 
     /// Launch the interactive terminal UI
     Tui {
+        /// AI backend to use
+        #[arg(long, value_enum)]
+        backend: Option<CliBackendArg>,
+
         /// Path to config file
         #[arg(long)]
         config: Option<String>,
@@ -222,7 +226,7 @@ enum Commands {
     },
 }
 
-#[derive(Clone, ValueEnum)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 enum CliBackendArg {
     Opencode,
     Claude,
@@ -667,7 +671,7 @@ fn handle_pr(config: &Config, text: bool, base: Option<&str>) {
 }
 
 fn handle_changelog(config: &Config, text: bool) {
-    let preview = match actions::generate_changelog_preview(config) {
+    let preview = match actions::generate_changelog_preview_with_fallback(config, |_| {}) {
         Ok(preview) => preview,
         Err(err) => {
             if text {
@@ -685,6 +689,7 @@ fn handle_changelog(config: &Config, text: bool) {
         let output = serde_json::json!({
             "status": "success",
             "entry": preview.entry,
+            "backend_failures": preview.backend_failures,
         });
         println!("{}", serde_json::to_string(&output).unwrap());
     }
@@ -743,8 +748,11 @@ fn handle_internal(action: InternalAction) {
     process::exit(code);
 }
 
-fn handle_tui(config: Option<String>) {
-    let cfg = load_config_or_exit_plain(config.as_deref());
+fn handle_tui(config: Option<String>, backend: Option<CliBackendArg>) {
+    let mut cfg = load_config_or_exit_plain(config.as_deref());
+    if let Some(backend) = backend {
+        cfg.backend = backend.to_config();
+    }
     if let Err(err) = tui::run(cfg) {
         eprintln!("error: {err}");
         process::exit(match err {
@@ -859,7 +867,7 @@ fn main() {
         }
         Commands::Hook { action } => handle_hook(action),
         Commands::Guard { action } => handle_guard(action),
-        Commands::Tui { config } => handle_tui(config),
+        Commands::Tui { backend, config } => handle_tui(config, backend),
         Commands::Update => handle_update(),
         Commands::Changelog {
             backend,
@@ -874,5 +882,22 @@ fn main() {
             handle_changelog(&cfg, text);
         }
         Commands::Internal { action } => handle_internal(action),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tui_accepts_backend_flag() {
+        let cli = Cli::try_parse_from(["occ", "tui", "--backend", "codex"]).unwrap();
+        match cli.command {
+            Commands::Tui { backend, config } => {
+                assert_eq!(backend, Some(CliBackendArg::Codex));
+                assert_eq!(config, None);
+            }
+            _ => panic!("expected tui command"),
+        }
     }
 }

@@ -33,6 +33,7 @@ enum OutputContent {
     SensitiveWarning { report: SensitiveReport },
     BranchPreview { preview: BranchPreview },
     PrPreview { preview: PrPreview },
+    BackendMenu,
     HookMenu,
     HookConfirm { operation: HookOperation },
 }
@@ -46,6 +47,7 @@ fn panel_buttons(output: &OutputContent) -> &'static [&'static str] {
         OutputContent::SensitiveWarning { .. } => &["[a Allow & Continue]"],
         OutputContent::BranchPreview { .. } => &["[c Create Branch]", "[r Regenerate]"],
         OutputContent::PrPreview { .. } => &["[s Submit PR]", "[p Copy]", "[r Regenerate]"],
+        OutputContent::BackendMenu => &["[c Codex]", "[o OpenCode]", "[l Claude]", "[g Gemini]"],
         OutputContent::HookMenu => &["[i Install Hook]", "[u Uninstall Hook]"],
         OutputContent::HookConfirm { .. } => &["[y Yes]", "[n No]"],
     }
@@ -59,15 +61,17 @@ enum ButtonId {
     Branch,     // 2
     Pr,         // 3
     SafetyHook, // 4
+    Backend,    // 5
     Quit,       // 0
 }
 
 impl ButtonId {
-    const ALL: [ButtonId; 5] = [
+    const ALL: [ButtonId; 6] = [
         ButtonId::Commit,
         ButtonId::Branch,
         ButtonId::Pr,
         ButtonId::SafetyHook,
+        ButtonId::Backend,
         ButtonId::Quit,
     ];
 
@@ -77,6 +81,7 @@ impl ButtonId {
             ButtonId::Branch => '2',
             ButtonId::Pr => '3',
             ButtonId::SafetyHook => '4',
+            ButtonId::Backend => '5',
             ButtonId::Quit => '0',
         }
     }
@@ -87,6 +92,7 @@ impl ButtonId {
             ButtonId::Branch => "Branch",
             ButtonId::Pr => "PR",
             ButtonId::SafetyHook => "Safety Hook",
+            ButtonId::Backend => "Backend",
             ButtonId::Quit => "Quit",
         }
     }
@@ -103,6 +109,7 @@ impl ButtonId {
             ButtonId::Branch => "Generate a branch name from the current diff",
             ButtonId::Pr => "Generate a PR title and body from the current diff",
             ButtonId::SafetyHook => "Install or uninstall the prepare-commit-msg safety hook",
+            ButtonId::Backend => "Select which AI backend commit, branch, and PR actions use",
             ButtonId::Quit => "Exit the TUI",
         }
     }
@@ -112,6 +119,15 @@ impl ButtonId {
             ButtonId::Commit => !app.sensitive_blocked,
             _ => true,
         }
+    }
+}
+
+fn backend_label(backend: CliBackend) -> &'static str {
+    match backend {
+        CliBackend::Opencode => "OpenCode CLI",
+        CliBackend::Claude => "Claude Code CLI",
+        CliBackend::Codex => "Codex CLI",
+        CliBackend::Gemini => "Gemini CLI",
     }
 }
 
@@ -436,6 +452,16 @@ impl App {
         }
     }
 
+    fn set_backend(&mut self, backend: CliBackend) {
+        self.config.backend = backend;
+        self.repo.backend_label = backend_label(backend);
+        self.repo.backend_path = None;
+        self.repo.backend_error = None;
+        self.refresh_repo();
+        self.clear_output();
+        self.set_info(format!("Backend set to {}.", self.repo.backend_label));
+    }
+
     fn set_output(&mut self, content: OutputContent) {
         self.output = Some(content);
         self.output_scroll = 0;
@@ -488,6 +514,13 @@ fn panel_button_description(content: &OutputContent, index: usize) -> &'static s
             0 => "Submit PR via gh CLI",
             1 => "Copy PR title and body to clipboard",
             2 => "Regenerate the PR title and body",
+            _ => "",
+        },
+        OutputContent::BackendMenu => match index {
+            0 => "Use Codex CLI for commit, branch, and PR generation",
+            1 => "Use OpenCode CLI for commit, branch, and PR generation",
+            2 => "Use Claude Code CLI for commit, branch, and PR generation",
+            3 => "Use Gemini CLI for commit, branch, and PR generation",
             _ => "",
         },
         OutputContent::HookMenu => match index {
@@ -718,7 +751,7 @@ fn handle_key(app: &mut App, key: KeyEvent, tx: &Sender<WorkerMessage>) {
         }
 
         // Number keys for bottom bar shortcuts
-        KeyCode::Char(ch @ '0'..='4') => {
+        KeyCode::Char(ch @ '0'..='5') => {
             if let Some(btn) = ButtonId::ALL.iter().find(|b| b.number() == ch) {
                 activate_bar_button(app, *btn, tx);
             }
@@ -759,6 +792,9 @@ fn activate_bar_button(app: &mut App, btn: ButtonId, tx: &Sender<WorkerMessage>)
         ButtonId::SafetyHook => {
             app.set_output(OutputContent::HookMenu);
         }
+        ButtonId::Backend => {
+            app.set_output(OutputContent::BackendMenu);
+        }
         ButtonId::Quit => app.should_quit = true,
     }
 }
@@ -795,6 +831,13 @@ fn activate_panel_button(app: &mut App, index: usize, tx: &Sender<WorkerMessage>
                 }
             }
             2 => spawn_generate_pr(app, tx),
+            _ => {}
+        },
+        OutputContent::BackendMenu => match index {
+            0 => app.set_backend(CliBackend::Codex),
+            1 => app.set_backend(CliBackend::Opencode),
+            2 => app.set_backend(CliBackend::Claude),
+            3 => app.set_backend(CliBackend::Gemini),
             _ => {}
         },
         OutputContent::HookMenu => match index {
@@ -854,6 +897,13 @@ fn handle_panel_shortcut(app: &mut App, ch: char, tx: &Sender<WorkerMessage>) {
                 }
             }
             'r' => spawn_generate_pr(app, tx),
+            _ => {}
+        },
+        OutputContent::BackendMenu => match ch {
+            'c' => app.set_backend(CliBackend::Codex),
+            'o' => app.set_backend(CliBackend::Opencode),
+            'l' => app.set_backend(CliBackend::Claude),
+            'g' => app.set_backend(CliBackend::Gemini),
             _ => {}
         },
         OutputContent::HookMenu => match ch {
@@ -1300,6 +1350,7 @@ fn output_panel_height(app: &App) -> u16 {
             let lines = preview.title.lines().count() as u16 + preview.body.lines().count() as u16;
             (lines + 6).min(20)
         }
+        Some(OutputContent::BackendMenu) => 8,
         Some(OutputContent::HookMenu) => 6,
         Some(OutputContent::HookConfirm { .. }) => 5,
     }
@@ -1339,6 +1390,21 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
         ));
     }
 
+    spans.push(Span::raw("  staged: "));
+    spans.push(Span::styled(
+        app.repo.staged_files.to_string(),
+        Style::default().fg(Color::Yellow),
+    ));
+    spans.push(Span::raw("  unstaged: "));
+    spans.push(Span::styled(
+        app.repo.unstaged_files.to_string(),
+        Style::default().fg(Color::Yellow),
+    ));
+    spans.push(Span::raw("  lang: "));
+    spans.push(Span::styled(
+        &app.repo.active_language,
+        Style::default().fg(Color::Cyan),
+    ));
     spans.push(Span::raw(format!(
         "  backend: {} [{}]",
         app.repo.backend_label, backend_status
@@ -1480,6 +1546,9 @@ fn render_output_panel(frame: &mut Frame, area: Rect, app: &App) {
         }
         OutputContent::PrPreview { preview } => {
             render_pr_output(frame, area, preview, app);
+        }
+        OutputContent::BackendMenu => {
+            render_backend_menu(frame, area, app);
         }
         OutputContent::HookMenu => {
             render_hook_menu(frame, area, app);
@@ -1660,6 +1729,35 @@ fn render_pr_output(frame: &mut Frame, area: Rect, preview: &PrPreview, app: &Ap
         )
         .wrap(Wrap { trim: false })
         .scroll((app.output_scroll, 0));
+    frame.render_widget(widget, area);
+}
+
+fn render_backend_menu(frame: &mut Frame, area: Rect, app: &App) {
+    let lines = vec![
+        Line::styled(
+            "BACKEND SELECTOR",
+            Style::default()
+                .fg(Color::DarkGray)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Line::raw(""),
+        Line::styled(
+            format!("Current backend: {}", app.repo.backend_label),
+            Style::default().fg(Color::Cyan),
+        ),
+        Line::styled(
+            "Applies to commit, branch, and PR generation.",
+            Style::default().fg(Color::DarkGray),
+        ),
+        Line::raw(""),
+        render_panel_button_line(app),
+    ];
+
+    let widget = Paragraph::new(lines).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Blue)),
+    );
     frame.render_widget(widget, area);
 }
 
@@ -1906,6 +2004,7 @@ mod tests {
         assert!(text.contains("2 Branch"), "missing Branch button");
         assert!(text.contains("3 PR"), "missing PR button");
         assert!(text.contains("4 Safety Hook"), "missing Safety Hook button");
+        assert!(text.contains("5 Backend"), "missing Backend button");
         assert!(text.contains("0 Quit"), "missing Quit button");
     }
 
@@ -2091,6 +2190,28 @@ mod tests {
     }
 
     #[test]
+    fn backend_menu_shows_current_backend() {
+        let mut app = test_app();
+        app.set_output(OutputContent::BackendMenu);
+        let text = render_text(&app, 100, 24);
+        assert!(text.contains("BACKEND SELECTOR"), "missing backend title");
+        assert!(text.contains("Current backend: Codex CLI"), "missing current backend");
+        assert!(text.contains("[c Codex]"), "missing codex action");
+        assert!(text.contains("[o OpenCode]"), "missing opencode action");
+    }
+
+    #[test]
+    fn backend_menu_selection_updates_backend() {
+        let mut app = test_app();
+        let (tx, _rx) = mpsc::channel();
+        app.set_output(OutputContent::BackendMenu);
+        activate_panel_button(&mut app, 1, &tx);
+        assert_eq!(app.config.backend, CliBackend::Opencode);
+        assert_eq!(app.repo.backend_label, "OpenCode CLI");
+        assert!(app.output.is_none());
+    }
+
+    #[test]
     fn empty_diff_shows_no_changes() {
         let config = Config {
             backend: CliBackend::Codex,
@@ -2193,8 +2314,8 @@ mod tests {
         handle_key(&mut app, KeyEvent::from(KeyCode::Tab), &tx);
         assert_eq!(app.focus_area, FocusArea::Bar);
 
-        // Tab through all 5 bar buttons
-        for _ in 0..4 {
+        // Tab through all remaining bar buttons
+        for _ in 0..ButtonId::ALL.len() - 1 {
             handle_key(&mut app, KeyEvent::from(KeyCode::Tab), &tx);
         }
         // Should wrap to sidebar

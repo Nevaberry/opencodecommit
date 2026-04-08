@@ -32,13 +32,18 @@ cd extension && bunx @vscode/vsce package   # creates opencode-commit-<version>.
 code --install-extension extension/opencode-commit-*.vsix
 ```
 
-### VS Codium (Flatpak)
+### VSCodium (Flatpak)
+
+```sh
+./scripts/dev-install.sh
+```
+
 
 ```sh
 flatpak run com.vscodium.codium --install-extension extension/opencode-commit-*.vsix
 ```
 
-### VS Codium Insiders (Flatpak)
+### VSCodium Insiders (Flatpak)
 
 ```sh
 flatpak run com.vscodium.codium-insiders --install-extension extension/opencode-commit-*.vsix

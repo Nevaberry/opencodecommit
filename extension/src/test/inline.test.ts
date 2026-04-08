@@ -1,5 +1,6 @@
 import * as assert from "node:assert"
 import { describe, it } from "node:test"
+import { backendLabel, withBackendOverride } from "../inline/backends"
 import type { CommitContext } from "../inline/context"
 import { detectSensitiveContent } from "../inline/context"
 import {
@@ -81,6 +82,23 @@ function makeContext(overrides: Partial<CommitContext> = {}): CommitContext {
     ...overrides,
   }
 }
+
+describe("backend helpers", () => {
+  it("formats backend labels for UI", () => {
+    assert.strictEqual(backendLabel("codex"), "Codex")
+    assert.strictEqual(backendLabel("opencode"), "OpenCode")
+    assert.strictEqual(backendLabel("claude"), "Claude")
+    assert.strictEqual(backendLabel("gemini"), "Gemini")
+  })
+
+  it("restricts generation to the selected backend", () => {
+    const config = makeConfig()
+    const overridden = withBackendOverride(config, "claude")
+    assert.deepStrictEqual(overridden.backendOrder, ["claude"])
+    assert.strictEqual(overridden.codexModel, config.codexModel)
+    assert.strictEqual(overridden.claudeModel, config.claudeModel)
+  })
+})
 
 // --- sanitizeResponse ---
 
