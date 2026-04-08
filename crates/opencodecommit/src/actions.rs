@@ -484,9 +484,6 @@ fn generate_pr_preview_internal(
     })
 }
 
-pub fn generate_pr_preview(config: &Config, explicit_base: Option<&str>) -> Result<PrPreview> {
-    generate_pr_preview_internal(config, explicit_base, 120)
-}
 /// Execute a prompt across backends with fallback, returning the response and failures.
 fn exec_with_fallback(
     config: &Config,

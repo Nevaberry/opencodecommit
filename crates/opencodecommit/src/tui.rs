@@ -26,6 +26,12 @@ use crate::actions::{
 
 type TuiTerminal = Terminal<CrosstermBackend<io::Stdout>>;
 
+#[cfg(test)]
+const DEFAULT_VIEWPORT_HEIGHT: u16 = 24;
+const MIN_DIFF_HEIGHT: u16 = 5;
+const RESERVED_LAYOUT_HEIGHT: u16 = 3;
+const PR_OUTPUT_MIN_HEIGHT: u16 = 8;
+
 // ── Output panel content ──
 
 #[derive(Debug, Clone)]
@@ -59,14 +65,14 @@ fn panel_buttons(output: &OutputContent) -> &'static [&'static str] {
             } else {
                 &["[x Cancel]"]
             }
-        },
+        }
         OutputContent::BranchPreview { .. } => &["[c Create Branch]", "[r Regenerate]"],
         OutputContent::PrPreview { .. } => &["[s Submit PR]", "[p Copy]", "[r Regenerate]"],
         OutputContent::BackendMenu
         | OutputContent::CommitBackendMenu
         | OutputContent::PrBackendMenu => {
             &["[c Codex]", "[o OpenCode]", "[l Claude]", "[g Gemini]"]
-        },
+        }
         OutputContent::HookMenu => &[
             "[i Install Hook]",
             "[u Uninstall Hook]",
@@ -800,7 +806,8 @@ fn event_loop(
         if event::poll(Duration::from_millis(80))?
             && let Event::Key(key) = event::read()?
         {
-            handle_key(app, key, tx);
+            let viewport_height = terminal.size()?.height;
+            handle_key_in_viewport(app, key, tx, viewport_height);
         }
 
         app.spinner_tick = app.spinner_tick.wrapping_add(1);
@@ -811,7 +818,17 @@ fn event_loop(
 
 // ── Key handling ──
 
+#[cfg(test)]
 fn handle_key(app: &mut App, key: KeyEvent, tx: &Sender<WorkerMessage>) {
+    handle_key_in_viewport(app, key, tx, DEFAULT_VIEWPORT_HEIGHT);
+}
+
+fn handle_key_in_viewport(
+    app: &mut App,
+    key: KeyEvent,
+    tx: &Sender<WorkerMessage>,
+    viewport_height: u16,
+) {
     // Global quit
     if key.code == KeyCode::Char('q')
         || (key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL))
@@ -863,6 +880,14 @@ fn handle_key(app: &mut App, key: KeyEvent, tx: &Sender<WorkerMessage>) {
                 app.diff_scroll = app.diff_scroll.saturating_add(1);
             }
         }
+        KeyCode::PageUp => {
+            let step = diff_page_scroll_step(app, viewport_height);
+            app.diff_scroll = app.diff_scroll.saturating_sub(step);
+        }
+        KeyCode::PageDown => {
+            let step = diff_page_scroll_step(app, viewport_height);
+            app.diff_scroll = app.diff_scroll.saturating_add(step);
+        }
 
         // Enter activates the focused item
         KeyCode::Enter => {
@@ -893,6 +918,14 @@ fn handle_key(app: &mut App, key: KeyEvent, tx: &Sender<WorkerMessage>) {
 
         _ => {}
     }
+}
+
+fn diff_page_scroll_step(app: &App, viewport_height: u16) -> u16 {
+    let output_height = output_panel_height(app, viewport_height);
+    viewport_height
+        .saturating_sub(output_height + RESERVED_LAYOUT_HEIGHT)
+        .saturating_sub(2)
+        .max(1)
 }
 
 fn activate_focused(app: &mut App, tx: &Sender<WorkerMessage>) {
@@ -1616,7 +1649,7 @@ fn style_diff_line(line: &str) -> Line<'_> {
 
 fn render(frame: &mut Frame, app: &App) {
     let area = frame.area();
-    let output_height = output_panel_height(app);
+    let output_height = output_panel_height(app, area.height);
 
     let chunks = Layout::vertical([
         Constraint::Length(1),             // header
@@ -1653,28 +1686,35 @@ fn render(frame: &mut Frame, app: &App) {
     }
 }
 
-fn output_panel_height(app: &App) -> u16 {
+fn output_panel_height(app: &App, viewport_height: u16) -> u16 {
+    let max_output_height =
+        viewport_height.saturating_sub(MIN_DIFF_HEIGHT + RESERVED_LAYOUT_HEIGHT);
     match &app.output {
         None => 0,
         Some(OutputContent::CommitMessage { preview }) => {
             let lines = preview.message.lines().count() as u16;
             // border(2) + label + blank + message + blank + 2 metadata lines + blank + buttons
-            (lines + 9).min(16)
+            (lines + 9).min(16).min(max_output_height)
         }
         Some(OutputContent::SensitiveWarning { report }) => {
             let lines = report.findings.len() as u16;
-            (lines + 7).min(20)
+            (lines + 7).min(20).min(max_output_height)
         }
-        Some(OutputContent::BranchPreview { .. }) => 7,
+        Some(OutputContent::BranchPreview { .. }) => 7.min(max_output_height),
         Some(OutputContent::PrPreview { preview }) => {
             let lines = preview.title.lines().count() as u16 + preview.body.lines().count() as u16;
-            (lines + 6).min(20)
+            if max_output_height == 0 {
+                0
+            } else {
+                let min_height = PR_OUTPUT_MIN_HEIGHT.min(max_output_height);
+                lines.saturating_add(5).clamp(min_height, max_output_height)
+            }
         }
         Some(OutputContent::BackendMenu)
         | Some(OutputContent::CommitBackendMenu)
-        | Some(OutputContent::PrBackendMenu) => 8,
-        Some(OutputContent::HookMenu) => 7,
-        Some(OutputContent::HookConfirm { .. }) => 5,
+        | Some(OutputContent::PrBackendMenu) => 8.min(max_output_height),
+        Some(OutputContent::HookMenu) => 7.min(max_output_height),
+        Some(OutputContent::HookConfirm { .. }) => 5.min(max_output_height),
     }
 }
 
@@ -2080,38 +2120,50 @@ fn render_branch_output(frame: &mut Frame, area: Rect, preview: &BranchPreview, 
 }
 
 fn render_pr_output(frame: &mut Frame, area: Rect, preview: &PrPreview, app: &App) {
-    // Use only top/bottom borders so terminal text selection doesn't pick up │ characters
-    let mut lines = vec![Line::styled(
+    let mut body_lines = vec![Line::styled(
         "PR PREVIEW — select text to copy, or press Submit PR",
         Style::default()
             .fg(Color::DarkGray)
             .add_modifier(Modifier::BOLD),
     )];
 
-    lines.push(Line::styled(
+    body_lines.push(Line::styled(
         format!("## {}", preview.title),
         Style::default()
             .fg(Color::Magenta)
             .add_modifier(Modifier::BOLD),
     ));
-    lines.push(Line::raw(""));
+    body_lines.push(Line::raw(""));
 
     for line in preview.body.lines() {
-        lines.push(Line::raw(line.to_owned()));
+        body_lines.push(Line::raw(line.to_owned()));
     }
 
-    lines.push(Line::raw(""));
-    lines.push(render_panel_button_line(app));
+    let footer_lines = vec![render_panel_button_line(app)];
+    let block = Block::default()
+        .borders(Borders::TOP | Borders::BOTTOM)
+        .border_style(Style::default().fg(Color::Magenta));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
 
-    let widget = Paragraph::new(lines)
-        .block(
-            Block::default()
-                .borders(Borders::TOP | Borders::BOTTOM)
-                .border_style(Style::default().fg(Color::Magenta)),
-        )
-        .wrap(Wrap { trim: false })
-        .scroll((app.output_scroll, 0));
-    frame.render_widget(widget, area);
+    if inner.height == 0 {
+        return;
+    }
+
+    let footer_height = (footer_lines.len() as u16).min(inner.height);
+    let chunks = Layout::vertical([
+        Constraint::Min(inner.height.saturating_sub(footer_height)),
+        Constraint::Length(footer_height),
+    ])
+    .split(inner);
+
+    frame.render_widget(
+        Paragraph::new(body_lines)
+            .wrap(Wrap { trim: false })
+            .scroll((app.output_scroll, 0)),
+        chunks[0],
+    );
+    frame.render_widget(Paragraph::new(footer_lines), chunks[1]);
 }
 
 fn render_backend_selector(
@@ -2426,6 +2478,19 @@ mod tests {
         }
     }
 
+    fn test_pr_preview(body_lines: usize) -> PrPreview {
+        let body = (1..=body_lines)
+            .map(|index| format!("- checklist item {index}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        PrPreview {
+            title: "Improve TUI scrolling".to_owned(),
+            body,
+            backend_failures: vec![],
+        }
+    }
+
     #[test]
     fn initial_state_shows_header_diff_and_buttons() {
         let app = test_app();
@@ -2666,6 +2731,31 @@ mod tests {
     }
 
     #[test]
+    fn page_keys_always_scroll_diff() {
+        let mut app = test_app();
+        app.set_output(OutputContent::PrPreview {
+            preview: test_pr_preview(20),
+        });
+        let (tx, _rx) = mpsc::channel();
+
+        assert_eq!(app.diff_scroll, 0);
+        assert_eq!(app.output_scroll, 0);
+
+        handle_key_in_viewport(&mut app, KeyEvent::from(KeyCode::PageDown), &tx, 24);
+        assert!(
+            app.diff_scroll > 0,
+            "diff should page while preview is open"
+        );
+        assert_eq!(
+            app.output_scroll, 0,
+            "page keys should not move preview scroll"
+        );
+
+        handle_key_in_viewport(&mut app, KeyEvent::from(KeyCode::PageUp), &tx, 24);
+        assert_eq!(app.diff_scroll, 0);
+    }
+
+    #[test]
     fn esc_clears_output_and_returns_to_bar() {
         let mut app = test_app();
         app.set_output(OutputContent::BranchPreview {
@@ -2790,6 +2880,48 @@ mod tests {
         assert!(
             text.contains("Runs PR generation once"),
             "missing one-shot copy"
+        );
+    }
+
+    #[test]
+    fn pr_preview_panel_grows_for_longer_content() {
+        let mut short = test_app();
+        short.set_output(OutputContent::PrPreview {
+            preview: test_pr_preview(2),
+        });
+
+        let mut long = test_app();
+        long.set_output(OutputContent::PrPreview {
+            preview: test_pr_preview(40),
+        });
+
+        assert!(
+            output_panel_height(&long, 24) > output_panel_height(&short, 24),
+            "longer PR previews should reserve a taller panel"
+        );
+    }
+
+    #[test]
+    fn pr_preview_footer_stays_visible_while_scrolling_body() {
+        let mut app = test_app();
+        app.set_output(OutputContent::PrPreview {
+            preview: test_pr_preview(20),
+        });
+        app.output_scroll = 8;
+
+        let text = render_text(&app, 100, 24);
+        assert!(
+            text.contains("- checklist item 9"),
+            "scrolled body should show later checklist items"
+        );
+        assert!(
+            text.contains("[s Submit PR]"),
+            "submit button should stay visible"
+        );
+        assert!(text.contains("[p Copy]"), "copy button should stay visible");
+        assert!(
+            text.contains("[r Regenerate]"),
+            "regenerate button should stay visible"
         );
     }
 
@@ -2941,11 +3073,7 @@ mod tests {
             files: vec!["a.rs".to_owned()],
         }];
         app.set_output(OutputContent::PrPreview {
-            preview: PrPreview {
-                title: "PR title".to_owned(),
-                body: "PR body".to_owned(),
-                backend_failures: vec![],
-            },
+            preview: test_pr_preview(1),
         });
         // With sidebar + panel + bar, tab should eventually reach sidebar
         let (tx, _rx) = mpsc::channel();
