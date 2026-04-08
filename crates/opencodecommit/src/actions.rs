@@ -236,7 +236,7 @@ fn truncate_error(err: &str) -> String {
     }
 }
 
-const FALLBACK_TIMEOUT_SECS: u64 = 45;
+const FALLBACK_TIMEOUT_SECS: u64 = 60;
 
 pub fn generate_commit_preview_with_fallback(
     config: &Config,

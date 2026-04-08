@@ -1971,8 +1971,40 @@ fn render_panel_button_line(app: &App) -> Line<'static> {
     Line::from(spans)
 }
 
+fn render_output_with_footer<'a>(
+    frame: &mut Frame,
+    area: Rect,
+    block: Block<'a>,
+    body_lines: Vec<Line<'a>>,
+    footer_lines: Vec<Line<'a>>,
+    scroll: u16,
+    wrap: bool,
+) {
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    if inner.height == 0 {
+        return;
+    }
+
+    let footer_height = (footer_lines.len() as u16).min(inner.height);
+    let chunks = Layout::vertical([
+        Constraint::Min(inner.height.saturating_sub(footer_height)),
+        Constraint::Length(footer_height),
+    ])
+    .split(inner);
+
+    let mut body = Paragraph::new(body_lines).scroll((scroll, 0));
+    if wrap {
+        body = body.wrap(Wrap { trim: false });
+    }
+
+    frame.render_widget(body, chunks[0]);
+    frame.render_widget(Paragraph::new(footer_lines), chunks[1]);
+}
+
 fn render_commit_output(frame: &mut Frame, area: Rect, preview: &CommitPreview, app: &App) {
-    let mut lines = vec![
+    let mut body_lines = vec![
         Line::styled(
             "COMMIT MESSAGE PREVIEW",
             Style::default()
@@ -1982,10 +2014,10 @@ fn render_commit_output(frame: &mut Frame, area: Rect, preview: &CommitPreview, 
         Line::raw(""),
     ];
     for line in preview.message.lines() {
-        lines.push(Line::raw(line.to_owned()));
+        body_lines.push(Line::raw(line.to_owned()));
     }
-    lines.push(Line::raw(""));
-    lines.push(Line::styled(
+    body_lines.push(Line::raw(""));
+    body_lines.push(Line::styled(
         format!(
             "provider: {}  files: {}  {:.1}s",
             preview.provider,
@@ -1994,7 +2026,7 @@ fn render_commit_output(frame: &mut Frame, area: Rect, preview: &CommitPreview, 
         ),
         Style::default().fg(Color::DarkGray),
     ));
-    lines.push(Line::styled(
+    body_lines.push(Line::styled(
         format!(
             "branch: {}  source: {}  tracked files: {}",
             preview.branch,
@@ -2003,17 +2035,19 @@ fn render_commit_output(frame: &mut Frame, area: Rect, preview: &CommitPreview, 
         ),
         Style::default().fg(Color::DarkGray),
     ));
-    lines.push(Line::raw(""));
-    lines.push(render_panel_button_line(app));
+    let footer_lines = vec![render_panel_button_line(app)];
 
-    let widget = Paragraph::new(lines)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Green)),
-        )
-        .scroll((app.output_scroll, 0));
-    frame.render_widget(widget, area);
+    render_output_with_footer(
+        frame,
+        area,
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Green)),
+        body_lines,
+        footer_lines,
+        app.output_scroll,
+        false,
+    );
 }
 
 fn render_sensitive_output(frame: &mut Frame, area: Rect, report: &SensitiveReport, app: &App) {
@@ -2056,20 +2090,6 @@ fn render_sensitive_output(frame: &mut Frame, area: Rect, report: &SensitiveRepo
         ]));
     }
 
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(if report.has_blocking_findings() {
-            Color::Red
-        } else {
-            Color::Yellow
-        }));
-    let inner = block.inner(area);
-    frame.render_widget(block, area);
-
-    if inner.height == 0 {
-        return;
-    }
-
     let footer_lines = if has_actions {
         vec![
             render_panel_button_line(app),
@@ -2078,22 +2098,25 @@ fn render_sensitive_output(frame: &mut Frame, area: Rect, report: &SensitiveRepo
     } else {
         vec![Line::styled(footer, Style::default().fg(Color::DarkGray))]
     };
-    let footer_height = (footer_lines.len() as u16).min(inner.height);
-    let chunks = Layout::vertical([
-        Constraint::Min(inner.height.saturating_sub(footer_height)),
-        Constraint::Length(footer_height),
-    ])
-    .split(inner);
-
-    frame.render_widget(
-        Paragraph::new(body_lines).scroll((app.output_scroll, 0)),
-        chunks[0],
+    render_output_with_footer(
+        frame,
+        area,
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(if report.has_blocking_findings() {
+                Color::Red
+            } else {
+                Color::Yellow
+            })),
+        body_lines,
+        footer_lines,
+        app.output_scroll,
+        false,
     );
-    frame.render_widget(Paragraph::new(footer_lines), chunks[1]);
 }
 
 fn render_branch_output(frame: &mut Frame, area: Rect, preview: &BranchPreview, app: &App) {
-    let lines = vec![
+    let body_lines = vec![
         Line::styled(
             "BRANCH NAME PREVIEW",
             Style::default()
@@ -2107,16 +2130,20 @@ fn render_branch_output(frame: &mut Frame, area: Rect, preview: &BranchPreview, 
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
         ),
-        Line::raw(""),
-        render_panel_button_line(app),
     ];
+    let footer_lines = vec![render_panel_button_line(app)];
 
-    let widget = Paragraph::new(lines).block(
+    render_output_with_footer(
+        frame,
+        area,
         Block::default()
             .borders(Borders::ALL)
             .border_style(Style::default().fg(Color::Cyan)),
+        body_lines,
+        footer_lines,
+        app.output_scroll,
+        false,
     );
-    frame.render_widget(widget, area);
 }
 
 fn render_pr_output(frame: &mut Frame, area: Rect, preview: &PrPreview, app: &App) {
@@ -2140,30 +2167,17 @@ fn render_pr_output(frame: &mut Frame, area: Rect, preview: &PrPreview, app: &Ap
     }
 
     let footer_lines = vec![render_panel_button_line(app)];
-    let block = Block::default()
-        .borders(Borders::TOP | Borders::BOTTOM)
-        .border_style(Style::default().fg(Color::Magenta));
-    let inner = block.inner(area);
-    frame.render_widget(block, area);
-
-    if inner.height == 0 {
-        return;
-    }
-
-    let footer_height = (footer_lines.len() as u16).min(inner.height);
-    let chunks = Layout::vertical([
-        Constraint::Min(inner.height.saturating_sub(footer_height)),
-        Constraint::Length(footer_height),
-    ])
-    .split(inner);
-
-    frame.render_widget(
-        Paragraph::new(body_lines)
-            .wrap(Wrap { trim: false })
-            .scroll((app.output_scroll, 0)),
-        chunks[0],
+    render_output_with_footer(
+        frame,
+        area,
+        Block::default()
+            .borders(Borders::TOP | Borders::BOTTOM)
+            .border_style(Style::default().fg(Color::Magenta)),
+        body_lines,
+        footer_lines,
+        app.output_scroll,
+        true,
     );
-    frame.render_widget(Paragraph::new(footer_lines), chunks[1]);
 }
 
 fn render_backend_selector(
@@ -2174,7 +2188,7 @@ fn render_backend_selector(
     detail: &str,
     border_color: Color,
 ) {
-    let lines = vec![
+    let body_lines = vec![
         Line::styled(
             title,
             Style::default()
@@ -2187,16 +2201,20 @@ fn render_backend_selector(
             Style::default().fg(Color::Cyan),
         ),
         Line::styled(detail, Style::default().fg(Color::DarkGray)),
-        Line::raw(""),
-        render_panel_button_line(app),
     ];
+    let footer_lines = vec![render_panel_button_line(app)];
 
-    let widget = Paragraph::new(lines).block(
+    render_output_with_footer(
+        frame,
+        area,
         Block::default()
             .borders(Borders::ALL)
             .border_style(Style::default().fg(border_color)),
+        body_lines,
+        footer_lines,
+        app.output_scroll,
+        false,
     );
-    frame.render_widget(widget, area);
 }
 
 fn render_backend_menu(frame: &mut Frame, area: Rect, app: &App) {
@@ -2245,7 +2263,7 @@ fn render_hook_menu(frame: &mut Frame, area: Rect, app: &App) {
         opencodecommit::sensitive::SensitiveEnforcement::StrictHigh
         | opencodecommit::sensitive::SensitiveEnforcement::StrictAll => "Strict agent",
     };
-    let lines = vec![
+    let body_lines = vec![
         Line::styled(
             "SAFETY SETTINGS",
             Style::default()
@@ -2257,16 +2275,20 @@ fn render_hook_menu(frame: &mut Frame, area: Rect, app: &App) {
             format!("Sensitive profile: {profile}"),
             Style::default().fg(Color::DarkGray),
         ),
-        Line::raw(""),
-        render_panel_button_line(app),
     ];
+    let footer_lines = vec![render_panel_button_line(app)];
 
-    let widget = Paragraph::new(lines).block(
+    render_output_with_footer(
+        frame,
+        area,
         Block::default()
             .borders(Borders::ALL)
             .border_style(Style::default().fg(Color::Yellow)),
+        body_lines,
+        footer_lines,
+        app.output_scroll,
+        false,
     );
-    frame.render_widget(widget, area);
 }
 
 fn render_hook_confirm(frame: &mut Frame, area: Rect, operation: HookOperation, app: &App) {
@@ -2275,21 +2297,23 @@ fn render_hook_confirm(frame: &mut Frame, area: Rect, operation: HookOperation, 
         HookOperation::Uninstall => "Uninstall",
     };
 
-    let lines = vec![
-        Line::styled(
-            format!("{action} the prepare-commit-msg hook?"),
-            Style::default().add_modifier(Modifier::BOLD),
-        ),
-        Line::raw(""),
-        render_panel_button_line(app),
-    ];
+    let body_lines = vec![Line::styled(
+        format!("{action} the prepare-commit-msg hook?"),
+        Style::default().add_modifier(Modifier::BOLD),
+    )];
+    let footer_lines = vec![render_panel_button_line(app)];
 
-    let widget = Paragraph::new(lines).block(
+    render_output_with_footer(
+        frame,
+        area,
         Block::default()
             .borders(Borders::ALL)
             .border_style(Style::default().fg(Color::Yellow)),
+        body_lines,
+        footer_lines,
+        app.output_scroll,
+        false,
     );
-    frame.render_widget(widget, area);
 }
 
 fn render_button_bar(frame: &mut Frame, area: Rect, app: &App) {
@@ -2475,6 +2499,16 @@ mod tests {
             branch: "main".to_owned(),
             diff_origin: crate::actions::DiffOrigin::Staged,
             backend_failures: vec![],
+        }
+    }
+
+    fn test_commit_preview_with_lines(message_lines: usize) -> CommitPreview {
+        CommitPreview {
+            message: (1..=message_lines)
+                .map(|index| format!("body line {index}"))
+                .collect::<Vec<_>>()
+                .join("\n"),
+            ..test_commit_preview()
         }
     }
 
@@ -2731,6 +2765,33 @@ mod tests {
     }
 
     #[test]
+    fn commit_footer_stays_visible_while_scrolling_body() {
+        let mut app = test_app();
+        app.set_output(OutputContent::CommitMessage {
+            preview: test_commit_preview_with_lines(20),
+        });
+        app.output_scroll = 8;
+
+        let text = render_text(&app, 100, 24);
+        assert!(
+            text.contains("body line 9"),
+            "scrolled commit body should show later lines"
+        );
+        assert!(
+            text.contains("[c Commit]"),
+            "commit action should stay visible"
+        );
+        assert!(
+            text.contains("[s Shorten]"),
+            "shorten action should stay visible"
+        );
+        assert!(
+            text.contains("[r Regenerate]"),
+            "regenerate action should stay visible"
+        );
+    }
+
+    #[test]
     fn page_keys_always_scroll_diff() {
         let mut app = test_app();
         app.set_output(OutputContent::PrPreview {
@@ -2803,6 +2864,34 @@ mod tests {
     }
 
     #[test]
+    fn hook_menu_actions_stay_visible_in_compact_viewport() {
+        let mut app = test_app();
+        app.set_output(OutputContent::HookMenu);
+
+        let text = render_text(&app, 100, 12);
+        assert!(
+            text.contains("[i Install Hook]"),
+            "install action should stay visible"
+        );
+        assert!(
+            text.contains("[a Strict Agent]"),
+            "strict agent action should stay visible"
+        );
+    }
+
+    #[test]
+    fn hook_confirm_actions_stay_visible_in_compact_viewport() {
+        let mut app = test_app();
+        app.set_output(OutputContent::HookConfirm {
+            operation: HookOperation::Install,
+        });
+
+        let text = render_text(&app, 100, 12);
+        assert!(text.contains("[y Yes]"), "yes action should stay visible");
+        assert!(text.contains("[n No]"), "no action should stay visible");
+    }
+
+    #[test]
     fn safety_menu_profile_selection_updates_and_saves_config() {
         let config_path =
             std::env::temp_dir().join(format!("occ-tui-sensitive-profile-{}", std::process::id()));
@@ -2854,6 +2943,43 @@ mod tests {
     }
 
     #[test]
+    fn branch_preview_actions_stay_visible_in_compact_viewport() {
+        let mut app = test_app();
+        app.set_output(OutputContent::BranchPreview {
+            preview: BranchPreview {
+                name: "feat/compact-buttons".to_owned(),
+                backend_failures: vec![],
+            },
+        });
+
+        let text = render_text(&app, 100, 12);
+        assert!(
+            text.contains("[c Create Branch]"),
+            "create branch action should stay visible"
+        );
+        assert!(
+            text.contains("[r Regenerate]"),
+            "regenerate action should stay visible"
+        );
+    }
+
+    #[test]
+    fn backend_menu_actions_stay_visible_in_compact_viewport() {
+        let mut app = test_app();
+        app.set_output(OutputContent::BackendMenu);
+
+        let text = render_text(&app, 100, 12);
+        assert!(
+            text.contains("[c Codex]"),
+            "codex action should stay visible"
+        );
+        assert!(
+            text.contains("[g Gemini]"),
+            "gemini action should stay visible"
+        );
+    }
+
+    #[test]
     fn commit_backend_menu_shows_one_shot_copy() {
         let mut app = test_app();
         app.set_output(OutputContent::CommitBackendMenu);
@@ -2869,6 +2995,22 @@ mod tests {
     }
 
     #[test]
+    fn commit_backend_menu_actions_stay_visible_in_compact_viewport() {
+        let mut app = test_app();
+        app.set_output(OutputContent::CommitBackendMenu);
+
+        let text = render_text(&app, 100, 12);
+        assert!(
+            text.contains("[l Claude]"),
+            "claude action should stay visible"
+        );
+        assert!(
+            text.contains("[g Gemini]"),
+            "gemini action should stay visible"
+        );
+    }
+
+    #[test]
     fn pr_backend_menu_shows_one_shot_copy() {
         let mut app = test_app();
         app.set_output(OutputContent::PrBackendMenu);
@@ -2880,6 +3022,22 @@ mod tests {
         assert!(
             text.contains("Runs PR generation once"),
             "missing one-shot copy"
+        );
+    }
+
+    #[test]
+    fn pr_backend_menu_actions_stay_visible_in_compact_viewport() {
+        let mut app = test_app();
+        app.set_output(OutputContent::PrBackendMenu);
+
+        let text = render_text(&app, 100, 12);
+        assert!(
+            text.contains("[o OpenCode]"),
+            "opencode action should stay visible"
+        );
+        assert!(
+            text.contains("[g Gemini]"),
+            "gemini action should stay visible"
         );
     }
 
