@@ -163,7 +163,7 @@ pub struct Config {
     #[serde(default)]
     pub gemini_path: String,
 
-    #[serde(default)]
+    #[serde(default = "default_gemini_model")]
     pub gemini_model: String,
 
     // --- PR pipeline models ---
@@ -278,6 +278,10 @@ fn default_codex_model() -> String {
     "gpt-5.4-mini".to_owned()
 }
 
+fn default_gemini_model() -> String {
+    "gemini-2.5-flash".to_owned()
+}
+
 fn default_diff_source() -> DiffSource {
     DiffSource::Auto
 }
@@ -358,7 +362,7 @@ impl Default for Config {
             codex_model: default_codex_model(),
             codex_provider: String::new(),
             gemini_path: String::new(),
-            gemini_model: String::new(),
+            gemini_model: default_gemini_model(),
             opencode_pr_provider: default_opencode_pr_provider(),
             opencode_pr_model: default_opencode_pr_model(),
             opencode_cheap_provider: default_opencode_cheap_provider(),
@@ -588,7 +592,7 @@ mod tests {
         assert_eq!(cfg.codex_model, "gpt-5.4-mini");
         assert_eq!(cfg.codex_provider, "");
         assert_eq!(cfg.gemini_path, "");
-        assert_eq!(cfg.gemini_model, "");
+        assert_eq!(cfg.gemini_model, "gemini-2.5-flash");
         assert_eq!(cfg.diff_source, DiffSource::Auto);
         assert_eq!(cfg.max_diff_length, 10000);
         assert!(!cfg.use_emojis);

@@ -29,6 +29,7 @@ AI commit messages via terminal AI agents. VSCodium / VS Code extension + standa
 3. Commit message appears in the input box
 
 Dropdown menu: mode-specific generation, refine, branch name generation, switch language, diagnose.
+Single-backend testing is available from dedicated SCM submenus for adaptive commit generation and PR generation; the main generate actions still follow fallback order.
 
 ## CLI Usage
 
@@ -36,10 +37,12 @@ Dropdown menu: mode-specific generation, refine, branch name generation, switch 
 occ tui                            # launch the minimal interactive TUI
 occ commit                         # generate message + commit
 occ commit --dry-run               # preview only, don't commit
+occ commit --backend gemini --dry-run --text
 occ commit --language Suomi        # generate in Finnish
 occ branch                         # generate branch name + checkout
 occ branch --mode adaptive         # match existing branch naming style
 occ pr                             # generate PR title + body
+occ pr --backend gemini --text
 occ changelog                      # generate changelog entry
 
 # JSON output (default), or --text for human readable plain text
@@ -47,7 +50,7 @@ occ commit --text
 occ commit --allow-sensitive       # skip secret scanning
 ```
 
-`occ tui` is a small launcher over the existing commands, not a full git dashboard. It lets you generate, shorten, and commit messages, plus preview branch / PR / changelog output from one screen.
+`occ tui` is a small launcher over the existing commands, not a full git dashboard. It lets you generate, shorten, and commit messages, plus preview branch / PR / changelog output from one screen. The main `Commit` and `PR` actions use the current fallback/default backend settings, and dedicated `Commit Backend` / `PR Backend` actions let you run one backend once without changing the default.
 
 `occ` is the short form. `opencodecommit` also works if `occ` clashes with something on your system.
 

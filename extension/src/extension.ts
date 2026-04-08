@@ -267,8 +267,13 @@ function formatPrDraftDocument(draft: GeneratedPrDraft): string {
   ].join("\n")
 }
 
-async function generatePrInline(repo: Repository) {
-  const config = getInlineConfig()
+async function generatePrInline(
+  repo: Repository,
+  backendOverride?: CliBackend,
+) {
+  const config = backendOverride
+    ? withBackendOverride(getInlineConfig(), backendOverride)
+    : getInlineConfig()
   log(`PR backend order: [${config.backendOrder.join(", ")}]`)
 
   let workingDiff: string | undefined
@@ -381,24 +386,44 @@ async function refineMessage(arg?: { rootUri?: vscode.Uri }) {
   vscode.commands.executeCommand("workbench.view.scm")
 }
 
-async function generatePr(arg?: { rootUri?: vscode.Uri }) {
+async function generatePr(
+  arg?: { rootUri?: vscode.Uri },
+  backendOverride?: CliBackend,
+) {
   const repo = resolveRepository(arg)
   if (!repo) {
     vscode.window.showErrorMessage("No git repository found.")
     return
   }
 
+  const title = backendOverride
+    ? `Generating PR draft with ${backendLabel(backendOverride)}...`
+    : "Generating PR draft..."
+
   await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.SourceControl,
-      title: "Generating PR draft...",
+      title,
     },
     async () => {
       try {
-        await generatePrInline(repo)
+        await generatePrInline(repo, backendOverride)
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err)
-        vscode.window.showErrorMessage(`OpenCodeCommit: ${msg}`)
+        if (msg.includes("CLI not found")) {
+          const action = await vscode.window.showErrorMessage(
+            `OpenCodeCommit: ${msg}`,
+            "Open Settings",
+          )
+          if (action === "Open Settings") {
+            vscode.commands.executeCommand(
+              "workbench.action.openSettings",
+              "opencodecommit",
+            )
+          }
+        } else {
+          vscode.window.showErrorMessage(`OpenCodeCommit: ${msg}`)
+        }
       }
     },
   )
@@ -533,6 +558,21 @@ export function activate(context: vscode.ExtensionContext) {
     ),
     vscode.commands.registerCommand("opencodecommit.generatePr", (arg) =>
       generatePr(arg),
+    ),
+    vscode.commands.registerCommand("opencodecommit.generatePrCodex", (arg) =>
+      generatePr(arg, "codex"),
+    ),
+    vscode.commands.registerCommand(
+      "opencodecommit.generatePrOpencode",
+      (arg) => generatePr(arg, "opencode"),
+    ),
+    vscode.commands.registerCommand(
+      "opencodecommit.generatePrClaude",
+      (arg) => generatePr(arg, "claude"),
+    ),
+    vscode.commands.registerCommand(
+      "opencodecommit.generatePrGemini",
+      (arg) => generatePr(arg, "gemini"),
     ),
     vscode.commands.registerCommand("opencodecommit.generateBranch", (arg) =>
       generateBranch(cfg.get<BranchMode>("branchMode", "conventional"), arg),

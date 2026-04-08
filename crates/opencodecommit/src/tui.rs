@@ -34,8 +34,16 @@ enum OutputContent {
     BranchPreview { preview: BranchPreview },
     PrPreview { preview: PrPreview },
     BackendMenu,
+    CommitBackendMenu,
+    PrBackendMenu,
     HookMenu,
     HookConfirm { operation: HookOperation },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PreviewOrigin {
+    Fallback,
+    SingleBackend(CliBackend),
 }
 
 // ── Panel buttons (rendered inside the output panel) ──
@@ -47,7 +55,11 @@ fn panel_buttons(output: &OutputContent) -> &'static [&'static str] {
         OutputContent::SensitiveWarning { .. } => &["[a Allow & Continue]"],
         OutputContent::BranchPreview { .. } => &["[c Create Branch]", "[r Regenerate]"],
         OutputContent::PrPreview { .. } => &["[s Submit PR]", "[p Copy]", "[r Regenerate]"],
-        OutputContent::BackendMenu => &["[c Codex]", "[o OpenCode]", "[l Claude]", "[g Gemini]"],
+        OutputContent::BackendMenu
+        | OutputContent::CommitBackendMenu
+        | OutputContent::PrBackendMenu => {
+            &["[c Codex]", "[o OpenCode]", "[l Claude]", "[g Gemini]"]
+        }
         OutputContent::HookMenu => &["[i Install Hook]", "[u Uninstall Hook]"],
         OutputContent::HookConfirm { .. } => &["[y Yes]", "[n No]"],
     }
@@ -57,21 +69,25 @@ fn panel_buttons(output: &OutputContent) -> &'static [&'static str] {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ButtonId {
-    Commit,     // 1
-    Branch,     // 2
-    Pr,         // 3
-    SafetyHook, // 4
-    Backend,    // 5
-    Quit,       // 0
+    Commit,        // 1
+    Branch,        // 2
+    Pr,            // 3
+    SafetyHook,    // 4
+    Backend,       // 5
+    CommitBackend, // 6
+    PrBackend,     // 7
+    Quit,          // 0
 }
 
 impl ButtonId {
-    const ALL: [ButtonId; 6] = [
+    const ALL: [ButtonId; 8] = [
         ButtonId::Commit,
         ButtonId::Branch,
         ButtonId::Pr,
         ButtonId::SafetyHook,
         ButtonId::Backend,
+        ButtonId::CommitBackend,
+        ButtonId::PrBackend,
         ButtonId::Quit,
     ];
 
@@ -82,6 +98,8 @@ impl ButtonId {
             ButtonId::Pr => '3',
             ButtonId::SafetyHook => '4',
             ButtonId::Backend => '5',
+            ButtonId::CommitBackend => '6',
+            ButtonId::PrBackend => '7',
             ButtonId::Quit => '0',
         }
     }
@@ -93,6 +111,8 @@ impl ButtonId {
             ButtonId::Pr => "PR",
             ButtonId::SafetyHook => "Safety Hook",
             ButtonId::Backend => "Backend",
+            ButtonId::CommitBackend => "Commit Backend",
+            ButtonId::PrBackend => "PR Backend",
             ButtonId::Quit => "Quit",
         }
     }
@@ -110,13 +130,19 @@ impl ButtonId {
             ButtonId::Pr => "Generate a PR title and body from the current diff",
             ButtonId::SafetyHook => "Install or uninstall the prepare-commit-msg safety hook",
             ButtonId::Backend => "Select which AI backend commit, branch, and PR actions use",
+            ButtonId::CommitBackend => {
+                "Generate a commit message with one backend without changing the default"
+            }
+            ButtonId::PrBackend => {
+                "Generate a PR preview with one backend without changing the default"
+            }
             ButtonId::Quit => "Exit the TUI",
         }
     }
 
     fn is_available(self, app: &App) -> bool {
         match self {
-            ButtonId::Commit => !app.sensitive_blocked,
+            ButtonId::Commit | ButtonId::CommitBackend => !app.sensitive_blocked,
             _ => true,
         }
     }
@@ -212,12 +238,12 @@ struct BackendLogEntry {
 
 enum WorkerMessage {
     BackendProgress(BackendProgress),
-    CommitGenerated(actions::Result<CommitPreview>),
-    CommitShortened(actions::Result<CommitPreview>),
+    CommitGenerated(actions::Result<CommitPreview>, PreviewOrigin),
+    CommitShortened(actions::Result<CommitPreview>, PreviewOrigin),
     CommitApplied(actions::Result<actions::CommitResult>),
     BranchGenerated(actions::Result<BranchPreview>),
     BranchCreated(actions::Result<actions::BranchResult>),
-    PrGenerated(actions::Result<PrPreview>, Option<PrContext>),
+    PrGenerated(actions::Result<PrPreview>, Option<PrContext>, PreviewOrigin),
     HookRan(actions::Result<String>),
     PrSubmitted(Result<String, String>),
     UpdateAvailable(Option<String>),
@@ -250,6 +276,8 @@ struct App {
     commit_count: usize,
     update_notice: Option<String>,
     backend_log: Vec<BackendLogEntry>,
+    commit_preview_origin: Option<PreviewOrigin>,
+    pr_preview_origin: Option<PreviewOrigin>,
 }
 
 impl App {
@@ -277,6 +305,8 @@ impl App {
             commit_count: 0,
             update_notice: None,
             backend_log: vec![],
+            commit_preview_origin: None,
+            pr_preview_origin: None,
         }
     }
 
@@ -501,6 +531,23 @@ impl App {
     }
 }
 
+fn config_for_origin(config: &Config, origin: PreviewOrigin) -> Config {
+    let mut next = config.clone();
+    if let PreviewOrigin::SingleBackend(backend) = origin {
+        next.backend = backend;
+        next.backend_order = vec![backend];
+    }
+    next
+}
+
+fn current_commit_origin(app: &App) -> PreviewOrigin {
+    app.commit_preview_origin.unwrap_or(PreviewOrigin::Fallback)
+}
+
+fn current_pr_origin(app: &App) -> PreviewOrigin {
+    app.pr_preview_origin.unwrap_or(PreviewOrigin::Fallback)
+}
+
 fn panel_button_description(content: &OutputContent, index: usize) -> &'static str {
     match content {
         OutputContent::CommitMessage { .. } => match index {
@@ -526,6 +573,20 @@ fn panel_button_description(content: &OutputContent, index: usize) -> &'static s
             1 => "Use OpenCode CLI for commit, branch, and PR generation",
             2 => "Use Claude Code CLI for commit, branch, and PR generation",
             3 => "Use Gemini CLI for commit, branch, and PR generation",
+            _ => "",
+        },
+        OutputContent::CommitBackendMenu => match index {
+            0 => "Run commit generation once with Codex CLI",
+            1 => "Run commit generation once with OpenCode CLI",
+            2 => "Run commit generation once with Claude Code CLI",
+            3 => "Run commit generation once with Gemini CLI",
+            _ => "",
+        },
+        OutputContent::PrBackendMenu => match index {
+            0 => "Run PR generation once with Codex CLI",
+            1 => "Run PR generation once with OpenCode CLI",
+            2 => "Run PR generation once with Claude Code CLI",
+            3 => "Run PR generation once with Gemini CLI",
             _ => "",
         },
         OutputContent::HookMenu => match index {
@@ -756,7 +817,7 @@ fn handle_key(app: &mut App, key: KeyEvent, tx: &Sender<WorkerMessage>) {
         }
 
         // Number keys for bottom bar shortcuts
-        KeyCode::Char(ch @ '0'..='5') => {
+        KeyCode::Char(ch @ '0'..='7') => {
             if let Some(btn) = ButtonId::ALL.iter().find(|b| b.number() == ch) {
                 activate_bar_button(app, *btn, tx);
             }
@@ -800,6 +861,12 @@ fn activate_bar_button(app: &mut App, btn: ButtonId, tx: &Sender<WorkerMessage>)
         ButtonId::Backend => {
             app.set_output(OutputContent::BackendMenu);
         }
+        ButtonId::CommitBackend => {
+            app.set_output(OutputContent::CommitBackendMenu);
+        }
+        ButtonId::PrBackend => {
+            app.set_output(OutputContent::PrBackendMenu);
+        }
         ButtonId::Quit => app.should_quit = true,
     }
 }
@@ -810,14 +877,14 @@ fn activate_panel_button(app: &mut App, index: usize, tx: &Sender<WorkerMessage>
         OutputContent::CommitMessage { .. } => match index {
             0 => spawn_apply_commit(app, tx),
             1 => spawn_shorten_commit(app, tx),
-            2 => spawn_generate_commit(app, tx, false),
+            2 => spawn_generate_commit_with_origin(app, tx, current_commit_origin(app), false),
             _ => {}
         },
         OutputContent::SensitiveWarning { .. } => {
             if index == 0 {
                 app.sensitive_blocked = false;
                 app.clear_output();
-                spawn_generate_commit(app, tx, true);
+                spawn_generate_commit_with_origin(app, tx, current_commit_origin(app), true);
             }
         }
         OutputContent::BranchPreview { .. } => match index {
@@ -835,7 +902,7 @@ fn activate_panel_button(app: &mut App, index: usize, tx: &Sender<WorkerMessage>
                     app.set_error("Clipboard copy failed. Select text manually.");
                 }
             }
-            2 => spawn_generate_pr(app, tx),
+            2 => spawn_generate_pr_with_origin(app, tx, current_pr_origin(app)),
             _ => {}
         },
         OutputContent::BackendMenu => match index {
@@ -843,6 +910,56 @@ fn activate_panel_button(app: &mut App, index: usize, tx: &Sender<WorkerMessage>
             1 => app.set_backend(CliBackend::Opencode),
             2 => app.set_backend(CliBackend::Claude),
             3 => app.set_backend(CliBackend::Gemini),
+            _ => {}
+        },
+        OutputContent::CommitBackendMenu => match index {
+            0 => spawn_generate_commit_with_origin(
+                app,
+                tx,
+                PreviewOrigin::SingleBackend(CliBackend::Codex),
+                false,
+            ),
+            1 => spawn_generate_commit_with_origin(
+                app,
+                tx,
+                PreviewOrigin::SingleBackend(CliBackend::Opencode),
+                false,
+            ),
+            2 => spawn_generate_commit_with_origin(
+                app,
+                tx,
+                PreviewOrigin::SingleBackend(CliBackend::Claude),
+                false,
+            ),
+            3 => spawn_generate_commit_with_origin(
+                app,
+                tx,
+                PreviewOrigin::SingleBackend(CliBackend::Gemini),
+                false,
+            ),
+            _ => {}
+        },
+        OutputContent::PrBackendMenu => match index {
+            0 => spawn_generate_pr_with_origin(
+                app,
+                tx,
+                PreviewOrigin::SingleBackend(CliBackend::Codex),
+            ),
+            1 => spawn_generate_pr_with_origin(
+                app,
+                tx,
+                PreviewOrigin::SingleBackend(CliBackend::Opencode),
+            ),
+            2 => spawn_generate_pr_with_origin(
+                app,
+                tx,
+                PreviewOrigin::SingleBackend(CliBackend::Claude),
+            ),
+            3 => spawn_generate_pr_with_origin(
+                app,
+                tx,
+                PreviewOrigin::SingleBackend(CliBackend::Gemini),
+            ),
             _ => {}
         },
         OutputContent::HookMenu => match index {
@@ -876,14 +993,14 @@ fn handle_panel_shortcut(app: &mut App, ch: char, tx: &Sender<WorkerMessage>) {
         OutputContent::CommitMessage { .. } => match ch {
             'c' => spawn_apply_commit(app, tx),
             's' => spawn_shorten_commit(app, tx),
-            'r' => spawn_generate_commit(app, tx, false),
+            'r' => spawn_generate_commit_with_origin(app, tx, current_commit_origin(app), false),
             _ => {}
         },
         OutputContent::SensitiveWarning { .. } => {
             if ch == 'a' {
                 app.sensitive_blocked = false;
                 app.clear_output();
-                spawn_generate_commit(app, tx, true);
+                spawn_generate_commit_with_origin(app, tx, current_commit_origin(app), true);
             }
         }
         OutputContent::BranchPreview { .. } => match ch {
@@ -901,7 +1018,7 @@ fn handle_panel_shortcut(app: &mut App, ch: char, tx: &Sender<WorkerMessage>) {
                     app.set_error("Clipboard copy failed. Select text manually.");
                 }
             }
-            'r' => spawn_generate_pr(app, tx),
+            'r' => spawn_generate_pr_with_origin(app, tx, current_pr_origin(app)),
             _ => {}
         },
         OutputContent::BackendMenu => match ch {
@@ -909,6 +1026,72 @@ fn handle_panel_shortcut(app: &mut App, ch: char, tx: &Sender<WorkerMessage>) {
             'o' => app.set_backend(CliBackend::Opencode),
             'l' => app.set_backend(CliBackend::Claude),
             'g' => app.set_backend(CliBackend::Gemini),
+            _ => {}
+        },
+        OutputContent::CommitBackendMenu => match ch {
+            'c' => {
+                spawn_generate_commit_with_origin(
+                    app,
+                    tx,
+                    PreviewOrigin::SingleBackend(CliBackend::Codex),
+                    false,
+                );
+            }
+            'o' => {
+                spawn_generate_commit_with_origin(
+                    app,
+                    tx,
+                    PreviewOrigin::SingleBackend(CliBackend::Opencode),
+                    false,
+                );
+            }
+            'l' => {
+                spawn_generate_commit_with_origin(
+                    app,
+                    tx,
+                    PreviewOrigin::SingleBackend(CliBackend::Claude),
+                    false,
+                );
+            }
+            'g' => {
+                spawn_generate_commit_with_origin(
+                    app,
+                    tx,
+                    PreviewOrigin::SingleBackend(CliBackend::Gemini),
+                    false,
+                );
+            }
+            _ => {}
+        },
+        OutputContent::PrBackendMenu => match ch {
+            'c' => {
+                spawn_generate_pr_with_origin(
+                    app,
+                    tx,
+                    PreviewOrigin::SingleBackend(CliBackend::Codex),
+                );
+            }
+            'o' => {
+                spawn_generate_pr_with_origin(
+                    app,
+                    tx,
+                    PreviewOrigin::SingleBackend(CliBackend::Opencode),
+                );
+            }
+            'l' => {
+                spawn_generate_pr_with_origin(
+                    app,
+                    tx,
+                    PreviewOrigin::SingleBackend(CliBackend::Claude),
+                );
+            }
+            'g' => {
+                spawn_generate_pr_with_origin(
+                    app,
+                    tx,
+                    PreviewOrigin::SingleBackend(CliBackend::Gemini),
+                );
+            }
             _ => {}
         },
         OutputContent::HookMenu => match ch {
@@ -938,9 +1121,18 @@ fn handle_panel_shortcut(app: &mut App, ch: char, tx: &Sender<WorkerMessage>) {
 // ── Worker thread spawners ──
 
 fn spawn_generate_commit(app: &mut App, tx: &Sender<WorkerMessage>, allow_sensitive: bool) {
+    spawn_generate_commit_with_origin(app, tx, PreviewOrigin::Fallback, allow_sensitive);
+}
+
+fn spawn_generate_commit_with_origin(
+    app: &mut App,
+    tx: &Sender<WorkerMessage>,
+    origin: PreviewOrigin,
+    allow_sensitive: bool,
+) {
     app.pending = Some(PendingJob::GeneratingCommit);
     app.backend_log.clear();
-    let config = app.config.clone();
+    let config = config_for_origin(&app.config, origin);
     let tx = tx.clone();
     std::thread::spawn(move || {
         let request = CommitRequest {
@@ -954,6 +1146,7 @@ fn spawn_generate_commit(app: &mut App, tx: &Sender<WorkerMessage>, allow_sensit
             actions::generate_commit_preview_with_fallback(&config, &request, move |p| {
                 let _ = progress_tx.send(WorkerMessage::BackendProgress(p));
             }),
+            origin,
         ));
     });
 }
@@ -966,7 +1159,8 @@ fn spawn_shorten_commit(app: &mut App, tx: &Sender<WorkerMessage>) {
 
     app.pending = Some(PendingJob::ShorteningCommit);
     app.backend_log.clear();
-    let config = app.config.clone();
+    let origin = current_commit_origin(app);
+    let config = config_for_origin(&app.config, origin);
     let message = preview.message.clone();
     let tx = tx.clone();
     std::thread::spawn(move || {
@@ -981,6 +1175,7 @@ fn spawn_shorten_commit(app: &mut App, tx: &Sender<WorkerMessage>) {
             actions::generate_commit_preview_with_fallback(&config, &request, move |p| {
                 let _ = progress_tx.send(WorkerMessage::BackendProgress(p));
             }),
+            origin,
         ));
     });
 }
@@ -1035,9 +1230,13 @@ fn spawn_create_branch(app: &mut App, tx: &Sender<WorkerMessage>) {
 }
 
 fn spawn_generate_pr(app: &mut App, tx: &Sender<WorkerMessage>) {
+    spawn_generate_pr_with_origin(app, tx, PreviewOrigin::Fallback);
+}
+
+fn spawn_generate_pr_with_origin(app: &mut App, tx: &Sender<WorkerMessage>, origin: PreviewOrigin) {
     app.pending = Some(PendingJob::GeneratingPr);
     app.backend_log.clear();
-    let config = app.config.clone();
+    let config = config_for_origin(&app.config, origin);
     let tx = tx.clone();
     std::thread::spawn(move || {
         // Load PR context for sidebar population
@@ -1046,7 +1245,7 @@ fn spawn_generate_pr(app: &mut App, tx: &Sender<WorkerMessage>) {
         let result = actions::generate_pr_preview_with_fallback(&config, None, move |p| {
             let _ = progress_tx.send(WorkerMessage::BackendProgress(p));
         });
-        let _ = tx.send(WorkerMessage::PrGenerated(result, pr_ctx));
+        let _ = tx.send(WorkerMessage::PrGenerated(result, pr_ctx, origin));
     });
 }
 
@@ -1160,11 +1359,12 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
             }
             // Don't clear pending — the job is still running
         }
-        WorkerMessage::CommitGenerated(result) => {
+        WorkerMessage::CommitGenerated(result, origin) => {
             app.pending = None;
             app.backend_log.clear();
             match result {
                 Ok(preview) => {
+                    app.commit_preview_origin = Some(origin);
                     let notice = format_success_notice(
                         "Generated commit message",
                         &preview.provider,
@@ -1174,17 +1374,19 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
                     app.set_output(OutputContent::CommitMessage { preview });
                 }
                 Err(ActionError::SensitiveContent(report)) => {
+                    app.commit_preview_origin = Some(origin);
                     app.sensitive_blocked = true;
                     app.set_output(OutputContent::SensitiveWarning { report });
                 }
                 Err(err) => app.set_error(err.to_string()),
             }
         }
-        WorkerMessage::CommitShortened(result) => {
+        WorkerMessage::CommitShortened(result, origin) => {
             app.pending = None;
             app.backend_log.clear();
             match result {
                 Ok(preview) => {
+                    app.commit_preview_origin = Some(origin);
                     let notice = format_success_notice(
                         "Shortened commit message",
                         &preview.provider,
@@ -1252,11 +1454,12 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
                 Err(err) => app.set_error(err.to_string()),
             }
         }
-        WorkerMessage::PrGenerated(result, pr_ctx) => {
+        WorkerMessage::PrGenerated(result, pr_ctx, origin) => {
             app.pending = None;
             app.backend_log.clear();
             match result {
                 Ok(preview) => {
+                    app.pr_preview_origin = Some(origin);
                     if let Some(ctx) = &pr_ctx {
                         app.populate_file_groups(ctx);
                         if ctx.from_branch_diff && app.diff_text.is_empty() {
@@ -1380,7 +1583,9 @@ fn output_panel_height(app: &App) -> u16 {
             let lines = preview.title.lines().count() as u16 + preview.body.lines().count() as u16;
             (lines + 6).min(20)
         }
-        Some(OutputContent::BackendMenu) => 8,
+        Some(OutputContent::BackendMenu)
+        | Some(OutputContent::CommitBackendMenu)
+        | Some(OutputContent::PrBackendMenu) => 8,
         Some(OutputContent::HookMenu) => 6,
         Some(OutputContent::HookConfirm { .. }) => 5,
     }
@@ -1591,6 +1796,12 @@ fn render_output_panel(frame: &mut Frame, area: Rect, app: &App) {
         OutputContent::BackendMenu => {
             render_backend_menu(frame, area, app);
         }
+        OutputContent::CommitBackendMenu => {
+            render_commit_backend_menu(frame, area, app);
+        }
+        OutputContent::PrBackendMenu => {
+            render_pr_backend_menu(frame, area, app);
+        }
         OutputContent::HookMenu => {
             render_hook_menu(frame, area, app);
         }
@@ -1773,23 +1984,27 @@ fn render_pr_output(frame: &mut Frame, area: Rect, preview: &PrPreview, app: &Ap
     frame.render_widget(widget, area);
 }
 
-fn render_backend_menu(frame: &mut Frame, area: Rect, app: &App) {
+fn render_backend_selector(
+    frame: &mut Frame,
+    area: Rect,
+    app: &App,
+    title: &str,
+    detail: &str,
+    border_color: Color,
+) {
     let lines = vec![
         Line::styled(
-            "BACKEND SELECTOR",
+            title,
             Style::default()
                 .fg(Color::DarkGray)
                 .add_modifier(Modifier::BOLD),
         ),
         Line::raw(""),
         Line::styled(
-            format!("Current backend: {}", app.repo.backend_label),
+            format!("Current default: {}", app.repo.backend_label),
             Style::default().fg(Color::Cyan),
         ),
-        Line::styled(
-            "Applies to commit, branch, and PR generation.",
-            Style::default().fg(Color::DarkGray),
-        ),
+        Line::styled(detail, Style::default().fg(Color::DarkGray)),
         Line::raw(""),
         render_panel_button_line(app),
     ];
@@ -1797,9 +2012,42 @@ fn render_backend_menu(frame: &mut Frame, area: Rect, app: &App) {
     let widget = Paragraph::new(lines).block(
         Block::default()
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Blue)),
+            .border_style(Style::default().fg(border_color)),
     );
     frame.render_widget(widget, area);
+}
+
+fn render_backend_menu(frame: &mut Frame, area: Rect, app: &App) {
+    render_backend_selector(
+        frame,
+        area,
+        app,
+        "BACKEND SELECTOR",
+        "Changes the default backend for commit, branch, and PR generation.",
+        Color::Blue,
+    );
+}
+
+fn render_commit_backend_menu(frame: &mut Frame, area: Rect, app: &App) {
+    render_backend_selector(
+        frame,
+        area,
+        app,
+        "COMMIT BACKEND SELECTOR",
+        "Runs commit generation once with the selected backend.",
+        Color::Green,
+    );
+}
+
+fn render_pr_backend_menu(frame: &mut Frame, area: Rect, app: &App) {
+    render_backend_selector(
+        frame,
+        area,
+        app,
+        "PR BACKEND SELECTOR",
+        "Runs PR generation once with the selected backend.",
+        Color::Magenta,
+    );
 }
 
 fn render_hook_menu(frame: &mut Frame, area: Rect, app: &App) {
@@ -2048,6 +2296,11 @@ mod tests {
         assert!(text.contains("3 PR"), "missing PR button");
         assert!(text.contains("4 Safety Hook"), "missing Safety Hook button");
         assert!(text.contains("5 Backend"), "missing Backend button");
+        assert!(
+            text.contains("6 Commit Backend"),
+            "missing Commit Backend button"
+        );
+        assert!(text.contains("7 PR Backend"), "missing PR Backend button");
         assert!(text.contains("0 Quit"), "missing Quit button");
     }
 
@@ -2239,11 +2492,41 @@ mod tests {
         let text = render_text(&app, 100, 24);
         assert!(text.contains("BACKEND SELECTOR"), "missing backend title");
         assert!(
-            text.contains("Current backend: Codex CLI"),
+            text.contains("Current default: Codex CLI"),
             "missing current backend"
         );
         assert!(text.contains("[c Codex]"), "missing codex action");
         assert!(text.contains("[o OpenCode]"), "missing opencode action");
+    }
+
+    #[test]
+    fn commit_backend_menu_shows_one_shot_copy() {
+        let mut app = test_app();
+        app.set_output(OutputContent::CommitBackendMenu);
+        let text = render_text(&app, 100, 24);
+        assert!(
+            text.contains("COMMIT BACKEND SELECTOR"),
+            "missing commit backend title"
+        );
+        assert!(
+            text.contains("Runs commit generation once"),
+            "missing one-shot copy"
+        );
+    }
+
+    #[test]
+    fn pr_backend_menu_shows_one_shot_copy() {
+        let mut app = test_app();
+        app.set_output(OutputContent::PrBackendMenu);
+        let text = render_text(&app, 100, 24);
+        assert!(
+            text.contains("PR BACKEND SELECTOR"),
+            "missing pr backend title"
+        );
+        assert!(
+            text.contains("Runs PR generation once"),
+            "missing one-shot copy"
+        );
     }
 
     #[test]
@@ -2323,6 +2606,48 @@ mod tests {
 
         assert_eq!(app.config.backend, CliBackend::Gemini);
         assert_eq!(app.config.backend_order, vec![CliBackend::Gemini]);
+    }
+
+    #[test]
+    fn one_shot_origin_clones_config_without_mutating_defaults() {
+        let config = Config {
+            backend: CliBackend::Codex,
+            backend_order: vec![CliBackend::Codex, CliBackend::Opencode],
+            ..Config::default()
+        };
+
+        let one_shot = config_for_origin(&config, PreviewOrigin::SingleBackend(CliBackend::Gemini));
+
+        assert_eq!(config.backend, CliBackend::Codex);
+        assert_eq!(
+            config.backend_order,
+            vec![CliBackend::Codex, CliBackend::Opencode]
+        );
+        assert_eq!(one_shot.backend, CliBackend::Gemini);
+        assert_eq!(one_shot.backend_order, vec![CliBackend::Gemini]);
+    }
+
+    #[test]
+    fn preview_origin_defaults_to_fallback() {
+        let app = test_app();
+        assert_eq!(current_commit_origin(&app), PreviewOrigin::Fallback);
+        assert_eq!(current_pr_origin(&app), PreviewOrigin::Fallback);
+    }
+
+    #[test]
+    fn preview_origin_reuses_single_backend() {
+        let mut app = test_app();
+        app.commit_preview_origin = Some(PreviewOrigin::SingleBackend(CliBackend::Claude));
+        app.pr_preview_origin = Some(PreviewOrigin::SingleBackend(CliBackend::Gemini));
+
+        assert_eq!(
+            current_commit_origin(&app),
+            PreviewOrigin::SingleBackend(CliBackend::Claude)
+        );
+        assert_eq!(
+            current_pr_origin(&app),
+            PreviewOrigin::SingleBackend(CliBackend::Gemini)
+        );
     }
 
     #[test]

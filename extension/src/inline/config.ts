@@ -62,7 +62,7 @@ export function getConfig(): ExtensionConfig {
     claudeModel: cfg.get<string>("claudeCodeCLIModel", "claude-sonnet-4-6"),
     codexModel: cfg.get<string>("codexCLIModel", "gpt-5.4-mini"),
     codexProvider: cfg.get<string>("codexCLIProvider", ""),
-    geminiModel: cfg.get<string>("geminiCLIModel", ""),
+    geminiModel: cfg.get<string>("geminiCLIModel", "gemini-2.5-flash"),
     opencodePrProvider: cfg.get<string>("opencodePRProvider", "openai"),
     opencodePrModel: cfg.get<string>("opencodePRModel", "gpt-5.4"),
     opencodeCheapProvider: cfg.get<string>("opencodeCheapProvider", "openai"),
