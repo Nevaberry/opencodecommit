@@ -1,6 +1,7 @@
 # OpenCodeCommit
 
 AI commit messages via terminal AI agents. VSCodium / VS Code extension + standalone Rust / npm CLI.
+asdf
 
 **Security scanning built in** — diffs are scanned locally for secrets, source maps, and private keys before anything leaves your machine.
 
