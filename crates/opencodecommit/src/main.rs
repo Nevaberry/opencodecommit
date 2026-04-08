@@ -50,7 +50,7 @@ enum Commands {
         #[arg(long)]
         max_diff_length: Option<usize>,
 
-        /// Language label (e.g. "English", "Suomi", "Custom (example)")
+        /// Language label (e.g. "English", "Finnish", "Spanish", "Japanese")
         #[arg(long)]
         language: Option<String>,
 

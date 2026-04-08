@@ -36,7 +36,9 @@ Dropdown menu: mode-specific generation, refine, branch name generation, switch 
 occ tui                            # launch the minimal interactive TUI
 occ commit                         # generate message + commit
 occ commit --dry-run               # preview only, don't commit
-occ commit --language Suomi        # generate in Finnish
+occ commit --language Finnish      # generate in Finnish
+occ commit --language Spanish      # generate in Spanish
+occ commit --language Korean       # generate in Korean
 occ branch                         # generate branch name + checkout
 occ branch --mode adaptive         # match existing branch naming style
 occ pr                             # generate PR title + body
@@ -100,16 +102,16 @@ All VSCodium / VS Code settings are prefixed with `opencodecommit.`. Key setting
 | `commitMode` | `adaptive` | `adaptive`, `adaptive-oneliner`, `conventional`, `conventional-oneliner` |
 | `branchMode` | `conventional` | `conventional` or `adaptive` (matches existing branch names) |
 | `diffSource` | `auto` | `auto`, `staged`, or `all` |
-| `languages` | English, Suomi | Array of language configs with custom prompt modules |
+| `languages` | English, Finnish, Japanese, Chinese, Spanish, Portuguese, French, Korean, Russian, Vietnamese, German, Custom (example) | Array of language configs with custom prompt modules |
 | `commitTemplate` | `{{type}}: {{message}}` | Supports `{{type}}`, `{{emoji}}`, `{{message}}` |
 
 CLI config: `~/.config/opencodecommit/config.toml` (TOML with the same fields in kebab-case).
 
 ## Languages
 
-Built-in: **English** (default), **Suomi** (Finnish), **Custom (example)** (template for your own).
+Built-in: **English** (default), **Finnish**, **Japanese**, **Chinese**, **Spanish**, **Portuguese**, **French**, **Korean**, **Russian**, **Vietnamese**, **German**, **Custom (example)** (template for your own).
 
-Each language defines full prompt modules (base, adaptive, conventional, length, sensitive note). Missing modules fall back to English. CLI: `--language Suomi`. Extension: dropdown menu or `opencodecommit.activeLanguage` setting.
+Each language defines full prompt modules (base, adaptive, conventional, length, sensitive note). Missing modules fall back to English. CLI: `--language <built-in label>`. Extension: dropdown menu or `opencodecommit.activeLanguage` setting.
 
 Add custom languages in config — only `label` and `instruction` are required:
 

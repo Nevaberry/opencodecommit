@@ -252,7 +252,7 @@ mod tests {
     #[test]
     fn includes_language_instruction() {
         let config = make_config(|c| {
-            c.active_language = "Suomi".to_owned();
+            c.active_language = "Finnish".to_owned();
         });
         let context = make_context(|_| {});
         let prompt = build_prompt(&context, &config, None);
@@ -262,7 +262,7 @@ mod tests {
     #[test]
     fn finnish_uses_finnish_prompt_modules() {
         let config = make_config(|c| {
-            c.active_language = "Suomi".to_owned();
+            c.active_language = "Finnish".to_owned();
         });
         let context = make_context(|_| {});
         let prompt = build_prompt(&context, &config, None);
@@ -405,7 +405,7 @@ mod tests {
     #[test]
     fn finnish_sensitive_note() {
         let config = make_config(|c| {
-            c.active_language = "Suomi".to_owned();
+            c.active_language = "Finnish".to_owned();
         });
         let context = make_context(|c| c.has_sensitive_content = true);
         let prompt = build_prompt(&context, &config, None);
@@ -415,7 +415,7 @@ mod tests {
     #[test]
     fn finnish_conventional_mode() {
         let config = make_config(|c| {
-            c.active_language = "Suomi".to_owned();
+            c.active_language = "Finnish".to_owned();
         });
         let context = make_context(|_| {});
         let prompt = build_prompt(&context, &config, Some(CommitMode::Conventional));
@@ -425,7 +425,7 @@ mod tests {
     #[test]
     fn finnish_adaptive_mode() {
         let config = make_config(|c| {
-            c.active_language = "Suomi".to_owned();
+            c.active_language = "Finnish".to_owned();
         });
         let context = make_context(|c| {
             c.recent_commits = vec!["abc feat: test".to_owned()];
