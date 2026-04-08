@@ -1,5 +1,5 @@
 use std::fmt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use opencodecommit::backend::{
@@ -702,14 +702,19 @@ fi
 
 pub fn load_repo_summary(config: &Config) -> Result<RepoSummary> {
     let repo_root = git::get_repo_root()?;
+    load_repo_summary_for_root(config, &repo_root)
+}
+
+pub fn load_repo_summary_for_root(config: &Config, repo_root: &Path) -> Result<RepoSummary> {
     let repo_name = repo_root
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or("repository")
         .to_owned();
-    let branch = git::get_branch_name(&repo_root)?;
-    let staged_files = git::get_changed_files(DiffSource::Staged, &repo_root)?.len();
-    let unstaged_files = git::get_unstaged_files(&repo_root)?.len();
+    let branch = git::get_branch_name(repo_root)?;
+    let changes = git::get_file_changes(repo_root)?;
+    let staged_files = changes.iter().filter(|change| change.staged).count();
+    let unstaged_files = changes.iter().filter(|change| change.unstaged).count();
     let backend_label = backend_label(config.backend);
     let (backend_path, backend_error) = match detect_cli(config.backend, config.backend_cli_path())
     {
@@ -719,7 +724,7 @@ pub fn load_repo_summary(config: &Config) -> Result<RepoSummary> {
 
     Ok(RepoSummary {
         repo_name,
-        repo_root,
+        repo_root: repo_root.to_path_buf(),
         branch,
         staged_files,
         unstaged_files,

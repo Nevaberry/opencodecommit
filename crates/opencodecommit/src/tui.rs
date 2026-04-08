@@ -177,10 +177,38 @@ fn backend_label(backend: CliBackend) -> &'static str {
 
 // ── File sidebar types ──
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FileStageState {
+    Staged,
+    Unstaged,
+}
+
+impl FileStageState {
+    fn toggled(self) -> Self {
+        match self {
+            Self::Staged => Self::Unstaged,
+            Self::Unstaged => Self::Staged,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
-struct CommitGroup {
-    subject: String,
-    files: Vec<String>,
+struct SidebarFile {
+    path: String,
+    state: FileStageState,
+    untracked: bool,
+}
+
+#[derive(Debug, Clone)]
+struct FileGroup {
+    title: String,
+    files: Vec<SidebarFile>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SidebarSelection {
+    path: String,
+    state: FileStageState,
 }
 
 // ── Focus tracking ──
@@ -288,7 +316,7 @@ struct App {
     sensitive_blocked: bool,
     should_quit: bool,
     // File sidebar state
-    file_groups: Vec<CommitGroup>,
+    file_groups: Vec<FileGroup>,
     selected_file: usize, // 0 = [All], then indexed into flattened list
     file_sidebar_scroll: usize,
     base_branch: String,
@@ -359,9 +387,8 @@ impl App {
             .sum::<usize>()
     }
 
-    /// Get the file path for the currently selected sidebar entry.
-    /// Returns None for [All] (index 0) or if sidebar is empty.
-    fn selected_file_path(&self) -> Option<&str> {
+    /// Get the selected sidebar file.
+    fn selected_sidebar_file(&self) -> Option<&SidebarFile> {
         if self.selected_file == 0 || self.file_groups.is_empty() {
             return None;
         }
@@ -375,50 +402,124 @@ impl App {
         None
     }
 
-    /// Populate file groups from a PrContext.
-    fn populate_file_groups(&mut self, pr_ctx: &PrContext) {
-        self.base_branch = pr_ctx.base_branch.clone();
-        self.commit_count = pr_ctx.commit_count;
+    /// Get the file path for the currently selected sidebar entry.
+    /// Returns None for [All] (index 0) or if sidebar is empty.
+    fn selected_file_path(&self) -> Option<&str> {
+        self.selected_sidebar_file().map(|file| file.path.as_str())
+    }
 
-        if !pr_ctx.from_branch_diff {
-            // Working tree diff mode: single group
-            if !pr_ctx.changed_files.is_empty() {
-                self.file_groups = vec![CommitGroup {
-                    subject: "Working changes".to_owned(),
-                    files: pr_ctx.changed_files.clone(),
-                }];
+    fn selected_sidebar_selection(&self) -> Option<SidebarSelection> {
+        self.selected_sidebar_file().map(|file| SidebarSelection {
+            path: file.path.clone(),
+            state: file.state,
+        })
+    }
+
+    fn refresh_file_groups(&mut self, preferred: Option<SidebarSelection>) {
+        let selected = preferred.or_else(|| self.selected_sidebar_selection());
+        match opencodecommit::git::get_file_changes(&self.repo.repo_root) {
+            Ok(changes) => {
+                let mut file_groups = Vec::new();
+                let staged: Vec<SidebarFile> = changes
+                    .iter()
+                    .filter(|change| change.staged)
+                    .map(|change| SidebarFile {
+                        path: change.path.clone(),
+                        state: FileStageState::Staged,
+                        untracked: false,
+                    })
+                    .collect();
+                let unstaged: Vec<SidebarFile> = changes
+                    .iter()
+                    .filter(|change| change.unstaged)
+                    .map(|change| SidebarFile {
+                        path: change.path.clone(),
+                        state: FileStageState::Unstaged,
+                        untracked: change.untracked,
+                    })
+                    .collect();
+
+                if !staged.is_empty() {
+                    file_groups.push(FileGroup {
+                        title: "Staged".to_owned(),
+                        files: staged,
+                    });
+                }
+                if !unstaged.is_empty() {
+                    file_groups.push(FileGroup {
+                        title: "Unstaged".to_owned(),
+                        files: unstaged,
+                    });
+                }
+
+                self.file_groups = file_groups;
+                self.restore_sidebar_selection(selected);
+            }
+            Err(err) => {
+                self.file_groups.clear();
+                self.selected_file = 0;
+                self.file_sidebar_scroll = 0;
+                self.set_error(err.to_string());
+            }
+        }
+    }
+
+    fn restore_sidebar_selection(&mut self, selection: Option<SidebarSelection>) {
+        if self.file_groups.is_empty() {
+            self.selected_file = 0;
+            self.file_sidebar_scroll = 0;
+            if self.focus_area == FocusArea::Sidebar {
+                self.focus_area = FocusArea::Bar;
             }
             return;
         }
 
-        // Build commit-grouped file list from commit messages
-        // Each commit message from get_commits_ahead has format: hash\nsubject\n\nbody\n
-        let mut groups = Vec::new();
-        for commit in &pr_ctx.commits {
-            let mut lines = commit.lines();
-            let _hash = lines.next().unwrap_or("");
-            let subject = lines.next().unwrap_or("(no message)").to_owned();
-            groups.push(CommitGroup {
-                subject,
-                files: vec![],
-            });
+        if let Some(selection) = selection {
+            let mut flat_idx = 1usize;
+            let mut fallback = None;
+            for group in &self.file_groups {
+                for file in &group.files {
+                    if fallback.is_none() && file.path == selection.path {
+                        fallback = Some(flat_idx);
+                    }
+                    if file.path == selection.path && file.state == selection.state {
+                        self.selected_file = flat_idx;
+                        return;
+                    }
+                    flat_idx += 1;
+                }
+            }
+            if let Some(index) = fallback {
+                self.selected_file = index;
+                return;
+            }
         }
 
-        // Assign files to groups (approximate: just distribute evenly since
-        // we don't have per-commit file info from git log)
-        // For a better approach, we'd need `git diff-tree` per commit.
-        // For now, list all files under the last group.
-        if groups.is_empty() {
-            groups.push(CommitGroup {
-                subject: "Changes".to_owned(),
-                files: pr_ctx.changed_files.clone(),
-            });
-        } else if let Some(last) = groups.last_mut() {
-            last.files = pr_ctx.changed_files.clone();
-        }
-
-        self.file_groups = groups;
         self.selected_file = 0;
+    }
+
+    fn apply_pr_context(&mut self, pr_ctx: &PrContext) {
+        self.base_branch = pr_ctx.base_branch.clone();
+        self.commit_count = pr_ctx.commit_count;
+    }
+
+    fn refresh_repo(&mut self) {
+        if let Ok(summary) = actions::load_repo_summary_for_root(&self.config, &self.repo.repo_root)
+        {
+            self.repo = summary;
+        }
+    }
+
+    fn refresh_diff(&mut self) {
+        self.diff_text = opencodecommit::git::get_combined_diff(&self.repo.repo_root)
+            .unwrap_or_default();
+    }
+
+    fn refresh_changes_view(&mut self, preferred: Option<SidebarSelection>) {
+        self.refresh_repo();
+        self.refresh_file_groups(preferred);
+        self.refresh_diff();
+        self.diff_scroll = 0;
     }
 
     /// Advance focus forward by one position, wrapping around.
@@ -506,12 +607,6 @@ impl App {
         });
     }
 
-    fn refresh_repo(&mut self) {
-        if let Ok(summary) = actions::load_repo_summary(&self.config) {
-            self.repo = summary;
-        }
-    }
-
     fn set_backend(&mut self, backend: CliBackend) {
         self.config.backend = backend;
         self.config.backend_order = vec![backend];
@@ -569,7 +664,9 @@ impl App {
 
     fn focused_description(&self) -> &'static str {
         match self.focus_area {
-            FocusArea::Sidebar => "Navigate files. Up/Down to select, Tab to switch focus.",
+            FocusArea::Sidebar => {
+                "Navigate files. Up/Down to select, Space to stage or unstage, Tab to switch focus."
+            }
             FocusArea::Panel => {
                 if let Some(content) = &self.output {
                     let btns = panel_buttons(content);
@@ -724,11 +821,10 @@ pub fn run(config: Config, config_path: Option<PathBuf>) -> Result<(), ActionErr
     }
 
     let repo = actions::load_repo_summary(&config)?;
-    let diff_text =
-        opencodecommit::git::get_diff(config.diff_source, &repo.repo_root).unwrap_or_default();
+    let diff_text = opencodecommit::git::get_combined_diff(&repo.repo_root).unwrap_or_default();
     let hook_installed = detect_hook_installed(&repo);
 
-    // Try loading PR context for file sidebar (branch diff fallback)
+    // Try loading PR context for base branch metadata and branch diff fallback.
     let pr_ctx = actions::load_pr_context(&config, None).ok();
 
     install_panic_cleanup_hook();
@@ -748,9 +844,11 @@ pub fn run(config: Config, config_path: Option<PathBuf>) -> Result<(), ActionErr
     let auto_update = config.auto_update;
     let mut app = App::new(config, config_path, repo, diff_text.clone(), hook_installed);
 
-    // Populate file sidebar and use branch diff if available
+    app.refresh_file_groups(None);
+
+    // Populate base branch metadata and use branch diff if available
     if let Some(ctx) = &pr_ctx {
-        app.populate_file_groups(ctx);
+        app.apply_pr_context(ctx);
         if ctx.from_branch_diff && diff_text.is_empty() {
             // Use the branch diff for the diff panel
             app.diff_text = ctx.diff.clone();
@@ -873,11 +971,23 @@ fn handle_key_in_viewport(
                 let max = app.sidebar_entry_count().saturating_sub(1);
                 if app.selected_file < max {
                     app.selected_file += 1;
+                    let visible_rows = sidebar_visible_rows(app, viewport_height);
+                    if visible_rows > 0
+                        && app.selected_file >= app.file_sidebar_scroll.saturating_add(visible_rows)
+                    {
+                        app.file_sidebar_scroll =
+                            app.selected_file.saturating_add(1).saturating_sub(visible_rows);
+                    }
                 }
             } else if app.output.is_some() {
                 app.output_scroll = app.output_scroll.saturating_add(1);
             } else {
                 app.diff_scroll = app.diff_scroll.saturating_add(1);
+            }
+        }
+        KeyCode::Char(' ') => {
+            if app.focus_area == FocusArea::Sidebar {
+                toggle_selected_file_stage(app);
             }
         }
         KeyCode::PageUp => {
@@ -926,6 +1036,43 @@ fn diff_page_scroll_step(app: &App, viewport_height: u16) -> u16 {
         .saturating_sub(output_height + RESERVED_LAYOUT_HEIGHT)
         .saturating_sub(2)
         .max(1)
+}
+
+fn sidebar_visible_rows(app: &App, viewport_height: u16) -> usize {
+    let output_height = output_panel_height(app, viewport_height);
+    viewport_height
+        .saturating_sub(output_height + RESERVED_LAYOUT_HEIGHT)
+        .saturating_sub(2)
+        .max(1) as usize
+}
+
+fn toggle_selected_file_stage(app: &mut App) {
+    let Some(file) = app.selected_sidebar_file().cloned() else {
+        if app.has_sidebar() {
+            app.set_info("Select a file to stage or unstage.");
+        }
+        return;
+    };
+
+    let result = match file.state {
+        FileStageState::Staged => opencodecommit::git::unstage_path(&app.repo.repo_root, &file.path),
+        FileStageState::Unstaged => opencodecommit::git::stage_path(&app.repo.repo_root, &file.path),
+    };
+
+    match result {
+        Ok(()) => {
+            let action = match file.state {
+                FileStageState::Staged => "Unstaged",
+                FileStageState::Unstaged => "Staged",
+            };
+            app.refresh_changes_view(Some(SidebarSelection {
+                path: file.path.clone(),
+                state: file.state.toggled(),
+            }));
+            app.set_info(format!("{action} {}.", file.path));
+        }
+        Err(err) => app.set_error(err.to_string()),
+    }
 }
 
 fn activate_focused(app: &mut App, tx: &Sender<WorkerMessage>) {
@@ -1533,11 +1680,7 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
                         app.set_info(format!("Committed: {summary}"));
                     }
                     app.clear_output();
-                    app.refresh_repo();
-                    app.diff_text =
-                        opencodecommit::git::get_diff(app.config.diff_source, &app.repo.repo_root)
-                            .unwrap_or_default();
-                    app.diff_scroll = 0;
+                    app.refresh_changes_view(None);
                 }
                 Err(err) => app.set_error(err.to_string()),
             }
@@ -1581,7 +1724,7 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
                 Ok(preview) => {
                     app.pr_preview_origin = Some(origin);
                     if let Some(ctx) = &pr_ctx {
-                        app.populate_file_groups(ctx);
+                        app.apply_pr_context(ctx);
                         if ctx.from_branch_diff && app.diff_text.is_empty() {
                             app.diff_text = ctx.diff.clone();
                         }
@@ -1791,12 +1934,6 @@ fn render_file_sidebar(frame: &mut Frame, area: Rect, app: &App) {
         Style::default().fg(Color::DarkGray)
     };
 
-    let title = if app.commit_count > 0 {
-        format!("Files ({})", app.commit_count)
-    } else {
-        "Files".to_owned()
-    };
-
     let mut lines = Vec::new();
     let mut flat_idx = 0usize;
 
@@ -1815,7 +1952,7 @@ fn render_file_sidebar(frame: &mut Frame, area: Rect, app: &App) {
     for group in &app.file_groups {
         // Commit subject as header
         lines.push(Line::styled(
-            format!(" {}", &group.subject),
+            format!(" {}", &group.title),
             Style::default()
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
@@ -1832,14 +1969,16 @@ fn render_file_sidebar(frame: &mut Frame, area: Rect, app: &App) {
             } else {
                 Style::default().fg(Color::White)
             };
-            // Show just the filename, truncated to fit
-            let display = if file.len() > (area.width as usize).saturating_sub(4) {
+            let suffix = if file.untracked { " [new]" } else { "" };
+            let label = format!("{}{}", file.path, suffix);
+            let max_width = (area.width as usize).saturating_sub(4);
+            let display = if label.len() > max_width {
                 format!(
                     "  …{}",
-                    &file[file.len().saturating_sub(area.width as usize - 5)..]
+                    &label[label.len().saturating_sub(max_width.saturating_sub(1))..]
                 )
             } else {
-                format!("  {file}")
+                format!("  {label}")
             };
             lines.push(Line::styled(display, file_style));
         }
@@ -1851,7 +1990,7 @@ fn render_file_sidebar(frame: &mut Frame, area: Rect, app: &App) {
             Block::default()
                 .borders(Borders::ALL)
                 .border_style(border_style)
-                .title(Line::from(title)),
+                .title(Line::from("Files")),
         )
         .scroll((scroll_offset, 0));
     frame.render_widget(widget, area);
@@ -1875,8 +2014,18 @@ fn filter_diff_for_file(diff: &str, file_path: &str) -> String {
 }
 
 fn render_diff(frame: &mut Frame, area: Rect, app: &App) {
-    if app.diff_text.is_empty() {
-        let msg = Paragraph::new("No changes detected.")
+    let selected_file = app.selected_file_path();
+    let display_diff = match selected_file {
+        Some(file_path) => filter_diff_for_file(&app.diff_text, file_path),
+        None => app.diff_text.clone(),
+    };
+
+    if display_diff.trim().is_empty() {
+        let message = match selected_file {
+            Some(file_path) => format!("No diff available for {file_path}."),
+            None => "No changes detected.".to_owned(),
+        };
+        let msg = Paragraph::new(message)
             .style(Style::default().fg(Color::DarkGray))
             .block(
                 Block::default()
@@ -1886,13 +2035,6 @@ fn render_diff(frame: &mut Frame, area: Rect, app: &App) {
         frame.render_widget(msg, area);
         return;
     }
-
-    // Filter diff to selected file if sidebar has a selection
-    let display_diff = if let Some(file_path) = app.selected_file_path() {
-        filter_diff_for_file(&app.diff_text, file_path)
-    } else {
-        app.diff_text.clone()
-    };
 
     let lines: Vec<Line> = display_diff.lines().map(style_diff_line).collect();
     let diff = Paragraph::new(lines)
@@ -2432,6 +2574,8 @@ mod tests {
     use opencodecommit::config::CliBackend;
     use ratatui::backend::TestBackend;
     use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::process::Command;
 
     fn test_repo() -> RepoSummary {
         RepoSummary {
@@ -2466,6 +2610,73 @@ mod tests {
             ..Config::default()
         };
         App::new(config, None, test_repo(), test_diff(), false)
+    }
+
+    fn sidebar_file(path: &str, state: FileStageState) -> SidebarFile {
+        SidebarFile {
+            path: path.to_owned(),
+            state,
+            untracked: false,
+        }
+    }
+
+    fn setup_repo(name: &str) -> PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("occ-tui-test-{}-{}", std::process::id(), name));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+
+        let run = |args: &[&str]| {
+            Command::new("git")
+                .args(args)
+                .current_dir(&dir)
+                .env("GIT_AUTHOR_NAME", "Test")
+                .env("GIT_AUTHOR_EMAIL", "test@test.com")
+                .env("GIT_COMMITTER_NAME", "Test")
+                .env("GIT_COMMITTER_EMAIL", "test@test.com")
+                .output()
+                .unwrap()
+        };
+
+        run(&["init"]);
+        run(&["config", "user.email", "test@test.com"]);
+        run(&["config", "user.name", "Test"]);
+        fs::write(dir.join("README.md"), "# Hello").unwrap();
+        run(&["add", "README.md"]);
+        run(&["commit", "-m", "initial commit"]);
+
+        dir
+    }
+
+    fn cleanup(repo: &Path) {
+        let _ = fs::remove_dir_all(repo);
+    }
+
+    fn with_repo<T>(repo: &Path, f: impl FnOnce() -> T) -> T {
+        let _lock = opencodecommit::TEST_CWD_LOCK.lock().unwrap();
+        let original = std::env::current_dir().unwrap();
+        std::env::set_current_dir(repo).unwrap();
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
+        std::env::set_current_dir(original).unwrap();
+        match result {
+            Ok(value) => value,
+            Err(payload) => std::panic::resume_unwind(payload),
+        }
+    }
+
+    fn app_for_repo(repo_root: &Path) -> App {
+        let config = Config {
+            backend: CliBackend::Codex,
+            ..Config::default()
+        };
+        let repo = actions::load_repo_summary_for_root(&config, repo_root).unwrap();
+        App::new(
+            config,
+            None,
+            repo,
+            opencodecommit::git::get_combined_diff(repo_root).unwrap_or_default(),
+            false,
+        )
     }
 
     fn render_text(app: &App, width: u16, height: u16) -> String {
@@ -3121,15 +3332,19 @@ mod tests {
     #[test]
     fn sidebar_renders_when_file_groups_present() {
         let mut app = test_app();
-        app.file_groups = vec![CommitGroup {
-            subject: "feat: add login".to_owned(),
-            files: vec!["src/login.rs".to_owned(), "src/auth.rs".to_owned()],
+        app.file_groups = vec![FileGroup {
+            title: "Staged".to_owned(),
+            files: vec![
+                sidebar_file("src/login.rs", FileStageState::Staged),
+                sidebar_file("src/auth.rs", FileStageState::Staged),
+            ],
         }];
         app.base_branch = "main".to_owned();
         app.commit_count = 1;
         let text = render_text(&app, 120, 24);
         assert!(text.contains("Files"), "missing Files title");
         assert!(text.contains("[All]"), "missing All entry");
+        assert!(text.contains("Staged"), "missing staged header");
         assert!(text.contains("login.rs"), "missing file entry");
     }
 
@@ -3138,7 +3353,7 @@ mod tests {
         let app = test_app();
         assert!(!app.has_sidebar());
         let text = render_text(&app, 120, 24);
-        assert!(!text.contains("Files ("), "should not show sidebar");
+        assert!(!text.contains("[All]"), "should not show sidebar");
     }
 
     #[test]
@@ -3207,9 +3422,12 @@ mod tests {
     #[test]
     fn sidebar_navigation_changes_selected_file() {
         let mut app = test_app();
-        app.file_groups = vec![CommitGroup {
-            subject: "test".to_owned(),
-            files: vec!["a.rs".to_owned(), "b.rs".to_owned()],
+        app.file_groups = vec![FileGroup {
+            title: "Unstaged".to_owned(),
+            files: vec![
+                sidebar_file("a.rs", FileStageState::Unstaged),
+                sidebar_file("b.rs", FileStageState::Unstaged),
+            ],
         }];
         app.focus_area = FocusArea::Sidebar;
         let (tx, _rx) = mpsc::channel();
@@ -3226,9 +3444,9 @@ mod tests {
     #[test]
     fn focus_cycles_through_sidebar() {
         let mut app = test_app();
-        app.file_groups = vec![CommitGroup {
-            subject: "test".to_owned(),
-            files: vec!["a.rs".to_owned()],
+        app.file_groups = vec![FileGroup {
+            title: "Staged".to_owned(),
+            files: vec![sidebar_file("a.rs", FileStageState::Staged)],
         }];
         app.set_output(OutputContent::PrPreview {
             preview: test_pr_preview(1),
@@ -3253,5 +3471,99 @@ mod tests {
         // Should wrap to sidebar
         handle_key(&mut app, KeyEvent::from(KeyCode::Tab), &tx);
         assert_eq!(app.focus_area, FocusArea::Sidebar);
+    }
+
+    #[test]
+    fn refresh_file_groups_lists_staged_and_unstaged_files() {
+        let repo = setup_repo("sidebar-refresh");
+        fs::write(repo.join("tracked.txt"), "tracked").unwrap();
+        Command::new("git")
+            .args(["add", "tracked.txt"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "add tracked"])
+            .current_dir(&repo)
+            .env("GIT_AUTHOR_NAME", "Test")
+            .env("GIT_AUTHOR_EMAIL", "test@test.com")
+            .env("GIT_COMMITTER_NAME", "Test")
+            .env("GIT_COMMITTER_EMAIL", "test@test.com")
+            .output()
+            .unwrap();
+        fs::write(repo.join("tracked.txt"), "changed").unwrap();
+        fs::write(repo.join("new.txt"), "new").unwrap();
+        Command::new("git")
+            .args(["add", "new.txt"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+
+        let mut app = app_for_repo(&repo);
+        app.refresh_file_groups(None);
+
+        assert_eq!(app.file_groups.len(), 2);
+        assert_eq!(app.file_groups[0].title, "Staged");
+        assert_eq!(app.file_groups[1].title, "Unstaged");
+        assert!(app.file_groups[0].files.iter().any(|file| file.path == "new.txt"));
+        assert!(app.file_groups[1].files.iter().any(|file| file.path == "tracked.txt"));
+        cleanup(&repo);
+    }
+
+    #[test]
+    fn space_stages_selected_unstaged_file() {
+        let repo = setup_repo("sidebar-stage");
+        fs::write(repo.join("new.txt"), "new").unwrap();
+
+        with_repo(&repo, || {
+            let mut app = app_for_repo(&repo);
+            app.refresh_file_groups(None);
+            app.focus_area = FocusArea::Sidebar;
+            app.selected_file = 1;
+            let (tx, _rx) = mpsc::channel();
+
+            handle_key(&mut app, KeyEvent::from(KeyCode::Char(' ')), &tx);
+
+            let changes = opencodecommit::git::get_file_changes(&repo).unwrap();
+            let change = changes.iter().find(|change| change.path == "new.txt").unwrap();
+            assert!(change.staged);
+            assert!(!change.unstaged);
+            assert_eq!(app.selected_sidebar_file().unwrap().state, FileStageState::Staged);
+            assert!(matches!(app.notice.as_ref().map(|notice| notice.kind), Some(NoticeKind::Info)));
+        });
+
+        cleanup(&repo);
+    }
+
+    #[test]
+    fn space_unstages_selected_staged_file() {
+        let repo = setup_repo("sidebar-unstage");
+        fs::write(repo.join("new.txt"), "new").unwrap();
+        Command::new("git")
+            .args(["add", "new.txt"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+
+        with_repo(&repo, || {
+            let mut app = app_for_repo(&repo);
+            app.refresh_file_groups(None);
+            app.focus_area = FocusArea::Sidebar;
+            app.selected_file = 1;
+            let (tx, _rx) = mpsc::channel();
+
+            handle_key(&mut app, KeyEvent::from(KeyCode::Char(' ')), &tx);
+
+            let changes = opencodecommit::git::get_file_changes(&repo).unwrap();
+            let change = changes.iter().find(|change| change.path == "new.txt").unwrap();
+            assert!(!change.staged);
+            assert!(change.unstaged);
+            assert_eq!(
+                app.selected_sidebar_file().unwrap().state,
+                FileStageState::Unstaged
+            );
+        });
+
+        cleanup(&repo);
     }
 }

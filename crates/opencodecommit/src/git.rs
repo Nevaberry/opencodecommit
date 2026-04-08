@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -44,6 +45,42 @@ fn git_global(args: &[&str]) -> Result<(String, i32)> {
         String::from_utf8_lossy(&output.stdout).trim().to_owned(),
         status,
     ))
+}
+
+fn git_with_allowed_statuses(repo: &Path, args: &[&str], allowed: &[i32]) -> Result<(String, i32)> {
+    let output = Command::new("git")
+        .args(args)
+        .current_dir(repo)
+        .output()
+        .map_err(|e| Error::Git(format!("failed to run git: {e}")))?;
+
+    let status = output.status.code().unwrap_or(1);
+    if !output.status.success() && !allowed.contains(&status) {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(Error::Git(format!(
+            "git {} failed: {}",
+            args.join(" "),
+            stderr.trim()
+        )));
+    }
+
+    Ok((
+        String::from_utf8_lossy(&output.stdout).trim().to_owned(),
+        status,
+    ))
+}
+
+fn git_lines(repo: &Path, args: &[&str]) -> Result<Vec<String>> {
+    let output = git(repo, args)?;
+    if output.is_empty() {
+        return Ok(vec![]);
+    }
+
+    Ok(output
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(|line| line.to_owned())
+        .collect())
 }
 
 /// Find the repository root from the current directory.
@@ -156,9 +193,29 @@ pub fn get_branch_name(repo: &Path) -> Result<String> {
     git(repo, &["rev-parse", "--abbrev-ref", "HEAD"])
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileChange {
+    pub path: String,
+    pub staged: bool,
+    pub unstaged: bool,
+    pub untracked: bool,
+}
+
 /// Stage all changes.
 pub fn stage_all(repo: &Path) -> Result<()> {
     git(repo, &["add", "-A"])?;
+    Ok(())
+}
+
+/// Stage a single path.
+pub fn stage_path(repo: &Path, path: &str) -> Result<()> {
+    git(repo, &["add", "-A", "--", path])?;
+    Ok(())
+}
+
+/// Unstage a single path.
+pub fn unstage_path(repo: &Path, path: &str) -> Result<()> {
+    git(repo, &["restore", "--staged", "--", path])?;
     Ok(())
 }
 
@@ -191,55 +248,102 @@ pub fn get_recent_branch_names(repo: &Path, count: usize) -> Result<Vec<String>>
 
 /// Get the list of changed file paths.
 pub fn get_changed_files(source: DiffSource, repo: &Path) -> Result<Vec<String>> {
-    let output = match source {
-        DiffSource::Staged => git(repo, &["diff", "--cached", "--name-only"])?,
-        DiffSource::All => git(repo, &["diff", "HEAD", "--name-only"])?,
+    match source {
+        DiffSource::Staged => git_lines(repo, &["diff", "--cached", "--name-only"]),
+        DiffSource::All => git_lines(repo, &["diff", "HEAD", "--name-only"]),
         DiffSource::Auto => {
-            let staged = git(repo, &["diff", "--cached", "--name-only"])?;
-            if !staged.is_empty() {
-                staged
+            let staged = git_lines(repo, &["diff", "--cached", "--name-only"])?;
+            if staged.is_empty() {
+                git_lines(repo, &["diff", "HEAD", "--name-only"])
             } else {
-                git(repo, &["diff", "HEAD", "--name-only"])?
+                Ok(staged)
             }
         }
-    };
-    if output.is_empty() {
-        return Ok(vec![]);
     }
-    Ok(output.lines().map(|l| l.to_owned()).collect())
 }
 
 /// Get the list of unstaged file paths.
 pub fn get_unstaged_files(repo: &Path) -> Result<Vec<String>> {
-    let output = git(repo, &["diff", "--name-only"])?;
-    if output.is_empty() {
-        return Ok(vec![]);
-    }
-    Ok(output.lines().map(|l| l.to_owned()).collect())
+    git_lines(repo, &["diff", "--name-only"])
 }
 
 /// Run a git command allowing exit code 1 (not found / empty result).
 fn git_allow_not_found(repo: &Path, args: &[&str]) -> Result<(String, i32)> {
-    let output = Command::new("git")
-        .args(args)
-        .current_dir(repo)
-        .output()
-        .map_err(|e| Error::Git(format!("failed to run git: {e}")))?;
+    git_with_allowed_statuses(repo, args, &[1, 128])
+}
 
-    let status = output.status.code().unwrap_or(1);
-    if !output.status.success() && status != 1 && status != 128 {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(Error::Git(format!(
-            "git {} failed: {}",
-            args.join(" "),
-            stderr.trim()
-        )));
+/// Get staged, unstaged, and untracked file state in one merged view.
+pub fn get_file_changes(repo: &Path) -> Result<Vec<FileChange>> {
+    let staged = git_lines(
+        repo,
+        &["diff", "--cached", "--name-only", "--diff-filter=ACDMRTUXB"],
+    )?;
+    let unstaged = git_lines(repo, &["diff", "--name-only", "--diff-filter=ACDMRTUXB"])?;
+    let untracked = git_lines(repo, &["ls-files", "--others", "--exclude-standard"])?;
+
+    let mut changes = BTreeMap::<String, FileChange>::new();
+
+    for path in staged {
+        let entry = changes.entry(path.clone()).or_insert_with(|| FileChange {
+            path,
+            staged: false,
+            unstaged: false,
+            untracked: false,
+        });
+        entry.staged = true;
     }
 
-    Ok((
-        String::from_utf8_lossy(&output.stdout).trim().to_owned(),
-        status,
-    ))
+    for path in unstaged {
+        let entry = changes.entry(path.clone()).or_insert_with(|| FileChange {
+            path,
+            staged: false,
+            unstaged: false,
+            untracked: false,
+        });
+        entry.unstaged = true;
+    }
+
+    for path in untracked {
+        let entry = changes.entry(path.clone()).or_insert_with(|| FileChange {
+            path,
+            staged: false,
+            unstaged: false,
+            untracked: false,
+        });
+        entry.unstaged = true;
+        entry.untracked = true;
+    }
+
+    Ok(changes.into_values().collect())
+}
+
+/// Get a display diff containing tracked changes plus patches for untracked files.
+pub fn get_combined_diff(repo: &Path) -> Result<String> {
+    let mut diff = git(repo, &["diff", "HEAD"])?;
+    let null_path = if cfg!(windows) { "NUL" } else { "/dev/null" };
+
+    for change in get_file_changes(repo)?
+        .into_iter()
+        .filter(|change| change.untracked)
+    {
+        let (patch, _) = git_with_allowed_statuses(
+            repo,
+            &["diff", "--no-index", "--", null_path, &change.path],
+            &[1],
+        )?;
+        if !patch.is_empty() {
+            if !diff.is_empty() {
+                diff.push_str("\n\n");
+            }
+            diff.push_str(&patch);
+        }
+    }
+
+    if diff.is_empty() {
+        Err(Error::NoChanges)
+    } else {
+        Ok(diff)
+    }
 }
 
 /// Detect the base branch for PR-style diffs.
@@ -509,6 +613,90 @@ mod tests {
         stage_all(&dir).unwrap();
         let status = git(&dir, &["diff", "--cached", "--name-only"]).unwrap();
         assert!(status.contains("new.txt"));
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn stage_path_stages_only_selected_file() {
+        let dir = setup_repo("stage-path");
+        fs::write(dir.join("a.txt"), "a").unwrap();
+        fs::write(dir.join("b.txt"), "b").unwrap();
+
+        stage_path(&dir, "a.txt").unwrap();
+
+        let status = git(&dir, &["diff", "--cached", "--name-only"]).unwrap();
+        assert_eq!(status, "a.txt");
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn unstage_path_removes_file_from_index() {
+        let dir = setup_repo("unstage-path");
+        fs::write(dir.join("a.txt"), "a").unwrap();
+        stage_all(&dir).unwrap();
+
+        unstage_path(&dir, "a.txt").unwrap();
+
+        let staged = git(&dir, &["diff", "--cached", "--name-only"]).unwrap();
+        let changes = get_file_changes(&dir).unwrap();
+        let change = changes.iter().find(|change| change.path == "a.txt").unwrap();
+        assert!(staged.is_empty());
+        assert!(!change.staged);
+        assert!(change.unstaged);
+        assert!(change.untracked);
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn file_changes_include_staged_unstaged_and_untracked() {
+        let dir = setup_repo("file-changes");
+        fs::write(dir.join("tracked.txt"), "tracked").unwrap();
+        stage_path(&dir, "tracked.txt").unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "add tracked file"])
+            .current_dir(&dir)
+            .env("GIT_AUTHOR_NAME", "Test")
+            .env("GIT_AUTHOR_EMAIL", "test@test.com")
+            .env("GIT_COMMITTER_NAME", "Test")
+            .env("GIT_COMMITTER_EMAIL", "test@test.com")
+            .output()
+            .unwrap();
+        fs::write(dir.join("tracked.txt"), "changed").unwrap();
+
+        fs::write(dir.join("staged.txt"), "staged").unwrap();
+        stage_path(&dir, "staged.txt").unwrap();
+        fs::write(dir.join("new.txt"), "new").unwrap();
+
+        let changes = get_file_changes(&dir).unwrap();
+        assert!(changes.contains(&FileChange {
+            path: "staged.txt".to_owned(),
+            staged: true,
+            unstaged: false,
+            untracked: false,
+        }));
+        assert!(changes.contains(&FileChange {
+            path: "tracked.txt".to_owned(),
+            staged: false,
+            unstaged: true,
+            untracked: false,
+        }));
+        assert!(changes.contains(&FileChange {
+            path: "new.txt".to_owned(),
+            staged: false,
+            unstaged: true,
+            untracked: true,
+        }));
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn combined_diff_includes_untracked_files() {
+        let dir = setup_repo("combined-diff");
+        fs::write(dir.join("new.txt"), "new").unwrap();
+
+        let diff = get_combined_diff(&dir).unwrap();
+        assert!(diff.contains("diff --git a/new.txt b/new.txt"));
+        assert!(diff.contains("+new"));
         cleanup(&dir);
     }
 
