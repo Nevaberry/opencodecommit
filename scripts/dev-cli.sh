@@ -16,14 +16,15 @@ swapping between worktrees when testing the TUI or any other `occ` command.
 Build artifacts are shared under `.git/dev/cargo-target` to keep swaps fast.
 
 Options:
-  --worktree NAME|PATH  Worktree branch, directory name, or explicit path
+  -w, --worktree NAME|PATH
+                        Worktree branch, directory name, or explicit path
   --release            Use `cargo run --release`
   --list               List known worktrees
   -h, --help           Show this help
 
 Examples:
-  scripts/dev-cli.sh --worktree sensitive-trigger tui
-  scripts/dev-cli.sh --worktree dev commit --dry-run --text
+  scripts/dev-cli.sh -w sensitive-trigger tui
+  scripts/dev-cli.sh -w dev commit --dry-run --text
   scripts/dev-cli.sh --list
 EOF
 }
@@ -34,7 +35,7 @@ LIST_ONLY=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --worktree)
+    -w|--worktree)
       if [[ $# -lt 2 || -z "${2:-}" ]]; then
         printf '--worktree requires a value\n' >&2
         exit 1

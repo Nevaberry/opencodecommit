@@ -15,15 +15,16 @@ Build the extension from a selected worktree, install it into an isolated
 VSCodium profile for that worktree, and launch VSCodium on that worktree.
 
 Options:
-  --worktree NAME|PATH  Worktree branch, directory name, or explicit path
+  -w, --worktree NAME|PATH
+                        Worktree branch, directory name, or explicit path
   --launch-only         Skip build/install and just launch the worktree profile
   --install-only        Build/install, but do not launch VSCodium
   --list                List known worktrees
   -h, --help            Show this help
 
 Examples:
-  scripts/dev-extension.sh --worktree sensitive-trigger
-  scripts/dev-extension.sh --worktree dev --launch-only
+  scripts/dev-extension.sh -w sensitive-trigger
+  scripts/dev-extension.sh -w dev --launch-only
   scripts/dev-extension.sh --list
 EOF
 }
@@ -48,7 +49,7 @@ LIST_ONLY=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --worktree)
+    -w|--worktree)
       if [[ $# -lt 2 || -z "${2:-}" ]]; then
         printf '--worktree requires a value\n' >&2
         exit 1
