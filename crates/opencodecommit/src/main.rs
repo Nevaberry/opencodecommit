@@ -9,7 +9,7 @@ use std::process;
 use clap::{Parser, Subcommand, ValueEnum};
 use opencodecommit::config::{CliBackend, CommitMode, Config, DiffSource};
 
-use crate::actions::{ActionError, CommitRequest, HookOperation};
+use crate::actions::{ActionError, BackendProgress, CommitRequest, HookOperation};
 
 #[derive(Parser)]
 #[command(
@@ -484,6 +484,24 @@ fn action_exit_code(err: &ActionError, stdin_mode: bool) -> i32 {
     }
 }
 
+fn cli_progress(text: bool) -> impl Fn(BackendProgress) {
+    use std::io::Write as _;
+    move |p| {
+        if !text {
+            return;
+        }
+        match p {
+            BackendProgress::Trying(b) => {
+                eprint!("Trying {b}... ");
+                let _ = std::io::stderr().flush();
+            }
+            BackendProgress::Failed { backend, error } => {
+                eprintln!("{backend} failed: {error}");
+            }
+        }
+    }
+}
+
 fn handle_commit(
     config: &Config,
     refine: Option<String>,
@@ -517,7 +535,11 @@ fn handle_commit(
         allow_sensitive,
     };
 
-    let preview = match actions::generate_commit_preview_with_fallback(config, &request, |_| {}) {
+    let preview = match actions::generate_commit_preview_with_fallback(
+        config,
+        &request,
+        cli_progress(text),
+    ) {
         Ok(preview) => preview,
         Err(err) => {
             if text {
@@ -595,7 +617,12 @@ fn handle_branch(
     dry_run: bool,
     mode: opencodecommit::config::BranchMode,
 ) {
-    let preview = match actions::generate_branch_preview(config, description.as_deref(), mode) {
+    let preview = match actions::generate_branch_preview_with_fallback(
+        config,
+        description.as_deref(),
+        mode,
+        cli_progress(text),
+    ) {
         Ok(preview) => preview,
         Err(err) => {
             if text {
@@ -647,7 +674,8 @@ fn handle_branch(
 }
 
 fn handle_pr(config: &Config, text: bool, base: Option<&str>) {
-    let preview = match actions::generate_pr_preview(config, base) {
+    let preview = match actions::generate_pr_preview_with_fallback(config, base, cli_progress(text))
+    {
         Ok(preview) => preview,
         Err(err) => {
             if text {
@@ -672,17 +700,18 @@ fn handle_pr(config: &Config, text: bool, base: Option<&str>) {
 }
 
 fn handle_changelog(config: &Config, text: bool) {
-    let preview = match actions::generate_changelog_preview_with_fallback(config, |_| {}) {
-        Ok(preview) => preview,
-        Err(err) => {
-            if text {
-                eprintln!("error: {err}");
-                process::exit(1);
+    let preview =
+        match actions::generate_changelog_preview_with_fallback(config, cli_progress(text)) {
+            Ok(preview) => preview,
+            Err(err) => {
+                if text {
+                    eprintln!("error: {err}");
+                    process::exit(1);
+                }
+                json_error(&err);
+                process::exit(action_exit_code(&err, false));
             }
-            json_error(&err);
-            process::exit(action_exit_code(&err, false));
-        }
-    };
+        };
 
     if text {
         println!("{}", preview.entry);
@@ -753,6 +782,7 @@ fn handle_tui(config: Option<String>, backend: Option<CliBackendArg>) {
     let mut cfg = load_config_or_exit_plain(config.as_deref());
     if let Some(backend) = backend {
         cfg.backend = backend.to_config();
+        cfg.backend_order = vec![cfg.backend];
     }
     if let Err(err) = tui::run(cfg) {
         eprintln!("error: {err}");

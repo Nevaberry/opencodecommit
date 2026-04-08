@@ -1043,7 +1043,7 @@ fn spawn_generate_pr(app: &mut App, tx: &Sender<WorkerMessage>) {
         // Load PR context for sidebar population
         let pr_ctx = actions::load_pr_context(&config, None).ok();
         let progress_tx = tx.clone();
-        let result = actions::generate_pr_preview_with_fallback(&config, move |p| {
+        let result = actions::generate_pr_preview_with_fallback(&config, None, move |p| {
             let _ = progress_tx.send(WorkerMessage::BackendProgress(p));
         });
         let _ = tx.send(WorkerMessage::PrGenerated(result, pr_ctx));

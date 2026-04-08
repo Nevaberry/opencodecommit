@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use opencodecommit::backend::{
-    build_invocation, build_invocation_for, build_invocation_with_model, detect_cli, exec_cli,
+    build_invocation, build_invocation_for, build_invocation_with_model, detect_cli,
     exec_cli_with_timeout,
 };
 use opencodecommit::config::{BranchMode, CliBackend, CommitMode, Config, DiffSource};
@@ -306,42 +306,6 @@ pub fn commit_message(message: &str, used_stdin: bool) -> Result<CommitResult> {
     })
 }
 
-pub fn generate_branch_preview(
-    config: &Config,
-    description: Option<&str>,
-    branch_mode: BranchMode,
-) -> Result<BranchPreview> {
-    let repo_root = git::get_repo_root()?;
-
-    let diff = if description.is_none() {
-        Some(git::get_diff(config.diff_source, &repo_root)?)
-    } else {
-        None
-    };
-
-    let existing_branches = if branch_mode == BranchMode::Adaptive {
-        git::get_recent_branch_names(&repo_root, 20).unwrap_or_default()
-    } else {
-        vec![]
-    };
-
-    let prompt = build_branch_prompt(
-        description.unwrap_or(""),
-        diff.as_deref(),
-        config,
-        branch_mode,
-        &existing_branches,
-    );
-    let cli_path = detect_cli(config.backend, config.backend_cli_path())?;
-    let invocation = build_invocation(&cli_path, &prompt, config);
-    let response = exec_cli(&invocation)?;
-
-    Ok(BranchPreview {
-        name: format_branch_name(&response),
-        backend_failures: vec![],
-    })
-}
-
 pub fn create_branch(name: &str) -> Result<BranchResult> {
     let repo_root = git::get_repo_root()?;
     git::create_and_checkout_branch(&repo_root, name)?;
@@ -513,7 +477,6 @@ fn generate_pr_preview_internal(
 pub fn generate_pr_preview(config: &Config, explicit_base: Option<&str>) -> Result<PrPreview> {
     generate_pr_preview_internal(config, explicit_base, 120)
 }
-
 /// Execute a prompt across backends with fallback, returning the response and failures.
 fn exec_with_fallback(
     config: &Config,
@@ -606,6 +569,7 @@ pub fn generate_branch_preview_with_fallback(
 
 pub fn generate_pr_preview_with_fallback(
     config: &Config,
+    explicit_base: Option<&str>,
     on_progress: impl Fn(BackendProgress),
 ) -> Result<PrPreview> {
     let mut failures: Vec<BackendFailure> = vec![];
@@ -617,7 +581,7 @@ pub fn generate_pr_preview_with_fallback(
         backend_config.backend = backend;
         backend_config.backend_order = vec![backend];
 
-        match generate_pr_preview_internal(&backend_config, None, FALLBACK_TIMEOUT_SECS) {
+        match generate_pr_preview_internal(&backend_config, explicit_base, FALLBACK_TIMEOUT_SECS) {
             Ok(mut preview) => {
                 preview.backend_failures = failures;
                 return Ok(preview);
