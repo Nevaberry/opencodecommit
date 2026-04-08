@@ -1,4 +1,5 @@
 use std::io::{self, IsTerminal, Write as _};
+use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::Duration;
 
@@ -7,8 +8,8 @@ use crossterm::execute;
 use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
-use opencodecommit::config::Config;
-use opencodecommit::sensitive::SensitiveReport;
+use opencodecommit::config::{Config, SensitiveProfile};
+use opencodecommit::sensitive::{SensitiveReport, allows_sensitive_bypass};
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -52,15 +53,26 @@ enum PreviewOrigin {
 fn panel_buttons(output: &OutputContent) -> &'static [&'static str] {
     match output {
         OutputContent::CommitMessage { .. } => &["[c Commit]", "[s Shorten]", "[r Regenerate]"],
-        OutputContent::SensitiveWarning { .. } => &["[a Allow & Continue]"],
+        OutputContent::SensitiveWarning { report } => {
+            if !report.has_blocking_findings() || allows_sensitive_bypass(report.enforcement) {
+                &["[c Continue]", "[x Cancel]"]
+            } else {
+                &["[x Cancel]"]
+            }
+        },
         OutputContent::BranchPreview { .. } => &["[c Create Branch]", "[r Regenerate]"],
         OutputContent::PrPreview { .. } => &["[s Submit PR]", "[p Copy]", "[r Regenerate]"],
         OutputContent::BackendMenu
         | OutputContent::CommitBackendMenu
         | OutputContent::PrBackendMenu => {
             &["[c Codex]", "[o OpenCode]", "[l Claude]", "[g Gemini]"]
-        }
-        OutputContent::HookMenu => &["[i Install Hook]", "[u Uninstall Hook]"],
+        },
+        OutputContent::HookMenu => &[
+            "[i Install Hook]",
+            "[u Uninstall Hook]",
+            "[h Human Profile]",
+            "[a Strict Agent]",
+        ],
         OutputContent::HookConfirm { .. } => &["[y Yes]", "[n No]"],
     }
 }
@@ -121,7 +133,7 @@ impl ButtonId {
         match self {
             ButtonId::Commit => {
                 if app.sensitive_blocked {
-                    "Sensitive content found. Allow to continue or remove secrets."
+                    "Strict sensitive mode is active. Remove the findings or lower sensitive enforcement."
                 } else {
                     "Generate a commit message from the current diff using AI"
                 }
@@ -254,6 +266,7 @@ enum WorkerMessage {
 #[derive(Debug)]
 struct App {
     config: Config,
+    config_path: Option<PathBuf>,
     repo: RepoSummary,
     diff_text: String,
     diff_scroll: u16,
@@ -281,9 +294,16 @@ struct App {
 }
 
 impl App {
-    fn new(config: Config, repo: RepoSummary, diff_text: String, hook_installed: bool) -> Self {
+    fn new(
+        config: Config,
+        config_path: Option<PathBuf>,
+        repo: RepoSummary,
+        diff_text: String,
+        hook_installed: bool,
+    ) -> Self {
         Self {
             config,
+            config_path,
             repo,
             diff_text,
             diff_scroll: 0,
@@ -497,10 +517,40 @@ impl App {
         self.set_info(format!("Backend set to {}.", self.repo.backend_label));
     }
 
+    fn apply_sensitive_profile(&mut self, profile: SensitiveProfile) {
+        self.config.apply_sensitive_profile(profile);
+        let save_result = if let Some(path) = self.config_path.as_deref() {
+            self.config.save_to_path(path).map(|_| path.to_path_buf())
+        } else {
+            self.config.save_default()
+        };
+
+        match save_result {
+            Ok(path) => {
+                self.sensitive_blocked = false;
+                self.clear_output();
+                let profile_name = match profile {
+                    SensitiveProfile::Human => "human",
+                    SensitiveProfile::StrictAgent => "strict-agent",
+                };
+                self.set_info(format!(
+                    "Applied {profile_name} sensitive profile to {}.",
+                    path.display()
+                ));
+            }
+            Err(err) => self.set_error(err.to_string()),
+        }
+    }
+
     fn set_output(&mut self, content: OutputContent) {
+        let has_panel_buttons = !panel_buttons(&content).is_empty();
         self.output = Some(content);
         self.output_scroll = 0;
-        self.focus_area = FocusArea::Panel;
+        self.focus_area = if has_panel_buttons {
+            FocusArea::Panel
+        } else {
+            FocusArea::Bar
+        };
         self.focused_panel_btn = 0;
     }
 
@@ -556,7 +606,18 @@ fn panel_button_description(content: &OutputContent, index: usize) -> &'static s
             2 => "Regenerate the commit message",
             _ => "",
         },
-        OutputContent::SensitiveWarning { .. } => "Allow sensitive content and continue generating",
+        OutputContent::SensitiveWarning { report } => {
+            let can_continue =
+                !report.has_blocking_findings() || allows_sensitive_bypass(report.enforcement);
+            match index {
+                0 if can_continue && !report.has_blocking_findings() => {
+                    "Continue after reviewing the sensitive-content warning"
+                }
+                0 if can_continue => "Continue once despite blocking sensitive findings",
+                0 | 1 => "Cancel and close the sensitive-content warning panel",
+                _ => "",
+            }
+        }
         OutputContent::BranchPreview { .. } => match index {
             0 => "Create and checkout this branch",
             1 => "Generate a new branch name",
@@ -592,6 +653,8 @@ fn panel_button_description(content: &OutputContent, index: usize) -> &'static s
         OutputContent::HookMenu => match index {
             0 => "Install the prepare-commit-msg hook to auto-generate commit messages",
             1 => "Remove the prepare-commit-msg hook",
+            2 => "Set sensitive enforcement to the human-friendly warning profile",
+            3 => "Set sensitive enforcement to the strict autonomous-agent profile",
             _ => "",
         },
         OutputContent::HookConfirm { operation } => match (operation, index) {
@@ -647,7 +710,7 @@ fn detect_hook_installed(repo: &RepoSummary) -> bool {
 
 // ── Entry point ──
 
-pub fn run(config: Config) -> Result<(), ActionError> {
+pub fn run(config: Config, config_path: Option<PathBuf>) -> Result<(), ActionError> {
     if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
         return Err(ActionError::NonTty(
             "`occ tui` requires an interactive terminal.".to_owned(),
@@ -677,7 +740,7 @@ pub fn run(config: Config) -> Result<(), ActionError> {
 
     let (tx, rx) = mpsc::channel();
     let auto_update = config.auto_update;
-    let mut app = App::new(config, repo, diff_text.clone(), hook_installed);
+    let mut app = App::new(config, config_path, repo, diff_text.clone(), hook_installed);
 
     // Populate file sidebar and use branch diff if available
     if let Some(ctx) = &pr_ctx {
@@ -880,11 +943,20 @@ fn activate_panel_button(app: &mut App, index: usize, tx: &Sender<WorkerMessage>
             2 => spawn_generate_commit_with_origin(app, tx, current_commit_origin(app), false),
             _ => {}
         },
-        OutputContent::SensitiveWarning { .. } => {
-            if index == 0 {
-                app.sensitive_blocked = false;
-                app.clear_output();
-                spawn_generate_commit_with_origin(app, tx, current_commit_origin(app), true);
+        OutputContent::SensitiveWarning { report } => {
+            let can_continue =
+                !report.has_blocking_findings() || allows_sensitive_bypass(report.enforcement);
+            match index {
+                0 if can_continue => {
+                    app.sensitive_blocked = false;
+                    app.clear_output();
+                    spawn_generate_commit_with_origin(app, tx, current_commit_origin(app), true);
+                }
+                0 | 1 => {
+                    app.sensitive_blocked = false;
+                    app.clear_output();
+                }
+                _ => {}
             }
         }
         OutputContent::BranchPreview { .. } => match index {
@@ -973,6 +1045,8 @@ fn activate_panel_button(app: &mut App, index: usize, tx: &Sender<WorkerMessage>
                     operation: HookOperation::Uninstall,
                 });
             }
+            2 => app.apply_sensitive_profile(SensitiveProfile::Human),
+            3 => app.apply_sensitive_profile(SensitiveProfile::StrictAgent),
             _ => {}
         },
         OutputContent::HookConfirm { operation } => {
@@ -996,11 +1070,21 @@ fn handle_panel_shortcut(app: &mut App, ch: char, tx: &Sender<WorkerMessage>) {
             'r' => spawn_generate_commit_with_origin(app, tx, current_commit_origin(app), false),
             _ => {}
         },
-        OutputContent::SensitiveWarning { .. } => {
-            if ch == 'a' {
+        OutputContent::SensitiveWarning { report } => {
+            let continue_key = if !report.has_blocking_findings() {
+                Some('c')
+            } else if allows_sensitive_bypass(report.enforcement) {
+                Some('c')
+            } else {
+                None
+            };
+            if continue_key.is_some_and(|key| ch == key) {
                 app.sensitive_blocked = false;
                 app.clear_output();
                 spawn_generate_commit_with_origin(app, tx, current_commit_origin(app), true);
+            } else if ch == 'x' {
+                app.sensitive_blocked = false;
+                app.clear_output();
             }
         }
         OutputContent::BranchPreview { .. } => match ch {
@@ -1105,6 +1189,8 @@ fn handle_panel_shortcut(app: &mut App, ch: char, tx: &Sender<WorkerMessage>) {
                     operation: HookOperation::Uninstall,
                 });
             }
+            'h' => app.apply_sensitive_profile(SensitiveProfile::Human),
+            'a' => app.apply_sensitive_profile(SensitiveProfile::StrictAgent),
             _ => {}
         },
         OutputContent::HookConfirm { operation } => {
@@ -1375,7 +1461,8 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
                 }
                 Err(ActionError::SensitiveContent(report)) => {
                     app.commit_preview_origin = Some(origin);
-                    app.sensitive_blocked = true;
+                    app.sensitive_blocked = report.has_blocking_findings()
+                        && !allows_sensitive_bypass(report.enforcement);
                     app.set_output(OutputContent::SensitiveWarning { report });
                 }
                 Err(err) => app.set_error(err.to_string()),
@@ -1576,7 +1663,7 @@ fn output_panel_height(app: &App) -> u16 {
         }
         Some(OutputContent::SensitiveWarning { report }) => {
             let lines = report.findings.len() as u16;
-            (lines + 6).min(15)
+            (lines + 7).min(20)
         }
         Some(OutputContent::BranchPreview { .. }) => 7,
         Some(OutputContent::PrPreview { preview }) => {
@@ -1586,7 +1673,7 @@ fn output_panel_height(app: &App) -> u16 {
         Some(OutputContent::BackendMenu)
         | Some(OutputContent::CommitBackendMenu)
         | Some(OutputContent::PrBackendMenu) => 8,
-        Some(OutputContent::HookMenu) => 6,
+        Some(OutputContent::HookMenu) => 7,
         Some(OutputContent::HookConfirm { .. }) => 5,
     }
 }
@@ -1890,9 +1977,31 @@ fn render_commit_output(frame: &mut Frame, area: Rect, preview: &CommitPreview, 
 }
 
 fn render_sensitive_output(frame: &mut Frame, area: Rect, report: &SensitiveReport, app: &App) {
-    let mut lines = vec![Line::styled(
-        "SENSITIVE CONTENT DETECTED",
-        Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+    let has_actions = !panel_buttons(&OutputContent::SensitiveWarning {
+        report: report.clone(),
+    })
+    .is_empty();
+    let footer = if !report.has_blocking_findings() {
+        "Warnings only. Continue, inspect the diff, or cancel."
+    } else if allows_sensitive_bypass(report.enforcement) {
+        "Continue once from this screen or remove the findings."
+    } else {
+        "Strict sensitive mode is active. Remove the findings or lower enforcement."
+    };
+
+    let mut body_lines = vec![Line::styled(
+        if report.has_blocking_findings() {
+            "SENSITIVE CONTENT BLOCKED"
+        } else {
+            "SENSITIVE CONTENT WARNING"
+        },
+        Style::default()
+            .fg(if report.has_blocking_findings() {
+                Color::Red
+            } else {
+                Color::Yellow
+            })
+            .add_modifier(Modifier::BOLD),
     )];
 
     for finding in &report.findings {
@@ -1900,26 +2009,47 @@ fn render_sensitive_output(frame: &mut Frame, area: Rect, report: &SensitiveRepo
             Some(line) => format!("{}:{}", finding.file_path, line),
             None => finding.file_path.clone(),
         };
-        lines.push(Line::from(vec![
+        body_lines.push(Line::from(vec![
             Span::styled(location, Style::default().fg(Color::Yellow)),
             Span::raw(" · "),
             Span::styled(&finding.preview, Style::default().fg(Color::DarkGray)),
         ]));
     }
 
-    lines.push(Line::raw(""));
-    lines.push(render_panel_button_line(app));
-    lines.push(Line::styled(
-        "Generation blocked until resolved or allowed",
-        Style::default().fg(Color::DarkGray),
-    ));
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(if report.has_blocking_findings() {
+            Color::Red
+        } else {
+            Color::Yellow
+        }));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
 
-    let widget = Paragraph::new(lines).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Red)),
+    if inner.height == 0 {
+        return;
+    }
+
+    let footer_lines = if has_actions {
+        vec![
+            render_panel_button_line(app),
+            Line::styled(footer, Style::default().fg(Color::DarkGray)),
+        ]
+    } else {
+        vec![Line::styled(footer, Style::default().fg(Color::DarkGray))]
+    };
+    let footer_height = (footer_lines.len() as u16).min(inner.height);
+    let chunks = Layout::vertical([
+        Constraint::Min(inner.height.saturating_sub(footer_height)),
+        Constraint::Length(footer_height),
+    ])
+    .split(inner);
+
+    frame.render_widget(
+        Paragraph::new(body_lines).scroll((app.output_scroll, 0)),
+        chunks[0],
     );
-    frame.render_widget(widget, area);
+    frame.render_widget(Paragraph::new(footer_lines), chunks[1]);
 }
 
 fn render_branch_output(frame: &mut Frame, area: Rect, preview: &BranchPreview, app: &App) {
@@ -2056,14 +2186,25 @@ fn render_hook_menu(frame: &mut Frame, area: Rect, app: &App) {
     } else {
         "Hook is not installed."
     };
+    let profile = match app.config.sensitive.enforcement {
+        opencodecommit::sensitive::SensitiveEnforcement::Warn => "Human (warn)",
+        opencodecommit::sensitive::SensitiveEnforcement::BlockHigh
+        | opencodecommit::sensitive::SensitiveEnforcement::BlockAll => "Blocking",
+        opencodecommit::sensitive::SensitiveEnforcement::StrictHigh
+        | opencodecommit::sensitive::SensitiveEnforcement::StrictAll => "Strict agent",
+    };
     let lines = vec![
         Line::styled(
-            "SAFETY HOOK",
+            "SAFETY SETTINGS",
             Style::default()
                 .fg(Color::DarkGray)
                 .add_modifier(Modifier::BOLD),
         ),
         Line::styled(status, Style::default().fg(Color::DarkGray)),
+        Line::styled(
+            format!("Sensitive profile: {profile}"),
+            Style::default().fg(Color::DarkGray),
+        ),
         Line::raw(""),
         render_panel_button_line(app),
     ];
@@ -2214,6 +2355,7 @@ mod tests {
     use super::*;
     use opencodecommit::config::CliBackend;
     use ratatui::backend::TestBackend;
+    use std::fs;
 
     fn test_repo() -> RepoSummary {
         RepoSummary {
@@ -2247,7 +2389,7 @@ mod tests {
             backend: CliBackend::Codex,
             ..Config::default()
         };
-        App::new(config, test_repo(), test_diff(), false)
+        App::new(config, None, test_repo(), test_diff(), false)
     }
 
     fn render_text(app: &App, width: u16, height: u16) -> String {
@@ -2336,21 +2478,98 @@ mod tests {
     fn sensitive_warning_shows_panel() {
         let mut app = test_app();
         app.set_output(OutputContent::SensitiveWarning {
-            report: SensitiveReport::from_findings(vec![
-                opencodecommit::sensitive::SensitiveFinding {
+            report: SensitiveReport::from_findings_with_enforcement(
+                vec![opencodecommit::sensitive::SensitiveFinding {
                     category: "token",
                     rule: "API_KEY",
                     file_path: ".env".to_owned(),
                     line_number: Some(1),
                     preview: "API_KEY=sk-██████".to_owned(),
-                },
-            ]),
+                    tier: opencodecommit::sensitive::SensitiveTier::ConfirmedSecret,
+                    severity: opencodecommit::sensitive::SensitiveSeverity::Block,
+                }],
+                opencodecommit::sensitive::SensitiveEnforcement::BlockHigh,
+            ),
         });
         app.sensitive_blocked = true;
         let text = render_text(&app, 100, 24);
         assert!(text.contains("SENSITIVE"), "missing sensitive header");
         assert!(text.contains(".env:1"), "missing finding location");
-        assert!(text.contains("Allow & Continue"), "missing allow button");
+        assert!(text.contains("Continue"), "missing continue button");
+        assert!(text.contains("Cancel"), "missing cancel button");
+    }
+
+    #[test]
+    fn sensitive_warning_keeps_actions_visible_with_many_findings() {
+        let mut findings = Vec::new();
+        for index in 1..=20 {
+            findings.push(opencodecommit::sensitive::SensitiveFinding {
+                category: "token",
+                rule: "openai-project-key",
+                file_path: format!(".env.{index}"),
+                line_number: Some(index),
+                preview: "OPENAI_API_KEY=<redacted>".to_owned(),
+                tier: opencodecommit::sensitive::SensitiveTier::ConfirmedSecret,
+                severity: opencodecommit::sensitive::SensitiveSeverity::Block,
+            });
+        }
+
+        let mut app = test_app();
+        app.set_output(OutputContent::SensitiveWarning {
+            report: SensitiveReport::from_findings_with_enforcement(
+                findings,
+                opencodecommit::sensitive::SensitiveEnforcement::BlockHigh,
+            ),
+        });
+
+        let text = render_text(&app, 100, 24);
+        assert!(
+            text.contains("Continue"),
+            "continue button should remain visible"
+        );
+        assert!(
+            text.contains("Cancel"),
+            "cancel button should remain visible"
+        );
+    }
+
+    #[test]
+    fn sensitive_warning_body_scrolls_while_footer_stays_visible() {
+        let mut findings = Vec::new();
+        for index in 1..=20 {
+            findings.push(opencodecommit::sensitive::SensitiveFinding {
+                category: "token",
+                rule: "openai-project-key",
+                file_path: format!(".env.{index}"),
+                line_number: Some(index),
+                preview: format!("OPENAI_API_KEY_<redacted>_{index}"),
+                tier: opencodecommit::sensitive::SensitiveTier::ConfirmedSecret,
+                severity: opencodecommit::sensitive::SensitiveSeverity::Block,
+            });
+        }
+
+        let mut app = test_app();
+        app.set_output(OutputContent::SensitiveWarning {
+            report: SensitiveReport::from_findings_with_enforcement(
+                findings,
+                opencodecommit::sensitive::SensitiveEnforcement::BlockHigh,
+            ),
+        });
+        app.output_scroll = 8;
+
+        let text = render_text(&app, 100, 24);
+        assert!(
+            text.contains(".env.9:9"),
+            "scrolled body should show later findings"
+        );
+        assert!(
+            text.contains("Continue"),
+            "footer should stay visible while scrolling"
+        );
+        assert!(
+            text.contains("Cancel"),
+            "footer should stay visible while scrolling"
+        );
     }
 
     #[test]
@@ -2480,9 +2699,54 @@ mod tests {
         let mut app = test_app();
         app.set_output(OutputContent::HookMenu);
         let text = render_text(&app, 100, 24);
-        assert!(text.contains("SAFETY HOOK"), "missing hook menu title");
+        assert!(text.contains("SAFETY SETTINGS"), "missing hook menu title");
         assert!(text.contains("Install Hook"), "missing install button");
         assert!(text.contains("Uninstall Hook"), "missing uninstall button");
+        assert!(
+            text.contains("Human Profile"),
+            "missing human profile button"
+        );
+        assert!(
+            text.contains("Strict Agent"),
+            "missing strict profile button"
+        );
+    }
+
+    #[test]
+    fn safety_menu_profile_selection_updates_and_saves_config() {
+        let config_path =
+            std::env::temp_dir().join(format!("occ-tui-sensitive-profile-{}", std::process::id()));
+        let _ = fs::remove_file(&config_path);
+
+        let config = Config {
+            backend: CliBackend::Codex,
+            ..Config::default()
+        };
+        let mut app = App::new(
+            config,
+            Some(config_path.clone()),
+            test_repo(),
+            test_diff(),
+            false,
+        );
+        let (tx, _rx) = mpsc::channel();
+
+        app.set_output(OutputContent::HookMenu);
+        activate_panel_button(&mut app, 3, &tx);
+
+        assert_eq!(
+            app.config.sensitive.enforcement,
+            opencodecommit::sensitive::SensitiveEnforcement::StrictAll
+        );
+        assert!(app.output.is_none(), "profile action should close the menu");
+
+        let saved = Config::load(&config_path).unwrap();
+        assert_eq!(
+            saved.sensitive.enforcement,
+            opencodecommit::sensitive::SensitiveEnforcement::StrictAll
+        );
+
+        let _ = fs::remove_file(config_path);
     }
 
     #[test]
@@ -2546,7 +2810,7 @@ mod tests {
             backend: CliBackend::Codex,
             ..Config::default()
         };
-        let app = App::new(config, test_repo(), String::new(), false);
+        let app = App::new(config, None, test_repo(), String::new(), false);
         let text = render_text(&app, 100, 24);
         assert!(text.contains("No changes detected"));
     }

@@ -199,8 +199,10 @@ fn load_commit_context(
         }
 
         let changed_files = context::extract_changed_file_paths(diff);
-        let sensitive_findings = context::detect_sensitive_findings(diff, &changed_files);
-        let has_sensitive = !sensitive_findings.is_empty();
+        let sensitive_report =
+            context::detect_sensitive_report(diff, &changed_files, Some(&config.sensitive));
+        let sensitive_findings = sensitive_report.findings.clone();
+        let has_sensitive = sensitive_report.has_findings();
         let branch = git::get_branch_name(&repo_root).unwrap_or_else(|_| "unknown".to_owned());
         let recent = git::get_recent_commits(&repo_root, 10).unwrap_or_default();
 
@@ -211,6 +213,7 @@ fn load_commit_context(
                 branch,
                 file_contents: vec![],
                 changed_files,
+                sensitive_report,
                 sensitive_findings,
                 has_sensitive_content: has_sensitive,
             },
@@ -218,7 +221,7 @@ fn load_commit_context(
         ));
     }
 
-    let context = opencodecommit::context::gather_context(&repo_root, config.diff_source)?;
+    let context = opencodecommit::context::gather_context(&repo_root, config)?;
     let diff_origin = infer_diff_origin(config.diff_source, &repo_root);
     Ok((context, diff_origin))
 }
@@ -242,9 +245,15 @@ pub fn generate_commit_preview_with_fallback(
 ) -> Result<CommitPreview> {
     let (mut context, diff_origin) = load_commit_context(config, request.stdin_diff.as_deref())?;
 
-    if context.has_sensitive_content && !request.allow_sensitive {
+    if context.has_sensitive_content
+        && (!request.allow_sensitive
+            || (context.sensitive_report.has_blocking_findings()
+                && !opencodecommit::sensitive::allows_sensitive_bypass(
+                    config.sensitive.enforcement,
+                )))
+    {
         return Err(ActionError::SensitiveContent(
-            SensitiveReport::from_findings(context.sensitive_findings.clone()),
+            context.sensitive_report.clone(),
         ));
     }
 
@@ -316,7 +325,7 @@ pub fn create_branch(name: &str) -> Result<BranchResult> {
 
 fn build_context_preview(config: &Config) -> Result<CommitContext> {
     let repo_root = git::get_repo_root()?;
-    let mut context = opencodecommit::context::gather_context(&repo_root, config.diff_source)?;
+    let mut context = opencodecommit::context::gather_context(&repo_root, config)?;
     truncate_diff(&mut context, config.max_diff_length);
     Ok(context)
 }
@@ -376,6 +385,7 @@ fn pr_commit_context(pr_ctx: &PrContext) -> CommitContext {
         branch: pr_ctx.branch.clone(),
         file_contents: vec![],
         changed_files: pr_ctx.changed_files.clone(),
+        sensitive_report: SensitiveReport::from_findings(vec![]),
         sensitive_findings: vec![],
         has_sensitive_content: false,
     }

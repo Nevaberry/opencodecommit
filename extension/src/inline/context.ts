@@ -3,6 +3,7 @@ import * as fs from "node:fs"
 import * as path from "node:path"
 import type { SensitiveReport } from "./sensitive"
 import { detectSensitiveReport } from "./sensitive"
+import type { ExtensionConfig } from "./types"
 
 export interface FileContext {
   path: string
@@ -59,8 +60,9 @@ function shouldSkip(filePath: string): boolean {
 export function detectSensitiveContent(
   diff: string,
   changedFiles: string[],
+  config?: Pick<ExtensionConfig, "sensitive">,
 ): boolean {
-  return detectSensitiveReport(diff, changedFiles).findings.length > 0
+  return detectSensitiveReport(diff, changedFiles, config?.sensitive).hasFindings
 }
 
 export function filterDiff(diff: string): string {
@@ -393,12 +395,13 @@ export async function gatherContext(
   repoRoot: string,
   diff: string,
   branchName: string,
+  config: Pick<ExtensionConfig, "sensitive">,
 ): Promise<CommitContext> {
   const changedFiles = extractChangedFilePaths(diff)
   const recentCommits = await getRecentCommits(repoRoot)
   const fileContents = getFileContents(changedFiles, repoRoot, diff)
-  const sensitiveReport = detectSensitiveReport(diff, changedFiles)
-  const hasSensitiveContent = sensitiveReport.findings.length > 0
+  const sensitiveReport = detectSensitiveReport(diff, changedFiles, config.sensitive)
+  const hasSensitiveContent = sensitiveReport.hasFindings
 
   return {
     diff,

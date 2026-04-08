@@ -68,7 +68,7 @@ pub static TEST_CWD_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()))
 /// builds a prompt, executes the AI backend, and returns the formatted message.
 pub fn generate_commit_message(cfg: &config::Config) -> Result<String> {
     let repo_root = git::get_repo_root()?;
-    let mut context = context::gather_context(&repo_root, cfg.diff_source)?;
+    let mut context = context::gather_context(&repo_root, cfg)?;
 
     if context.diff.len() > cfg.max_diff_length {
         context.diff = format!("{}\n... (truncated)", &context.diff[..cfg.max_diff_length]);
@@ -99,7 +99,7 @@ pub fn refine_commit_message(
     cfg: &config::Config,
 ) -> Result<String> {
     let repo_root = git::get_repo_root()?;
-    let mut context = context::gather_context(&repo_root, cfg.diff_source)?;
+    let mut context = context::gather_context(&repo_root, cfg)?;
 
     if context.diff.len() > cfg.max_diff_length {
         context.diff = format!("{}\n... (truncated)", &context.diff[..cfg.max_diff_length]);

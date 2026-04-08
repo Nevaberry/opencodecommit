@@ -660,6 +660,42 @@
           "default": 10000,
           "description": "Max diff characters sent to AI"
         },
+        "opencodecommit.sensitive.enforcement": {
+          "order": 8.1,
+          "type": "string",
+          "enum": [
+            "warn",
+            "block-high",
+            "block-all",
+            "strict-high",
+            "strict-all"
+          ],
+          "default": "warn",
+          "markdownDescription": "Sensitive-content enforcement policy. `warn` keeps the report visible without forcing a block. `block-high` blocks confirmed secrets and sensitive artifacts. `block-all` blocks warnings too. `strict-*` disables bypass actions."
+        },
+        "opencodecommit.sensitive.allowlist": {
+          "order": 8.2,
+          "type": "array",
+          "default": [],
+          "description": "Global sensitive-detection allowlist entries. Each entry can match a path regex, rule id, and value regex.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pathRegex": {
+                "type": "string",
+                "description": "Regular expression matched against the normalized file path"
+              },
+              "rule": {
+                "type": "string",
+                "description": "Exact sensitive rule id to suppress"
+              },
+              "valueRegex": {
+                "type": "string",
+                "description": "Regular expression matched against the detected raw value or preview"
+              }
+            }
+          }
+        },
         "opencodecommit.useEmojis": {
           "order": 9,
           "type": "boolean",

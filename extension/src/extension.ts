@@ -11,6 +11,7 @@ import {
 import { type GeneratedPrDraft, generatePrDraft } from "./inline/pr"
 import type { SensitiveReport } from "./inline/sensitive"
 import {
+  allowsSensitiveBypass,
   formatSensitiveWarningReport,
   formatSensitiveWarningSummary,
 } from "./inline/sensitive"
@@ -34,6 +35,7 @@ function showAutoCloseToast(message: string, ms = 5000) {
   )
 }
 
+const SENSITIVE_CONTINUE_ACTION = "Continue"
 const SENSITIVE_BYPASS_ACTION = "Bypass Once"
 const SENSITIVE_INSPECT_ACTION = "Inspect Report"
 const SENSITIVE_CANCEL_ACTION = "Cancel"
@@ -165,7 +167,12 @@ async function generateMessageInline(
   log(`Diff length: ${diff.length} chars`)
 
   const branchName = repo.state.HEAD?.name ?? "unknown"
-  const context = await gatherContext(repo.rootUri.fsPath, diff, branchName)
+  const context = await gatherContext(
+    repo.rootUri.fsPath,
+    diff,
+    branchName,
+    config,
+  )
   log(
     `Context: branch=${context.branch}, files=${context.changedFiles.length}, recentCommits=${context.recentCommits.length}`,
   )
@@ -175,16 +182,31 @@ async function generateMessageInline(
       context.sensitiveReport,
     )
     log(`Sensitive warning summary: ${warningSummary}`)
+    const blocking = context.sensitiveReport.hasBlockingFindings
+    const primaryAction = blocking
+      ? allowsSensitiveBypass(context.sensitiveReport.enforcement)
+        ? SENSITIVE_BYPASS_ACTION
+        : undefined
+      : SENSITIVE_CONTINUE_ACTION
+    const title = blocking
+      ? "Sensitive content detected in diff."
+      : "Sensitive content warning in diff."
     const choice = await vscode.window.showWarningMessage(
-      "Sensitive content detected in diff.",
+      title,
       { modal: true, detail: warningSummary },
-      SENSITIVE_BYPASS_ACTION,
-      SENSITIVE_INSPECT_ACTION,
-      SENSITIVE_CANCEL_ACTION,
+      ...[
+        primaryAction,
+        SENSITIVE_INSPECT_ACTION,
+        SENSITIVE_CANCEL_ACTION,
+      ].filter((value): value is string => Boolean(value)),
     )
 
-    if (choice === SENSITIVE_BYPASS_ACTION) {
-      log("Sensitive warning acknowledged: bypassing once for this generation")
+    if (choice === primaryAction) {
+      if (blocking) {
+        log("Sensitive warning acknowledged: bypassing once for this generation")
+      } else {
+        log("Sensitive warning acknowledged: continuing after review prompt")
+      }
     } else if (choice === SENSITIVE_INSPECT_ACTION) {
       await openSensitiveReport(context.sensitiveReport, repo)
       log("Aborted: opened sensitive report in a new tab")
@@ -733,6 +755,7 @@ export function activate(context: vscode.ExtensionContext) {
           repo.rootUri.fsPath,
           diff,
           branchName,
+          config,
         )
         log(`DIAGNOSE: Branch: ${context.branch}`)
         log(`DIAGNOSE: Changed files: ${context.changedFiles.join(", ")}`)

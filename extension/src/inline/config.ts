@@ -5,7 +5,51 @@ import type {
   CommitMode,
   ExtensionConfig,
   LanguageConfig,
+  SensitiveAllowlistEntry,
+  SensitiveEnforcement,
 } from "./types"
+
+const DEFAULT_SENSITIVE_ENFORCEMENT: SensitiveEnforcement = "warn"
+
+function readSensitiveEnforcement(
+  cfg: vscode.WorkspaceConfiguration,
+): SensitiveEnforcement {
+  const value = cfg.get<string>(
+    "sensitive.enforcement",
+    DEFAULT_SENSITIVE_ENFORCEMENT,
+  )
+  const allowed = new Set<SensitiveEnforcement>([
+    "warn",
+    "block-high",
+    "block-all",
+    "strict-high",
+    "strict-all",
+  ])
+  if (!allowed.has(value as SensitiveEnforcement)) {
+    throw new Error(
+      `Invalid opencodecommit.sensitive.enforcement value: ${value}`,
+    )
+  }
+  return value as SensitiveEnforcement
+}
+
+function readSensitiveAllowlist(
+  cfg: vscode.WorkspaceConfiguration,
+): SensitiveAllowlistEntry[] {
+  const entries = cfg.get<SensitiveAllowlistEntry[]>("sensitive.allowlist", [])
+
+  for (const [index, entry] of entries.entries()) {
+    if (!entry.pathRegex && !entry.rule && !entry.valueRegex) {
+      throw new Error(
+        `Invalid opencodecommit.sensitive.allowlist entry at index ${index}: at least one of pathRegex, rule, or valueRegex is required`,
+      )
+    }
+    if (entry.pathRegex) new RegExp(entry.pathRegex)
+    if (entry.valueRegex) new RegExp(entry.valueRegex)
+  }
+
+  return entries
+}
 
 export function getConfig(): ExtensionConfig {
   const cfg = vscode.workspace.getConfiguration("opencodecommit")
@@ -86,5 +130,9 @@ export function getConfig(): ExtensionConfig {
       "gemini",
     ]),
     branchMode: cfg.get<BranchMode>("branchMode", "conventional"),
+    sensitive: {
+      enforcement: readSensitiveEnforcement(cfg),
+      allowlist: readSensitiveAllowlist(cfg),
+    },
   }
 }

@@ -1,0 +1,204 @@
+[
+  {
+    "name": "real_env_file_blocks_by_path",
+    "diff": "diff",
+    "changedFiles": [".env.production"],
+    "expectedFindings": [
+      {
+        "category": "artifact",
+        "rule": "env-file",
+        "filePath": ".env.production",
+        "tier": "sensitive-artifact",
+        "severity": "block",
+        "preview": ".env.production"
+      }
+    ]
+  },
+  {
+    "name": "env_template_placeholder_is_allowed",
+    "diff": "diff --git a/.env.example b/.env.example\n--- a/.env.example\n+++ b/.env.example\n@@ -0,0 +1,2 @@\n+OPENAI_API_KEY=${OPENAI_API_KEY}\n+API_TOKEN=your_api_key_here\n",
+    "changedFiles": [".env.example"],
+    "expectedFindings": []
+  },
+  {
+    "name": "env_template_with_real_provider_key_is_blocked",
+    "diff": "diff --git a/.env.example b/.env.example\n--- a/.env.example\n+++ b/.env.example\n@@ -0,0 +1 @@\n+OPENAI_API_KEY=sk-proj-abcdefghijklmnopqrstuvwxyz1234567890\n",
+    "changedFiles": [".env.example"],
+    "expectedFindings": [
+      {
+        "category": "token",
+        "rule": "openai-project-key",
+        "filePath": ".env.example",
+        "lineNumber": 1,
+        "tier": "confirmed-secret",
+        "severity": "block",
+        "preview": "OPENAI_API_KEY=<redacted>"
+      }
+    ]
+  },
+  {
+    "name": "environment_reference_is_not_a_secret",
+    "diff": "diff --git a/src/config.ts b/src/config.ts\n--- a/src/config.ts\n+++ b/src/config.ts\n@@ -0,0 +1 @@\n+const key = process.env.OPENAI_API_KEY\n",
+    "changedFiles": ["src/config.ts"],
+    "expectedFindings": []
+  },
+  {
+    "name": "generic_password_assignment_is_suspicious",
+    "diff": "diff --git a/src/auth.ts b/src/auth.ts\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -0,0 +1 @@\n+const PASSWORD = \"Alpha9981Zeta\"\n",
+    "changedFiles": ["src/auth.ts"],
+    "expectedFindings": [
+      {
+        "category": "credential",
+        "rule": "generic-secret-assignment",
+        "filePath": "src/auth.ts",
+        "lineNumber": 1,
+        "tier": "suspicious",
+        "severity": "warn",
+        "preview": "const PASSWORD = <redacted>"
+      }
+    ]
+  },
+  {
+    "name": "docs_do_not_downgrade_real_provider_keys",
+    "diff": "diff --git a/docs/setup.md b/docs/setup.md\n--- a/docs/setup.md\n+++ b/docs/setup.md\n@@ -0,0 +1 @@\n+Use OPENAI_API_KEY=sk-proj-abcdefghijklmnopqrstuvwxyz1234567890\n",
+    "changedFiles": ["docs/setup.md"],
+    "expectedFindings": [
+      {
+        "category": "token",
+        "rule": "openai-project-key",
+        "filePath": "docs/setup.md",
+        "lineNumber": 1,
+        "tier": "confirmed-secret",
+        "severity": "block",
+        "preview": "Use OPENAI_API_KEY=<redacted>"
+      }
+    ]
+  },
+  {
+    "name": "local_connection_string_warns",
+    "diff": "diff --git a/.env.local b/.env.local\n--- a/.env.local\n+++ b/.env.local\n@@ -0,0 +1 @@\n+DATABASE_URL=postgres://devuser:s3cret99@localhost:5432/app\n",
+    "changedFiles": [".env.local"],
+    "expectedFindings": [
+      {
+        "category": "artifact",
+        "rule": "env-file",
+        "filePath": ".env.local",
+        "tier": "sensitive-artifact",
+        "severity": "block",
+        "preview": ".env.local"
+      },
+      {
+        "category": "connection",
+        "rule": "credential-connection-string",
+        "filePath": ".env.local",
+        "lineNumber": 1,
+        "tier": "suspicious",
+        "severity": "warn",
+        "preview": "DATABASE_URL=postgres://devuser:<redacted>@localhost:5432/app"
+      }
+    ]
+  },
+  {
+    "name": "remote_connection_string_blocks",
+    "diff": "diff --git a/config/database.yml b/config/database.yml\n--- a/config/database.yml\n+++ b/config/database.yml\n@@ -0,0 +1 @@\n+production: postgres://appuser:s3cret99@db.acme.com:5432/app\n",
+    "changedFiles": ["config/database.yml"],
+    "expectedFindings": [
+      {
+        "category": "connection",
+        "rule": "credential-connection-string",
+        "filePath": "config/database.yml",
+        "lineNumber": 1,
+        "tier": "confirmed-secret",
+        "severity": "block",
+        "preview": "production: postgres://appuser:<redacted>@db.acme.com:5432/app"
+      }
+    ]
+  },
+  {
+    "name": "slack_webhook_blocks",
+    "diff": "diff --git a/src/notify.ts b/src/notify.ts\n--- a/src/notify.ts\n+++ b/src/notify.ts\n@@ -0,0 +1 @@\n+const webhook = \"https://hooks.slack.com/services/T12345678/B12345678/abcdefghABCDEFGH\";\n",
+    "changedFiles": ["src/notify.ts"],
+    "expectedFindings": [
+      {
+        "category": "webhook",
+        "rule": "slack-webhook",
+        "filePath": "src/notify.ts",
+        "lineNumber": 1,
+        "tier": "confirmed-secret",
+        "severity": "block",
+        "preview": "const webhook = \"<redacted>\";"
+      }
+    ]
+  },
+  {
+    "name": "pem_private_key_header_blocks_anywhere",
+    "diff": "diff --git a/config/secrets.yaml b/config/secrets.yaml\n--- a/config/secrets.yaml\n+++ b/config/secrets.yaml\n@@ -0,0 +1 @@\n+private_key: -----BEGIN RSA PRIVATE KEY-----\n",
+    "changedFiles": ["config/secrets.yaml"],
+    "expectedFindings": [
+      {
+        "category": "key",
+        "rule": "private-key-block",
+        "filePath": "config/secrets.yaml",
+        "lineNumber": 1,
+        "tier": "confirmed-secret",
+        "severity": "block",
+        "preview": "private_key: -----BEGIN RSA PRIVATE KEY-----"
+      }
+    ]
+  },
+  {
+    "name": "npmrc_placeholder_is_allowed",
+    "diff": "diff --git a/.npmrc b/.npmrc\n--- a/.npmrc\n+++ b/.npmrc\n@@ -0,0 +1 @@\n+//registry.npmjs.org/:_authToken=${NPM_TOKEN}\n",
+    "changedFiles": [".npmrc"],
+    "expectedFindings": [
+      {
+        "category": "artifact",
+        "rule": "npmrc-file",
+        "filePath": ".npmrc",
+        "tier": "suspicious",
+        "severity": "warn",
+        "preview": ".npmrc"
+      }
+    ]
+  },
+  {
+    "name": "docker_auth_literal_blocks",
+    "diff": "diff --git a/.docker/config.json b/.docker/config.json\n--- a/.docker/config.json\n+++ b/.docker/config.json\n@@ -0,0 +1 @@\n+{\"auths\":{\"https://index.docker.io/v1/\":{\"auth\":\"dXNlcjpzM2NyZXQ5OQ==\"}}}\n",
+    "changedFiles": [".docker/config.json"],
+    "expectedFindings": [
+      {
+        "category": "artifact",
+        "rule": "docker-config-file",
+        "filePath": ".docker/config.json",
+        "tier": "suspicious",
+        "severity": "warn",
+        "preview": ".docker/config.json"
+      },
+      {
+        "category": "credential",
+        "rule": "docker-config-auth",
+        "filePath": ".docker/config.json",
+        "lineNumber": 1,
+        "tier": "confirmed-secret",
+        "severity": "block",
+        "preview": "{\"auths\":{\"https://index.docker.io/v1/\":{\"auth\":\"<redacted>\"}}}"
+      }
+    ]
+  },
+  {
+    "name": "public_ipv4_warns_but_doc_ip_does_not",
+    "diff": "diff --git a/src/network.ts b/src/network.ts\n--- a/src/network.ts\n+++ b/src/network.ts\n@@ -0,0 +1,2 @@\n+const ingress = \"8.8.8.8\"\n+const example = \"203.0.113.10\"\n",
+    "changedFiles": ["src/network.ts"],
+    "expectedFindings": [
+      {
+        "category": "network",
+        "rule": "public-ipv4",
+        "filePath": "src/network.ts",
+        "lineNumber": 1,
+        "tier": "suspicious",
+        "severity": "warn",
+        "preview": "const ingress = \"<redacted-ip>\""
+      }
+    ]
+  }
+]

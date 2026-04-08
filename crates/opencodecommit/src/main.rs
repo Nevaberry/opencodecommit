@@ -7,7 +7,7 @@ use std::path::Path;
 use std::process;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use opencodecommit::config::{CliBackend, CommitMode, Config, DiffSource};
+use opencodecommit::config::{CliBackend, CommitMode, Config, DiffSource, SensitiveProfile};
 
 use crate::actions::{ActionError, BackendProgress, CommitRequest, HookOperation};
 
@@ -327,6 +327,15 @@ enum GuardAction {
         #[arg(long)]
         global: bool,
     },
+    /// Apply a named sensitive-content profile to the config file
+    Profile {
+        #[arg(value_enum)]
+        profile: SensitiveProfileArg,
+
+        /// Optional config file path
+        #[arg(long)]
+        config: Option<String>,
+    },
 }
 
 #[derive(Clone, Subcommand)]
@@ -337,6 +346,21 @@ enum InternalAction {
         #[arg(allow_hyphen_values = true)]
         args: Vec<String>,
     },
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum SensitiveProfileArg {
+    Human,
+    StrictAgent,
+}
+
+impl SensitiveProfileArg {
+    fn to_config(self) -> SensitiveProfile {
+        match self {
+            SensitiveProfileArg::Human => SensitiveProfile::Human,
+            SensitiveProfileArg::StrictAgent => SensitiveProfile::StrictAgent,
+        }
+    }
 }
 
 fn json_error(message: impl ToString) {
@@ -541,10 +565,27 @@ fn handle_commit(
         cli_progress(text),
     ) {
         Ok(preview) => preview,
+        Err(ActionError::SensitiveContent(report)) if !report.has_blocking_findings() => {
+            eprintln!("{}", report.format_occ_commit_message());
+            let mut retry = request.clone();
+            retry.allow_sensitive = true;
+            match actions::generate_commit_preview_with_fallback(config, &retry, cli_progress(text))
+            {
+                Ok(preview) => preview,
+                Err(err) => {
+                    if text {
+                        eprintln!("error: {err}");
+                        process::exit(action_exit_code(&err, use_stdin));
+                    }
+                    json_error(&err);
+                    process::exit(action_exit_code(&err, use_stdin));
+                }
+            }
+        }
         Err(err) => {
             if text {
                 eprintln!("error: {err}");
-                process::exit(1);
+                process::exit(action_exit_code(&err, use_stdin));
             }
             json_error(&err);
             process::exit(action_exit_code(&err, use_stdin));
@@ -751,6 +792,32 @@ fn handle_guard(action: GuardAction) {
                 guard::uninstall_global().map_err(|err| err.to_string())
             }
         }
+        GuardAction::Profile { profile, config } => {
+            let path = config.as_deref().map(Path::new);
+            match Config::load_or_default(path) {
+                Ok(mut cfg) => {
+                    cfg.apply_sensitive_profile(profile.to_config());
+                    let saved = if let Some(path) = path {
+                        cfg.save_to_path(path)
+                            .map(|_| path.to_path_buf())
+                            .map_err(|err| err.to_string())
+                    } else {
+                        cfg.save_default().map_err(|err| err.to_string())
+                    };
+                    saved.map(|saved_path| {
+                        format!(
+                            "applied {} sensitive profile to {}",
+                            match profile {
+                                SensitiveProfileArg::Human => "human",
+                                SensitiveProfileArg::StrictAgent => "strict-agent",
+                            },
+                            saved_path.display()
+                        )
+                    })
+                }
+                Err(err) => Err(err.to_string()),
+            }
+        }
     };
 
     match result {
@@ -784,7 +851,7 @@ fn handle_tui(config: Option<String>, backend: Option<CliBackendArg>) {
         cfg.backend = backend.to_config();
         cfg.backend_order = vec![cfg.backend];
     }
-    if let Err(err) = tui::run(cfg) {
+    if let Err(err) = tui::run(cfg, config.map(Into::into)) {
         eprintln!("error: {err}");
         process::exit(match err {
             ActionError::Occ(_) => 3,

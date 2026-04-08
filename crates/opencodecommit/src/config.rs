@@ -4,6 +4,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use crate::Error;
+use crate::sensitive::{SensitiveAllowlistEntry, SensitiveEnforcement};
 
 // --- Enums ---
 
@@ -53,6 +54,12 @@ pub enum BranchMode {
     #[default]
     Conventional,
     Adaptive,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SensitiveProfile {
+    Human,
+    StrictAgent,
 }
 
 // --- Config structs ---
@@ -112,6 +119,24 @@ impl Default for RefineConfig {
     fn default() -> Self {
         Self {
             default_feedback: default_refine_feedback(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct SensitiveConfig {
+    #[serde(default)]
+    pub enforcement: SensitiveEnforcement,
+    #[serde(default)]
+    pub allowlist: Vec<SensitiveAllowlistEntry>,
+}
+
+impl Default for SensitiveConfig {
+    fn default() -> Self {
+        Self {
+            enforcement: SensitiveEnforcement::Warn,
+            allowlist: vec![],
         }
     }
 }
@@ -241,6 +266,9 @@ pub struct Config {
 
     #[serde(default)]
     pub custom: CustomConfig,
+
+    #[serde(default)]
+    pub sensitive: SensitiveConfig,
 }
 
 // --- Default value functions ---
@@ -388,6 +416,7 @@ impl Default for Config {
             auto_update: true,
             refine: RefineConfig::default(),
             custom: CustomConfig::default(),
+            sensitive: SensitiveConfig::default(),
         }
     }
 }
@@ -533,8 +562,10 @@ impl Config {
                 path.display()
             ))
         })?;
-        toml::from_str(&content)
-            .map_err(|e| Error::Config(format!("failed to parse config file: {e}")))
+        let config: Self = toml::from_str(&content)
+            .map_err(|e| Error::Config(format!("failed to parse config file: {e}")))?;
+        config.validate()?;
+        Ok(config)
     }
 
     /// Load from the default config path, or return defaults if no file exists.
@@ -546,6 +577,60 @@ impl Config {
             return Self::load(&path);
         }
         Ok(Self::default())
+    }
+
+    pub fn save_to_path(&self, path: &Path) -> crate::Result<()> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        self.validate()?;
+        let content = toml::to_string_pretty(self)
+            .map_err(|err| Error::Config(format!("failed to serialize config file: {err}")))?;
+        std::fs::write(path, content)?;
+        Ok(())
+    }
+
+    pub fn save_default(&self) -> crate::Result<PathBuf> {
+        let dir = Self::default_config_dir()
+            .ok_or_else(|| Error::Config("failed to resolve config directory".to_owned()))?;
+        let path = dir.join("config.toml");
+        self.save_to_path(&path)?;
+        Ok(path)
+    }
+
+    pub fn validate(&self) -> crate::Result<()> {
+        for (index, entry) in self.sensitive.allowlist.iter().enumerate() {
+            if entry.path_regex.is_none() && entry.rule.is_none() && entry.value_regex.is_none() {
+                return Err(Error::Config(format!(
+                    "sensitive.allowlist[{index}] must define path-regex, rule, or value-regex"
+                )));
+            }
+
+            if let Some(pattern) = entry.path_regex.as_deref() {
+                regex::Regex::new(pattern).map_err(|err| {
+                    Error::Config(format!(
+                        "invalid sensitive.allowlist[{index}].path-regex: {err}"
+                    ))
+                })?;
+            }
+
+            if let Some(pattern) = entry.value_regex.as_deref() {
+                regex::Regex::new(pattern).map_err(|err| {
+                    Error::Config(format!(
+                        "invalid sensitive.allowlist[{index}].value-regex: {err}"
+                    ))
+                })?;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn apply_sensitive_profile(&mut self, profile: SensitiveProfile) {
+        self.sensitive.enforcement = match profile {
+            SensitiveProfile::Human => SensitiveEnforcement::Warn,
+            SensitiveProfile::StrictAgent => SensitiveEnforcement::StrictAll,
+        };
     }
 }
 
