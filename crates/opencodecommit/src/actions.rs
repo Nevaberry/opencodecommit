@@ -236,7 +236,6 @@ fn truncate_error(err: &str) -> String {
     }
 }
 
-const FALLBACK_TIMEOUT_SECS: u64 = 60;
 
 pub fn generate_commit_preview_with_fallback(
     config: &Config,
@@ -270,7 +269,12 @@ pub fn generate_commit_preview_with_fallback(
     };
 
     let start = Instant::now();
-    let (response, backend, failures) = exec_with_fallback(config, &prompt, &on_progress)?;
+    let (response, backend, failures) = exec_with_fallback(
+        config,
+        &prompt,
+        config.commit_branch_timeout_seconds,
+        &on_progress,
+    )?;
     let duration_ms = start.elapsed().as_millis();
 
     let message = match config.commit_mode {
@@ -488,6 +492,7 @@ fn generate_pr_preview_internal(
 fn exec_with_fallback(
     config: &Config,
     prompt: &str,
+    timeout_secs: u64,
     on_progress: &impl Fn(BackendProgress),
 ) -> std::result::Result<(String, CliBackend, Vec<BackendFailure>), ActionError> {
     let backends = config.effective_backend_order();
@@ -513,7 +518,7 @@ fn exec_with_fallback(
         };
 
         let invocation = build_invocation_for(&cli_path, prompt, config, backend);
-        match exec_cli_with_timeout(&invocation, FALLBACK_TIMEOUT_SECS) {
+        match exec_cli_with_timeout(&invocation, timeout_secs) {
             Ok(response) => return Ok((response, backend, failures)),
             Err(e) => {
                 let error = truncate_error(&e.to_string());
@@ -567,7 +572,12 @@ pub fn generate_branch_preview_with_fallback(
         &existing_branches,
     );
 
-    let (response, _backend, failures) = exec_with_fallback(config, &prompt, &on_progress)?;
+    let (response, _backend, failures) = exec_with_fallback(
+        config,
+        &prompt,
+        config.commit_branch_timeout_seconds,
+        &on_progress,
+    )?;
     Ok(BranchPreview {
         name: format_branch_name(&response),
         backend_failures: failures,
@@ -588,7 +598,11 @@ pub fn generate_pr_preview_with_fallback(
         backend_config.backend = backend;
         backend_config.backend_order = vec![backend];
 
-        match generate_pr_preview_internal(&backend_config, explicit_base, FALLBACK_TIMEOUT_SECS) {
+        match generate_pr_preview_internal(
+            &backend_config,
+            explicit_base,
+            config.pr_timeout_seconds,
+        ) {
             Ok(mut preview) => {
                 preview.backend_failures = failures;
                 return Ok(preview);
@@ -623,7 +637,12 @@ pub fn generate_changelog_preview_with_fallback(
 ) -> Result<ChangelogPreview> {
     let context = build_context_preview(config)?;
     let prompt = build_changelog_prompt(&context, config);
-    let (response, _backend, failures) = exec_with_fallback(config, &prompt, &on_progress)?;
+    let (response, _backend, failures) = exec_with_fallback(
+        config,
+        &prompt,
+        config.commit_branch_timeout_seconds,
+        &on_progress,
+    )?;
     Ok(ChangelogPreview {
         entry: response::sanitize_response(&response),
         backend_failures: failures,

@@ -242,6 +242,12 @@ pub struct Config {
     #[serde(default = "default_max_diff_length")]
     pub max_diff_length: usize,
 
+    #[serde(default = "default_commit_branch_timeout_seconds")]
+    pub commit_branch_timeout_seconds: u64,
+
+    #[serde(default = "default_pr_timeout_seconds")]
+    pub pr_timeout_seconds: u64,
+
     #[serde(default)]
     pub use_emojis: bool,
 
@@ -318,6 +324,14 @@ fn default_diff_source() -> DiffSource {
 
 fn default_max_diff_length() -> usize {
     10000
+}
+
+fn default_commit_branch_timeout_seconds() -> u64 {
+    70
+}
+
+fn default_pr_timeout_seconds() -> u64 {
+    180
 }
 
 fn default_true() -> bool {
@@ -409,6 +423,8 @@ impl Default for Config {
             branch_mode: BranchMode::default(),
             diff_source: default_diff_source(),
             max_diff_length: default_max_diff_length(),
+            commit_branch_timeout_seconds: default_commit_branch_timeout_seconds(),
+            pr_timeout_seconds: default_pr_timeout_seconds(),
             use_emojis: false,
             use_lower_case: true,
             commit_template: default_commit_template(),
@@ -722,6 +738,8 @@ mod tests {
         assert_eq!(cfg.gemini_model, "gemini-2.5-flash");
         assert_eq!(cfg.diff_source, DiffSource::Auto);
         assert_eq!(cfg.max_diff_length, 10000);
+        assert_eq!(cfg.commit_branch_timeout_seconds, 70);
+        assert_eq!(cfg.pr_timeout_seconds, 180);
         assert!(!cfg.use_emojis);
         assert!(cfg.use_lower_case);
         assert_eq!(cfg.commit_template, "{{type}}: {{message}}");
@@ -906,6 +924,8 @@ provider = "anthropic"
 model = "opus"
 claude-model = "opus"
 max-diff-length = 5000
+commit-branch-timeout-seconds = 95
+pr-timeout-seconds = 240
 use-emojis = true
 use-lower-case = false
 
@@ -926,6 +946,8 @@ prompt = "Generate: {{{{diff}}}}"
         assert_eq!(cfg.model, "opus");
         assert_eq!(cfg.claude_model, "opus");
         assert_eq!(cfg.max_diff_length, 5000);
+        assert_eq!(cfg.commit_branch_timeout_seconds, 95);
+        assert_eq!(cfg.pr_timeout_seconds, 240);
         assert!(cfg.use_emojis);
         assert!(!cfg.use_lower_case);
         assert_eq!(cfg.refine.default_feedback, "be more specific");
@@ -1048,6 +1070,8 @@ prompt = "Generate: {{{{diff}}}}"
         assert_eq!(cfg.model, "gpt-5.4-mini");
         assert!(config_path.exists());
         assert!(serialized.contains("backend-order"));
+        assert!(serialized.contains("commit-branch-timeout-seconds"));
+        assert!(serialized.contains("pr-timeout-seconds"));
         assert!(serialized.contains("sensitive"));
         assert!(serialized.contains("[[languages]]"));
         assert!(serialized.contains("base-module"));

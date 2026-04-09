@@ -11,6 +11,10 @@ import {
 } from "./inline/config"
 import { gatherContext, getRecentBranchNames } from "./inline/context"
 import {
+  generateChangelogEntry,
+  mergeChangelogContent,
+} from "./inline/changelog"
+import {
   generateBranchName,
   generateCommitMessage,
   refineCommitMessage,
@@ -301,6 +305,68 @@ function formatPrDraftDocument(draft: GeneratedPrDraft): string {
   ].join("\n")
 }
 
+function isMissingFileError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  return /FileNotFound|EntryNotFound|ENOENT/i.test(
+    `${error.name}: ${error.message}`,
+  )
+}
+
+async function readOptionalWorkspaceFile(
+  uri: vscode.Uri,
+): Promise<string | undefined> {
+  try {
+    const bytes = await vscode.workspace.fs.readFile(uri)
+    return Buffer.from(bytes).toString("utf8")
+  } catch (error) {
+    if (isMissingFileError(error)) {
+      return undefined
+    }
+    throw error
+  }
+}
+
+async function createChangelogInline(repo: Repository, version: string) {
+  const config = await getInlineConfig()
+  log(`Changelog backend order: [${config.backendOrder.join(", ")}]`)
+
+  const diff = await getDiff(repo, config.diffSource)
+  log(`Changelog diff length: ${diff.length} chars`)
+
+  const branchName = repo.state.HEAD?.name ?? "unknown"
+  const context = await gatherContext(
+    repo.rootUri.fsPath,
+    diff,
+    branchName,
+    config,
+  )
+  log(
+    `Changelog context: branch=${context.branch}, files=${context.changedFiles.length}, recentCommits=${context.recentCommits.length}`,
+  )
+
+  const onProgress = (msg: string) => {
+    if (msg.includes("failed")) showAutoCloseToast(msg)
+  }
+  const entry = await generateChangelogEntry(
+    context,
+    config,
+    log,
+    onProgress,
+  )
+  log(`Generated changelog entry (${entry.length} chars) for ${version}`)
+
+  const changelogUri = vscode.Uri.joinPath(repo.rootUri, "CHANGELOG.md")
+  const currentContent = await readOptionalWorkspaceFile(changelogUri)
+  const nextContent = mergeChangelogContent(currentContent, version, entry)
+  await vscode.workspace.fs.writeFile(
+    changelogUri,
+    Buffer.from(nextContent, "utf8"),
+  )
+
+  const document = await vscode.workspace.openTextDocument(changelogUri)
+  await vscode.window.showTextDocument(document, { preview: false })
+}
+
 async function generatePrInline(
   repo: Repository,
   backendOverride?: CliBackend,
@@ -516,6 +582,49 @@ async function generateBranchInline(mode: BranchMode, repo: Repository) {
   terminal.show()
 }
 
+async function createChangelog(arg?: { rootUri?: vscode.Uri }) {
+  const repo = resolveRepository(arg)
+  if (!repo) {
+    vscode.window.showErrorMessage("No git repository found.")
+    return
+  }
+
+  const version = await vscode.window.showInputBox({
+    prompt: "Changelog version",
+    placeHolder: "e.g. 1.5.0",
+  })
+  const normalizedVersion = version?.trim()
+  if (!normalizedVersion) return
+
+  await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.SourceControl,
+      title: `Creating changelog ${normalizedVersion}...`,
+    },
+    async () => {
+      try {
+        await createChangelogInline(repo, normalizedVersion)
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+        if (msg.includes("CLI not found")) {
+          const action = await vscode.window.showErrorMessage(
+            `OpenCodeCommit: ${msg}`,
+            "Open Settings",
+          )
+          if (action === "Open Settings") {
+            vscode.commands.executeCommand(
+              "workbench.action.openSettings",
+              "opencodecommit",
+            )
+          }
+        } else {
+          vscode.window.showErrorMessage(`OpenCodeCommit: ${msg}`)
+        }
+      }
+    },
+  )
+}
+
 async function generateBranch(
   mode: BranchMode,
   arg?: { rootUri?: vscode.Uri },
@@ -595,6 +704,9 @@ export async function activate(context: vscode.ExtensionContext) {
     ),
     vscode.commands.registerCommand("opencodecommit.generatePr", (arg) =>
       generatePr(arg),
+    ),
+    vscode.commands.registerCommand("opencodecommit.createChangelog", (arg) =>
+      createChangelog(arg),
     ),
     vscode.commands.registerCommand("opencodecommit.generatePrCodex", (arg) =>
       generatePr(arg, "codex"),
@@ -745,6 +857,8 @@ export async function activate(context: vscode.ExtensionContext) {
         log(`DIAGNOSE: Commit mode: ${config.commitMode}`)
         log(`DIAGNOSE: Diff source: ${config.diffSource}`)
         log(`DIAGNOSE: Max diff length: ${config.maxDiffLength}`)
+        log(`DIAGNOSE: Commit/branch timeout: ${config.commitBranchTimeoutSeconds}s`)
+        log(`DIAGNOSE: PR timeout: ${config.prTimeoutSeconds}s`)
 
         const { detectCli, getConfigPath: getCliConfigPath } = await import(
           "./inline/cli"

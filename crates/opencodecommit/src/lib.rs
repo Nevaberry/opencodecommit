@@ -77,7 +77,7 @@ pub fn generate_commit_message(cfg: &config::Config) -> Result<String> {
     let prompt = prompt::build_prompt(&context, cfg, Some(cfg.commit_mode));
     let cli_path = backend::detect_cli(cfg.backend, cfg.backend_cli_path())?;
     let invocation = backend::build_invocation(&cli_path, &prompt, cfg);
-    let response = backend::exec_cli(&invocation)?;
+    let response = backend::exec_cli_with_timeout(&invocation, cfg.commit_branch_timeout_seconds)?;
 
     let message = match cfg.commit_mode {
         config::CommitMode::Adaptive | config::CommitMode::AdaptiveOneliner => {
@@ -108,7 +108,7 @@ pub fn refine_commit_message(
     let prompt = prompt::build_refine_prompt(current_message, feedback, &context.diff, cfg);
     let cli_path = backend::detect_cli(cfg.backend, cfg.backend_cli_path())?;
     let invocation = backend::build_invocation(&cli_path, &prompt, cfg);
-    let response = backend::exec_cli(&invocation)?;
+    let response = backend::exec_cli_with_timeout(&invocation, cfg.commit_branch_timeout_seconds)?;
 
     let parsed = response::parse_response(&response);
     Ok(response::format_commit_message(&parsed, cfg))
@@ -135,7 +135,7 @@ pub fn generate_branch_name(cfg: &config::Config) -> Result<String> {
     );
     let cli_path = backend::detect_cli(cfg.backend, cfg.backend_cli_path())?;
     let invocation = backend::build_invocation(&cli_path, &prompt, cfg);
-    let response = backend::exec_cli(&invocation)?;
+    let response = backend::exec_cli_with_timeout(&invocation, cfg.commit_branch_timeout_seconds)?;
 
     Ok(response::format_branch_name(&response))
 }

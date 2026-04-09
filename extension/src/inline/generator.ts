@@ -1,6 +1,7 @@
 import { backendLabel } from "./backends"
 import {
   buildInvocation,
+  type InvocationOperation,
   detectCli,
   execCli,
   getConfigPath,
@@ -203,7 +204,7 @@ export async function generateBranchName(
   for (const backend of backends) {
     try {
       onProgress?.(`Trying ${backend}...`)
-      response = await tryBackend(backend, prompt, config, logFn)
+      response = await tryBackend(backend, prompt, config, "branch", logFn)
       logFn(`[${backend}] Success`)
       break
     } catch (err: unknown) {
@@ -357,6 +358,7 @@ async function tryBackend(
   backend: CliBackend,
   prompt: string,
   config: ExtensionConfig,
+  operation: InvocationOperation,
   logFn: (msg: string) => void,
 ): Promise<string> {
   const configPath = getConfigPath(config, backend)
@@ -368,6 +370,7 @@ async function tryBackend(
     prompt,
     config,
     backend,
+    operation,
   )
   logFn(
     `[${backend}] Running: ${invocation.command} ${invocation.args.map((a) => (a.length > 100 ? `[${a.length} chars]` : a)).join(" ")}`,
@@ -414,7 +417,7 @@ export async function generateCommitMessage(
   for (const backend of backends) {
     try {
       onProgress?.(`Trying ${backend}...`)
-      response = await tryBackend(backend, prompt, config, logFn)
+      response = await tryBackend(backend, prompt, config, "commit", logFn)
       logFn(`[${backend}] Success`)
       break
     } catch (err: unknown) {
@@ -467,7 +470,7 @@ export async function refineCommitMessage(
   for (const backend of backends) {
     try {
       onProgress?.(`Trying ${backend}...`)
-      response = await tryBackend(backend, prompt, config, logFn)
+      response = await tryBackend(backend, prompt, config, "commit", logFn)
       break
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)

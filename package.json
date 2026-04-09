@@ -84,6 +84,11 @@
         "title": "occ: Generate PR via Gemini"
       },
       {
+        "command": "opencodecommit.createChangelog",
+        "title": "occ: Create Changelog",
+        "icon": "$(list-unordered)"
+      },
+      {
         "command": "opencodecommit.switchLanguage",
         "title": "occ: Switch Language",
         "icon": "$(globe)"
@@ -239,6 +244,10 @@
         {
           "command": "opencodecommit.generateBranchConventional",
           "group": "4_branch"
+        },
+        {
+          "command": "opencodecommit.createChangelog",
+          "group": "2_actions@7"
         }
       ],
       "opencodecommit.commitAdaptiveBackendMenu": [
@@ -702,6 +711,22 @@
           "type": "number",
           "default": 10000,
           "description": "Max diff characters sent to AI",
+          "scope": "machine"
+        },
+        "opencodecommit.commitBranchTimeoutSeconds": {
+          "order": 8.1,
+          "type": "number",
+          "minimum": 1,
+          "default": 70,
+          "description": "Timeout in seconds for commit, branch, and changelog generation attempts, including fallback attempts.",
+          "scope": "machine"
+        },
+        "opencodecommit.prTimeoutSeconds": {
+          "order": 8.2,
+          "type": "number",
+          "minimum": 1,
+          "default": 180,
+          "description": "Timeout in seconds for each PR generation attempt, including summary/final stages and fallback attempts.",
           "scope": "machine"
         },
         "opencodecommit.sensitive.enforcement": {

@@ -10,6 +10,8 @@ export interface CliInvocation {
   timeout: number
 }
 
+export type InvocationOperation = "commit" | "branch" | "pr" | "changelog"
+
 const cachedCliPaths: Partial<Record<CliBackend, string>> = {}
 
 function isExecutable(filePath: string): boolean {
@@ -216,12 +218,30 @@ export function getConfigPath(
   }
 }
 
+function normalizeTimeoutSeconds(seconds: number): number {
+  if (!Number.isFinite(seconds)) return 1
+  return Math.max(1, Math.floor(seconds))
+}
+
+export function getInvocationTimeoutMs(
+  config: ExtensionConfig,
+  operation: InvocationOperation,
+): number {
+  const seconds =
+    operation === "pr"
+      ? config.prTimeoutSeconds
+      : config.commitBranchTimeoutSeconds
+  return normalizeTimeoutSeconds(seconds) * 1000
+}
+
 export function buildInvocation(
   cliPath: string,
   prompt: string,
   config: ExtensionConfig,
   backend: CliBackend,
+  operation: InvocationOperation = "commit",
 ): { invocation: CliInvocation; stdin?: string } {
+  const timeout = getInvocationTimeoutMs(config, operation)
   switch (backend) {
     case "opencode":
       return {
@@ -235,7 +255,7 @@ export function buildInvocation(
             "json",
             prompt,
           ],
-          timeout: 120_000,
+          timeout,
         },
       }
 
@@ -252,7 +272,7 @@ export function buildInvocation(
             "--max-turns",
             "1",
           ],
-          timeout: 120_000,
+          timeout,
         },
         stdin: prompt,
       }
@@ -275,7 +295,7 @@ export function buildInvocation(
         invocation: {
           command: cliPath,
           args: codexArgs,
-          timeout: 120_000,
+          timeout,
         },
         stdin: prompt,
       }
@@ -291,7 +311,7 @@ export function buildInvocation(
         invocation: {
           command: cliPath,
           args: geminiArgs,
-          timeout: 120_000,
+          timeout,
         },
       }
     }

@@ -39,6 +39,8 @@ export interface ExtensionConfig {
   cliPath: string
   diffSource: "staged" | "all" | "auto"
   maxDiffLength: number
+  commitBranchTimeoutSeconds: number
+  prTimeoutSeconds: number
   useEmojis: boolean
   useLowerCase: boolean
   commitTemplate: string

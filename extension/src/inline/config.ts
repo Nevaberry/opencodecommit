@@ -351,6 +351,16 @@ function readMirroredSettingsFromGlobalSettings(): MirroredSettings {
       "maxDiffLength",
       defaults.maxDiffLength,
     ),
+    commitBranchTimeoutSeconds: readGlobalSetting(
+      configuration,
+      "commitBranchTimeoutSeconds",
+      defaults.commitBranchTimeoutSeconds,
+    ),
+    prTimeoutSeconds: readGlobalSetting(
+      configuration,
+      "prTimeoutSeconds",
+      defaults.prTimeoutSeconds,
+    ),
     sensitiveEnforcement: readGlobalSetting(
       configuration,
       "sensitive.enforcement",

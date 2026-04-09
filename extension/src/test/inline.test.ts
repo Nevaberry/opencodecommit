@@ -82,6 +82,8 @@ function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
     cliPath: "",
     diffSource: "auto",
     maxDiffLength: 10000,
+    commitBranchTimeoutSeconds: 70,
+    prTimeoutSeconds: 180,
     useEmojis: false,
     useLowerCase: true,
     commitTemplate: "{{type}}: {{message}}",
@@ -189,6 +191,47 @@ describe("backend helpers", () => {
       "text",
     ])
     assert.strictEqual(stdin, undefined)
+  })
+
+  it("uses the configured timeout for each operation", () => {
+    const config = makeConfig({
+      commitBranchTimeoutSeconds: 75,
+      prTimeoutSeconds: 210,
+    })
+
+    const commit = buildInvocation(
+      "/usr/bin/codex",
+      "summarize the diff",
+      config,
+      "codex",
+      "commit",
+    )
+    const branch = buildInvocation(
+      "/usr/bin/codex",
+      "name the branch",
+      config,
+      "codex",
+      "branch",
+    )
+    const pr = buildInvocation(
+      "/usr/bin/codex",
+      "draft the pr",
+      config,
+      "codex",
+      "pr",
+    )
+    const changelog = buildInvocation(
+      "/usr/bin/codex",
+      "write the changelog",
+      config,
+      "codex",
+      "changelog",
+    )
+
+    assert.strictEqual(commit.invocation.timeout, 75_000)
+    assert.strictEqual(branch.invocation.timeout, 75_000)
+    assert.strictEqual(pr.invocation.timeout, 210_000)
+    assert.strictEqual(changelog.invocation.timeout, 75_000)
   })
 })
 

@@ -45,6 +45,8 @@ export interface MirroredSettings {
   sparkleMode: CommitMode
   diffSource: DiffSource
   maxDiffLength: number
+  commitBranchTimeoutSeconds: number
+  prTimeoutSeconds: number
   sensitiveEnforcement: SensitiveEnforcement
   sensitiveAllowlist: SensitiveAllowlistEntry[]
   useEmojis: boolean
@@ -108,6 +110,8 @@ export const MIRRORED_SETTING_FIELDS = [
   { property: "sparkleMode", settingKey: "sparkleMode" },
   { property: "diffSource", settingKey: "diffSource" },
   { property: "maxDiffLength", settingKey: "maxDiffLength" },
+  { property: "commitBranchTimeoutSeconds", settingKey: "commitBranchTimeoutSeconds" },
+  { property: "prTimeoutSeconds", settingKey: "prTimeoutSeconds" },
   { property: "sensitiveEnforcement", settingKey: "sensitive.enforcement" },
   { property: "sensitiveAllowlist", settingKey: "sensitive.allowlist" },
   { property: "useEmojis", settingKey: "useEmojis" },
@@ -403,6 +407,11 @@ export function getManifestDefaults(manifest: {
     sparkleMode: getPropertyDefault(properties, "sparkleMode"),
     diffSource: getPropertyDefault(properties, "diffSource"),
     maxDiffLength: getPropertyDefault(properties, "maxDiffLength"),
+    commitBranchTimeoutSeconds: getPropertyDefault(
+      properties,
+      "commitBranchTimeoutSeconds",
+    ),
+    prTimeoutSeconds: getPropertyDefault(properties, "prTimeoutSeconds"),
     sensitiveEnforcement: getPropertyDefault(
       properties,
       "sensitive.enforcement",
@@ -452,6 +461,8 @@ export function buildDefaultTomlDocument(defaults: MirroredSettings): TomlConfig
     "branch-mode": defaults.branchMode,
     "diff-source": defaults.diffSource,
     "max-diff-length": defaults.maxDiffLength,
+    "commit-branch-timeout-seconds": defaults.commitBranchTimeoutSeconds,
+    "pr-timeout-seconds": defaults.prTimeoutSeconds,
     "use-emojis": defaults.useEmojis,
     "use-lower-case": defaults.useLowerCase,
     "commit-template": defaults.commitTemplate,
@@ -648,6 +659,16 @@ export function readMirroredSettings(
       defaults.maxDiffLength,
       "max-diff-length",
     ),
+    commitBranchTimeoutSeconds: readNumber(
+      doc["commit-branch-timeout-seconds"],
+      defaults.commitBranchTimeoutSeconds,
+      "commit-branch-timeout-seconds",
+    ),
+    prTimeoutSeconds: readNumber(
+      doc["pr-timeout-seconds"],
+      defaults.prTimeoutSeconds,
+      "pr-timeout-seconds",
+    ),
     sensitiveEnforcement: readEnum(
       sensitive.enforcement,
       SENSITIVE_ENFORCEMENTS,
@@ -704,6 +725,8 @@ export function toExtensionConfig(settings: MirroredSettings): ExtensionConfig {
     cliPath: settings.opencodeCLIPath,
     diffSource: settings.diffSource,
     maxDiffLength: settings.maxDiffLength,
+    commitBranchTimeoutSeconds: settings.commitBranchTimeoutSeconds,
+    prTimeoutSeconds: settings.prTimeoutSeconds,
     useEmojis: settings.useEmojis,
     useLowerCase: settings.useLowerCase,
     commitTemplate: settings.commitTemplate,
@@ -808,6 +831,8 @@ export function applyMirroredSettingsToToml(
     "branch-mode": settings.branchMode,
     "diff-source": settings.diffSource,
     "max-diff-length": settings.maxDiffLength,
+    "commit-branch-timeout-seconds": settings.commitBranchTimeoutSeconds,
+    "pr-timeout-seconds": settings.prTimeoutSeconds,
     "use-emojis": settings.useEmojis,
     "use-lower-case": settings.useLowerCase,
     "commit-template": settings.commitTemplate,

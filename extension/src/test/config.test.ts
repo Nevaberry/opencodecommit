@@ -49,6 +49,16 @@ describe("config schema", () => {
 
     const properties = rootManifest.contributes.configuration.properties
     assert.strictEqual(properties["opencodecommit.configPath"].scope, "machine")
+    assert.strictEqual(
+      properties["opencodecommit.commitBranchTimeoutSeconds"].scope,
+      "machine",
+    )
+    assert.strictEqual(
+      properties["opencodecommit.commitBranchTimeoutSeconds"].default,
+      70,
+    )
+    assert.strictEqual(properties["opencodecommit.prTimeoutSeconds"].scope, "machine")
+    assert.strictEqual(properties["opencodecommit.prTimeoutSeconds"].default, 180)
     assert.ok(!("enum" in properties["opencodecommit.activeLanguage"]))
   })
 
@@ -62,6 +72,8 @@ describe("config schema", () => {
     const runtimeConfig = toExtensionConfig(mirrored)
 
     assert.strictEqual(mirrored.showLanguageSelector, true)
+    assert.strictEqual(mirrored.commitBranchTimeoutSeconds, 70)
+    assert.strictEqual(mirrored.prTimeoutSeconds, 180)
     assert.ok(mirrored.languages.length >= 12)
     assert.ok(
       mirrored.languages[0]?.baseModule?.includes(
@@ -80,6 +92,8 @@ describe("config schema", () => {
       activeLanguage: "Finnish",
       backendOrder: ["gemini", "codex", "opencode", "claude"],
       useEmojis: true,
+      commitBranchTimeoutSeconds: 95,
+      prTimeoutSeconds: 240,
     })
 
     assert.strictEqual(updatedDoc["active-language"], "Finnish")
@@ -90,5 +104,7 @@ describe("config schema", () => {
       "claude",
     ])
     assert.strictEqual(updatedDoc["use-emojis"], true)
+    assert.strictEqual(updatedDoc["commit-branch-timeout-seconds"], 95)
+    assert.strictEqual(updatedDoc["pr-timeout-seconds"], 240)
   })
 })

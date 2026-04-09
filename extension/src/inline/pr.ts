@@ -238,6 +238,7 @@ async function tryBackend(
     prompt,
     config,
     backend,
+    "pr",
   )
   logFn(
     `[${backend}] Running: ${invocation.command} ${invocation.args.map((arg) => (arg.length > 100 ? `[${arg.length} chars]` : arg)).join(" ")}`,
