@@ -5,7 +5,7 @@
 # Ensure ~/.bun/bin is in PATH (hooks get a minimal environment)
 export PATH="$HOME/.bun/bin:$PATH"
 
-LOCKFILES="bun.lock extension/package-lock.json Cargo.lock"
+LOCKFILES="bun.lock extension/bun.lock Cargo.lock"
 STAGED=$(git diff --cached --name-only)
 NEED_CHECK=false
 
