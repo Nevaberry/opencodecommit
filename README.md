@@ -9,11 +9,11 @@ OpenCodeCommit works as:
 
 Before any prompt leaves your machine, OpenCodeCommit scans the diff locally for secrets, credential files, source maps, private keys, and other sensitive artifacts.
 
-- <a href="https://open-vsx.org/extension/Nevaberry/opencodecommit"><img src=".github/icons/openvsx.png" width="14"> Open VSX</a>
-- <a href="https://marketplace.visualstudio.com/items?itemName=Nevaberry.opencodecommit"><img src=".github/icons/vscode.png" width="14"> VS Code Marketplace</a>
-- <a href="https://www.npmjs.com/package/opencodecommit"><img src=".github/icons/npm.png" width="14"> npm</a>
-- <a href="https://crates.io/crates/opencodecommit"><img src=".github/icons/crates.png" width="14"> crates.io</a>
-- <a href="https://github.com/Nevaberry/opencodecommit"><img src=".github/icons/github.png" width="14"> GitHub</a>
+- <a href="https://open-vsx.org/extension/Nevaberry/opencodecommit"><img src="https://raw.githubusercontent.com/Nevaberry/opencodecommit/HEAD/.github/icons/openvsx.png" width="14"> Open VSX</a>
+- <a href="https://marketplace.visualstudio.com/items?itemName=Nevaberry.opencodecommit"><img src="https://raw.githubusercontent.com/Nevaberry/opencodecommit/HEAD/.github/icons/vscode.png" width="14"> VS Code Marketplace</a>
+- <a href="https://www.npmjs.com/package/opencodecommit"><img src="https://raw.githubusercontent.com/Nevaberry/opencodecommit/HEAD/.github/icons/npm.png" width="14"> npm</a>
+- <a href="https://crates.io/crates/opencodecommit"><img src="https://raw.githubusercontent.com/Nevaberry/opencodecommit/HEAD/.github/icons/crates.png" width="14"> crates.io</a>
+- <a href="https://github.com/Nevaberry/opencodecommit"><img src="https://raw.githubusercontent.com/Nevaberry/opencodecommit/HEAD/.github/icons/github.png" width="14"> GitHub</a>
 
 ## Install
 
