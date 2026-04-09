@@ -9,11 +9,11 @@ OpenCodeCommit works as:
 
 Before any prompt leaves your machine, OpenCodeCommit scans the diff locally for secrets, credential files, source maps, private keys, and other sensitive artifacts.
 
-- <a href="https://open-vsx.org/extension/Nevaberry/opencodecommit"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/vscodium/vscodium-original.svg" width="14"> Open VSX</a>
-- <a href="https://marketplace.visualstudio.com/items?itemName=Nevaberry.opencodecommit"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/vscode/vscode-original.svg" width="14"> VS Code Marketplace</a>
-- <a href="https://www.npmjs.com/package/opencodecommit"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/npm/npm-original-wordmark.svg" width="14"> npm</a>
-- <a href="https://crates.io/crates/opencodecommit"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/rust/rust-original.svg" width="14"> crates.io</a>
-- <a href="https://github.com/Nevaberry/opencodecommit"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/github/github-original.svg" width="14"> GitHub</a>
+- <a href="https://open-vsx.org/extension/Nevaberry/opencodecommit"><img src=".github/icons/openvsx.png" width="14"> Open VSX</a>
+- <a href="https://marketplace.visualstudio.com/items?itemName=Nevaberry.opencodecommit"><img src=".github/icons/vscode.png" width="14"> VS Code Marketplace</a>
+- <a href="https://www.npmjs.com/package/opencodecommit"><img src=".github/icons/npm.png" width="14"> npm</a>
+- <a href="https://crates.io/crates/opencodecommit"><img src=".github/icons/crates.png" width="14"> crates.io</a>
+- <a href="https://github.com/Nevaberry/opencodecommit"><img src=".github/icons/github.png" width="14"> GitHub</a>
 
 ## Install
 
@@ -76,19 +76,23 @@ Enforcement modes:
 
 Use `occ guard profile human` for warnings-first local use, or `occ guard profile strict-agent` when you want non-bypassable blocking behavior for autonomous tooling.
 
+See [SENSITIVE.md](SENSITIVE.md) for the full scanning flow and [PROCESS.md](PROCESS.md) for how it fits into the overall commit pipeline.
+
 ## Config
 
-VS Code / VSCodium settings live under `opencodecommit.*`.
+`~/.config/opencodecommit/config.toml` is the single source of truth for both CLI and extension.
+On first use, OpenCodeCommit writes the full default config there so every setting is visible in one file.
+VS Code / VSCodium settings under `opencodecommit.*` are synced bidirectionally with the file.
 
-CLI config lives at `~/.config/opencodecommit/config.toml`.
-On first CLI use, OpenCodeCommit writes the full default config there so the available settings are visible in one file.
+Override the path with the `OPENCODECOMMIT_CONFIG` environment variable.
 
 Useful settings:
-- `backendOrder`
-- `commitMode`
-- `branchMode`
-- `diffSource`
-- `activeLanguage`
+- `backend-order`
+- `commit-mode`
+- `branch-mode`
+- `diff-source`
+- `active-language`
+- `commit-template`
 - `sensitive.enforcement`
 - `sensitive.allowlist`
 
