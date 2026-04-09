@@ -4,18 +4,21 @@ AI commit, branch, PR, and changelog generation through terminal AI CLIs.
 
 OpenCodeCommit works as:
 - a Rust / npm CLI (`occ`)
-- a terminal TUI
+- a terminal TUI (`occ tui`)
 - a VS Code / VSCodium extension
 
 Before any prompt leaves your machine, OpenCodeCommit scans the diff locally for secrets, credential files, source maps, private keys, and other sensitive artifacts.
 
-[Open VSX](https://open-vsx.org/extension/Nevaberry/opencodecommit) · [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=Nevaberry.opencodecommit) · [npm](https://www.npmjs.com/package/opencodecommit) · [scoped npm alias](https://www.npmjs.com/package/@nevaberry/opencodecommit) · [crates.io](https://crates.io/crates/opencodecommit) · [GitHub](https://github.com/Nevaberry/opencodecommit)
+- <a href="https://open-vsx.org/extension/Nevaberry/opencodecommit"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/vscodium/vscodium-original.svg" width="14"> Open VSX</a>
+- <a href="https://marketplace.visualstudio.com/items?itemName=Nevaberry.opencodecommit"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/vscode/vscode-original.svg" width="14"> VS Code Marketplace</a>
+- <a href="https://www.npmjs.com/package/opencodecommit"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/npm/npm-original-wordmark.svg" width="14"> npm</a>
+- <a href="https://crates.io/crates/opencodecommit"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/rust/rust-original.svg" width="14"> crates.io</a>
+- <a href="https://github.com/Nevaberry/opencodecommit"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/github/github-original.svg" width="14"> GitHub</a>
 
 ## Install
 
 Extension:
-- Search for `OpenCodeCommit` in VS Code or VSCodium
-- Or run `ext install Nevaberry.opencodecommit`
+- Search for `OpenCodeCommit` in VS Code or VSCodium marketplace
 
 CLI:
 - `cargo install opencodecommit`
