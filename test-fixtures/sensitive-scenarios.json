@@ -32,7 +32,7 @@
         "lineNumber": 1,
         "tier": "confirmed-secret",
         "severity": "block",
-        "preview": "OPENAI_API_KEY=<redacted>"
+        "preview": "OPENAI_API_KEY=sk-proj-abcdefghijklmnopqrstuvwxyz1234567890"
       }
     ]
   },
@@ -54,7 +54,7 @@
         "lineNumber": 1,
         "tier": "suspicious",
         "severity": "warn",
-        "preview": "const PASSWORD = <redacted>"
+        "preview": "const PASSWORD = \"Alpha9981Zeta\""
       }
     ]
   },
@@ -70,7 +70,7 @@
         "lineNumber": 1,
         "tier": "confirmed-secret",
         "severity": "block",
-        "preview": "Use OPENAI_API_KEY=<redacted>"
+        "preview": "Use OPENAI_API_KEY=sk-proj-abcdefghijklmnopqrstuvwxyz1234567890"
       }
     ]
   },
@@ -94,7 +94,7 @@
         "lineNumber": 1,
         "tier": "suspicious",
         "severity": "warn",
-        "preview": "DATABASE_URL=postgres://devuser:<redacted>@localhost:5432/app"
+        "preview": "DATABASE_URL=postgres://devuser:s3cret99@localhost:5432/app"
       }
     ]
   },
@@ -110,7 +110,7 @@
         "lineNumber": 1,
         "tier": "confirmed-secret",
         "severity": "block",
-        "preview": "production: postgres://appuser:<redacted>@db.acme.com:5432/app"
+        "preview": "production: postgres://appuser:s3cret99@db.acme.com:5432/app"
       }
     ]
   },
@@ -126,7 +126,7 @@
         "lineNumber": 1,
         "tier": "confirmed-secret",
         "severity": "block",
-        "preview": "const webhook = \"<redacted>\";"
+        "preview": "const webhook = \"https://hooks.slack.com/services/T12345678/B12345678/abcdefghABCDEFGH\";"
       }
     ]
   },
@@ -181,7 +181,7 @@
         "lineNumber": 1,
         "tier": "confirmed-secret",
         "severity": "block",
-        "preview": "{\"auths\":{\"https://index.docker.io/v1/\":{\"auth\":\"<redacted>\"}}}"
+        "preview": "{\"auths\":{\"https://index.docker.io/v1/\":{\"auth\":\"dXNlcjpzM2NyZXQ5OQ==\"}}}"
       }
     ]
   },
@@ -197,7 +197,7 @@
         "lineNumber": 1,
         "tier": "suspicious",
         "severity": "warn",
-        "preview": "const ingress = \"<redacted-ip>\""
+        "preview": "const ingress = \"8.8.8.8\""
       }
     ]
   }

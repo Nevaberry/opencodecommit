@@ -918,7 +918,7 @@ fn scan_provider_line(
                     rule: rule.rule,
                     file_path: file_path.to_owned(),
                     line_number,
-                    preview: redact_value(line, value, "<redacted>"),
+                    preview: format_line_preview(line),
                     raw_value: Some(value.to_owned()),
                     tier: rule.tier,
                     severity: rule.severity,
@@ -980,11 +980,6 @@ fn scan_structural_line(
     }
 
     for captures in CONNECTION_STRING_RE.captures_iter(line) {
-        let Some(full) = captures.get(0).map(|m| m.as_str()) else {
-            continue;
-        };
-        let scheme = captures.get(1).map(|m| m.as_str()).unwrap_or_default();
-        let user = captures.get(2).map(|m| m.as_str()).unwrap_or_default();
         let password = clean_value(captures.get(3).map(|m| m.as_str()).unwrap_or_default());
         let host = captures.get(4).map(|m| m.as_str()).unwrap_or_default();
         if is_placeholder_value(password.as_str()) {
@@ -1010,9 +1005,7 @@ fn scan_structural_line(
                 rule: "credential-connection-string",
                 file_path: file_path.to_owned(),
                 line_number,
-                preview: format_line_preview(
-                    line.replace(full, &format!("{scheme}{user}:<redacted>@{host}")),
-                ),
+                preview: format_line_preview(line),
                 raw_value: Some(password),
                 tier,
                 severity,
@@ -1034,7 +1027,7 @@ fn scan_structural_line(
                 rule: "bearer-token",
                 file_path: file_path.to_owned(),
                 line_number,
-                preview: redact_value(line, token.as_str(), "<redacted>"),
+                preview: format_line_preview(line),
                 raw_value: Some(token),
                 tier: SensitiveTier::ConfirmedSecret,
                 severity: SensitiveSeverity::Block,
@@ -1056,7 +1049,7 @@ fn scan_structural_line(
                 rule: "jwt-token",
                 file_path: file_path.to_owned(),
                 line_number,
-                preview: redact_value(line, token, "<redacted>"),
+                preview: format_line_preview(line),
                 raw_value: Some(token.to_owned()),
                 tier: SensitiveTier::Suspicious,
                 severity: SensitiveSeverity::Warn,
@@ -1079,7 +1072,7 @@ fn scan_structural_line(
                     rule: "docker-config-auth",
                     file_path: file_path.to_owned(),
                     line_number,
-                    preview: redact_value(line, value.as_str(), "<redacted>"),
+                    preview: format_line_preview(line),
                     raw_value: Some(value),
                     tier: SensitiveTier::ConfirmedSecret,
                     severity: SensitiveSeverity::Block,
@@ -1103,7 +1096,7 @@ fn scan_structural_line(
                     rule: "kubeconfig-auth",
                     file_path: file_path.to_owned(),
                     line_number,
-                    preview: redact_value(line, value.as_str(), "<redacted>"),
+                    preview: format_line_preview(line),
                     raw_value: Some(value),
                     tier: SensitiveTier::ConfirmedSecret,
                     severity: SensitiveSeverity::Block,
@@ -1133,7 +1126,7 @@ fn scan_structural_line(
                     rule: "npm-auth",
                     file_path: file_path.to_owned(),
                     line_number,
-                    preview: redact_value(line, value.as_str(), "<redacted>"),
+                    preview: format_line_preview(line),
                     raw_value: Some(value),
                     tier: SensitiveTier::ConfirmedSecret,
                     severity: SensitiveSeverity::Block,
@@ -1204,7 +1197,6 @@ fn scan_generic_assignments(
     let mut findings = Vec::new();
 
     for captures in GENERIC_ASSIGNMENT_RE.captures_iter(line) {
-        let key = captures.get(1).map(|m| m.as_str()).unwrap_or_default();
         let value = clean_value(captures.get(2).map(|m| m.as_str()).unwrap_or_default());
         if value.is_empty()
             || is_placeholder_value(value.as_str())
@@ -1223,7 +1215,7 @@ fn scan_generic_assignments(
                 rule: "generic-secret-assignment",
                 file_path: file_path.to_owned(),
                 line_number,
-                preview: redact_assigned_value(line, key, value.as_str()),
+                preview: format_line_preview(line),
                 raw_value: Some(value),
                 tier: SensitiveTier::Suspicious,
                 severity: SensitiveSeverity::Warn,
@@ -1259,7 +1251,7 @@ fn scan_ip_line(
                 rule: "public-ipv4",
                 file_path: file_path.to_owned(),
                 line_number,
-                preview: redact_value(line, ip, "<redacted-ip>"),
+                preview: format_line_preview(line),
                 raw_value: Some(ip.to_owned()),
                 tier: SensitiveTier::Suspicious,
                 severity: SensitiveSeverity::Warn,
@@ -1339,28 +1331,6 @@ fn clean_value(value: &str) -> String {
         .trim_start_matches(|ch| matches!(ch, '"' | '\'' | '`'))
         .trim_end_matches(|ch| matches!(ch, '"' | '\'' | '`' | ';' | ','))
         .to_owned()
-}
-
-fn redact_value(line: &str, value: &str, replacement: &str) -> String {
-    format_line_preview(line.replacen(value, replacement, 1))
-}
-
-fn redact_assigned_value(line: &str, key: &str, value: &str) -> String {
-    let escaped_key = regex::escape(key);
-    let escaped_value = regex::escape(value);
-    let patterns = [
-        format!(r#"({escaped_key}["']?\s*[:=]\s*)["'`]{escaped_value}["'`]"#),
-        format!(r#"({escaped_key}\s*[:=]\s*){escaped_value}"#),
-    ];
-
-    for pattern in patterns {
-        let regex = regex::Regex::new(pattern.as_str()).unwrap();
-        if regex.is_match(line) {
-            return format_line_preview(regex.replace(line, "$1<redacted>").to_string());
-        }
-    }
-
-    redact_value(line, value, "<redacted>")
 }
 
 fn format_line_preview(line: impl Into<String>) -> String {
@@ -1702,7 +1672,7 @@ diff --git a/.env.example b/.env.example
                 rule: "generic-secret-assignment",
                 file_path: "src/auth.ts".to_owned(),
                 line_number: Some(1),
-                preview: "const PASSWORD = <redacted>".to_owned(),
+                preview: r#"const PASSWORD = "Alpha9981Zeta""#.to_owned(),
                 tier: SensitiveTier::Suspicious,
                 severity: SensitiveSeverity::Warn,
             }],
@@ -1720,7 +1690,7 @@ diff --git a/.env.example b/.env.example
                 rule: "generic-secret-assignment",
                 file_path: "src/auth.ts".to_owned(),
                 line_number: Some(18),
-                preview: "const PASSWORD = <redacted>".to_owned(),
+                preview: r#"const PASSWORD = "Alpha9981Zeta""#.to_owned(),
                 tier: SensitiveTier::Suspicious,
                 severity: SensitiveSeverity::Warn,
             }],

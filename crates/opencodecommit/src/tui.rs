@@ -511,8 +511,8 @@ impl App {
     }
 
     fn refresh_diff(&mut self) {
-        self.diff_text = opencodecommit::git::get_combined_diff(&self.repo.repo_root)
-            .unwrap_or_default();
+        self.diff_text =
+            opencodecommit::git::get_combined_diff(&self.repo.repo_root).unwrap_or_default();
     }
 
     fn refresh_changes_view(&mut self, preferred: Option<SidebarSelection>) {
@@ -975,8 +975,10 @@ fn handle_key_in_viewport(
                     if visible_rows > 0
                         && app.selected_file >= app.file_sidebar_scroll.saturating_add(visible_rows)
                     {
-                        app.file_sidebar_scroll =
-                            app.selected_file.saturating_add(1).saturating_sub(visible_rows);
+                        app.file_sidebar_scroll = app
+                            .selected_file
+                            .saturating_add(1)
+                            .saturating_sub(visible_rows);
                     }
                 }
             } else if app.output.is_some() {
@@ -1055,8 +1057,12 @@ fn toggle_selected_file_stage(app: &mut App) {
     };
 
     let result = match file.state {
-        FileStageState::Staged => opencodecommit::git::unstage_path(&app.repo.repo_root, &file.path),
-        FileStageState::Unstaged => opencodecommit::git::stage_path(&app.repo.repo_root, &file.path),
+        FileStageState::Staged => {
+            opencodecommit::git::unstage_path(&app.repo.repo_root, &file.path)
+        }
+        FileStageState::Unstaged => {
+            opencodecommit::git::stage_path(&app.repo.repo_root, &file.path)
+        }
     };
 
     match result {
@@ -2794,7 +2800,7 @@ mod tests {
                     rule: "API_KEY",
                     file_path: ".env".to_owned(),
                     line_number: Some(1),
-                    preview: "API_KEY=sk-██████".to_owned(),
+                    preview: "API_KEY=sk-live-secret-1234567890".to_owned(),
                     tier: opencodecommit::sensitive::SensitiveTier::ConfirmedSecret,
                     severity: opencodecommit::sensitive::SensitiveSeverity::Block,
                 }],
@@ -2805,6 +2811,10 @@ mod tests {
         let text = render_text(&app, 100, 24);
         assert!(text.contains("SENSITIVE"), "missing sensitive header");
         assert!(text.contains(".env:1"), "missing finding location");
+        assert!(
+            text.contains("API_KEY=sk-live-secret-1234567890"),
+            "missing full sensitive preview"
+        );
         assert!(text.contains("Continue"), "missing continue button");
         assert!(text.contains("Cancel"), "missing cancel button");
     }
@@ -2818,7 +2828,7 @@ mod tests {
                 rule: "openai-project-key",
                 file_path: format!(".env.{index}"),
                 line_number: Some(index),
-                preview: "OPENAI_API_KEY=<redacted>".to_owned(),
+                preview: format!("OPENAI_API_KEY=sk-proj-live-secret-{index:02}"),
                 tier: opencodecommit::sensitive::SensitiveTier::ConfirmedSecret,
                 severity: opencodecommit::sensitive::SensitiveSeverity::Block,
             });
@@ -2852,7 +2862,7 @@ mod tests {
                 rule: "openai-project-key",
                 file_path: format!(".env.{index}"),
                 line_number: Some(index),
-                preview: format!("OPENAI_API_KEY_<redacted>_{index}"),
+                preview: format!("OPENAI_API_KEY=sk-proj-live-secret-{index:02}"),
                 tier: opencodecommit::sensitive::SensitiveTier::ConfirmedSecret,
                 severity: opencodecommit::sensitive::SensitiveSeverity::Block,
             });
@@ -2871,6 +2881,10 @@ mod tests {
         assert!(
             text.contains(".env.9:9"),
             "scrolled body should show later findings"
+        );
+        assert!(
+            text.contains("OPENAI_API_KEY=sk-proj-live-secret-09"),
+            "scrolled body should show full sensitive preview"
         );
         assert!(
             text.contains("Continue"),
@@ -3505,8 +3519,18 @@ mod tests {
         assert_eq!(app.file_groups.len(), 2);
         assert_eq!(app.file_groups[0].title, "Staged");
         assert_eq!(app.file_groups[1].title, "Unstaged");
-        assert!(app.file_groups[0].files.iter().any(|file| file.path == "new.txt"));
-        assert!(app.file_groups[1].files.iter().any(|file| file.path == "tracked.txt"));
+        assert!(
+            app.file_groups[0]
+                .files
+                .iter()
+                .any(|file| file.path == "new.txt")
+        );
+        assert!(
+            app.file_groups[1]
+                .files
+                .iter()
+                .any(|file| file.path == "tracked.txt")
+        );
         cleanup(&repo);
     }
 
@@ -3525,11 +3549,20 @@ mod tests {
             handle_key(&mut app, KeyEvent::from(KeyCode::Char(' ')), &tx);
 
             let changes = opencodecommit::git::get_file_changes(&repo).unwrap();
-            let change = changes.iter().find(|change| change.path == "new.txt").unwrap();
+            let change = changes
+                .iter()
+                .find(|change| change.path == "new.txt")
+                .unwrap();
             assert!(change.staged);
             assert!(!change.unstaged);
-            assert_eq!(app.selected_sidebar_file().unwrap().state, FileStageState::Staged);
-            assert!(matches!(app.notice.as_ref().map(|notice| notice.kind), Some(NoticeKind::Info)));
+            assert_eq!(
+                app.selected_sidebar_file().unwrap().state,
+                FileStageState::Staged
+            );
+            assert!(matches!(
+                app.notice.as_ref().map(|notice| notice.kind),
+                Some(NoticeKind::Info)
+            ));
         });
 
         cleanup(&repo);
@@ -3555,7 +3588,10 @@ mod tests {
             handle_key(&mut app, KeyEvent::from(KeyCode::Char(' ')), &tx);
 
             let changes = opencodecommit::git::get_file_changes(&repo).unwrap();
-            let change = changes.iter().find(|change| change.path == "new.txt").unwrap();
+            let change = changes
+                .iter()
+                .find(|change| change.path == "new.txt")
+                .unwrap();
             assert!(!change.staged);
             assert!(change.unstaged);
             assert_eq!(

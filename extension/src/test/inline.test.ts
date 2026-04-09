@@ -825,7 +825,7 @@ describe("formatSensitiveWarningSummary", () => {
             rule: "generic-secret-assignment",
             filePath: "src/config.ts",
             lineNumber: 18,
-            preview: 'const API_KEY = <redacted>',
+            preview: 'const API_KEY = "Alpha9981Zeta"',
             tier: "suspicious",
             severity: "warn",
           },
@@ -864,7 +864,7 @@ describe("formatSensitiveWarningReport", () => {
             rule: "generic-secret-assignment",
             filePath: "src/config.ts",
             lineNumber: 18,
-            preview: 'const API_KEY = <redacted>',
+            preview: 'const API_KEY = "Alpha9981Zeta"',
             tier: "suspicious",
             severity: "warn",
           },
@@ -873,7 +873,7 @@ describe("formatSensitiveWarningReport", () => {
             rule: "openai-project-key",
             filePath: ".env.example",
             lineNumber: 2,
-            preview: "OPENAI_API_KEY=<redacted>",
+            preview: "OPENAI_API_KEY=sk-proj-abcdefghijklmnopqrstuvwxyz1234567890",
             tier: "confirmed-secret",
             severity: "block",
           },
@@ -892,6 +892,11 @@ describe("formatSensitiveWarningReport", () => {
     assert.ok(message.includes("BLOCK .env.example:2"))
     assert.ok(message.includes("WARN src/config.ts:18"))
     assert.ok(message.includes("[confirmed-secret / openai-project-key]"))
+    assert.ok(
+      message.includes(
+        "OPENAI_API_KEY=sk-proj-abcdefghijklmnopqrstuvwxyz1234567890",
+      ),
+    )
     assert.ok(message.includes('choose "Bypass Once"'))
   })
 
@@ -904,7 +909,7 @@ describe("formatSensitiveWarningReport", () => {
             rule: "public-ipv4",
             filePath: "src/network.ts",
             lineNumber: 3,
-            preview: 'const ingress = "<redacted-ip>"',
+            preview: 'const ingress = "8.8.8.8"',
             tier: "suspicious",
             severity: "warn",
           },
@@ -930,7 +935,7 @@ describe("formatSensitiveWarningMessage", () => {
           rule: "generic-secret-assignment",
           filePath: "src/config.ts",
           lineNumber: 18,
-          preview: 'const API_KEY = <redacted>',
+          preview: 'const API_KEY = "Alpha9981Zeta"',
           tier: "suspicious",
           severity: "warn",
         },

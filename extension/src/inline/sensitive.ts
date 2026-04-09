@@ -576,7 +576,7 @@ function scanProviderLine(
           rule: rule.rule,
           filePath,
           lineNumber,
-          preview: redactValue(line, match),
+          preview: formatLinePreview(line),
           rawValue: match,
           tier: rule.tier,
           severity: rule.severity,
@@ -626,7 +626,7 @@ function scanStructuralLine(
   }
 
   for (const match of line.matchAll(CONNECTION_STRING_RE)) {
-    const [full, scheme, user, password, host] = match
+    const [, , , password, host] = match
     const cleanPassword = cleanValue(password)
     if (isPlaceholderValue(cleanPassword)) continue
     const severity = isLocalHost(host) ? "warn" : "block"
@@ -638,9 +638,7 @@ function scanStructuralLine(
         rule: "credential-connection-string",
         filePath,
         lineNumber,
-        preview: formatLinePreview(
-          line.replace(full, `${scheme}${user}:<redacted>@${host}`),
-        ),
+        preview: formatLinePreview(line),
         rawValue: cleanPassword,
         tier,
         severity,
@@ -659,7 +657,7 @@ function scanStructuralLine(
         rule: "bearer-token",
         filePath,
         lineNumber,
-        preview: redactValue(line, token),
+        preview: formatLinePreview(line),
         rawValue: token,
         tier: "confirmed-secret",
         severity: "block",
@@ -677,7 +675,7 @@ function scanStructuralLine(
         rule: "jwt-token",
         filePath,
         lineNumber,
-        preview: redactValue(line, token),
+        preview: formatLinePreview(line),
         rawValue: token,
         tier: "suspicious",
         severity: "warn",
@@ -697,7 +695,7 @@ function scanStructuralLine(
           rule: "docker-config-auth",
           filePath,
           lineNumber,
-          preview: redactValue(line, auth),
+          preview: formatLinePreview(line),
           rawValue: auth,
           tier: "confirmed-secret",
           severity: "block",
@@ -718,7 +716,7 @@ function scanStructuralLine(
           rule: "kubeconfig-auth",
           filePath,
           lineNumber,
-          preview: redactValue(line, value),
+          preview: formatLinePreview(line),
           rawValue: value,
           tier: "confirmed-secret",
           severity: "block",
@@ -741,7 +739,7 @@ function scanStructuralLine(
           rule: "npm-auth",
           filePath,
           lineNumber,
-          preview: redactValue(line, value),
+          preview: formatLinePreview(line),
           rawValue: value,
           tier: "confirmed-secret",
           severity: "block",
@@ -808,7 +806,6 @@ function scanGenericAssignment(
   const findings: SensitiveFinding[] = []
 
   for (const match of line.matchAll(GENERIC_ASSIGNMENT_RE)) {
-    const key = match[1]
     const value = cleanValue(match[2])
     if (!value || isPlaceholderValue(value) || isReferenceValue(value)) continue
     if (!passesGenericSecretHeuristics(value)) continue
@@ -821,7 +818,7 @@ function scanGenericAssignment(
         rule: "generic-secret-assignment",
         filePath,
         lineNumber,
-        preview: redactAssignedValue(line, key, value),
+        preview: formatLinePreview(line),
         rawValue: value,
         tier: "suspicious",
         severity: downgraded ? "warn" : "warn",
@@ -853,7 +850,7 @@ function scanIpLine(
         rule: "public-ipv4",
         filePath,
         lineNumber,
-        preview: redactValue(line, ip, "<redacted-ip>"),
+        preview: formatLinePreview(line),
         rawValue: ip,
         tier: "suspicious",
         severity: "warn",
@@ -908,31 +905,6 @@ function cleanValue(value: string): string {
     .trim()
     .replace(/^['"`]/, "")
     .replace(/['"`;,]+$/, "")
-}
-
-function redactValue(line: string, value: string, replacement = "<redacted>"): string {
-  return formatLinePreview(line.replace(value, replacement))
-}
-
-function redactAssignedValue(line: string, key: string, value: string): string {
-  const patterns = [
-    new RegExp(
-      `(${escapeRegExp(key)}["']?\\s*[:=]\\s*)["'\`]${escapeRegExp(value)}["'\`]`,
-    ),
-    new RegExp(`(${escapeRegExp(key)}\\s*[:=]\\s*)${escapeRegExp(value)}`),
-  ]
-
-  for (const pattern of patterns) {
-    if (pattern.test(line)) {
-      return formatLinePreview(line.replace(pattern, "$1<redacted>"))
-    }
-  }
-
-  return redactValue(line, value)
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
 
 function formatLinePreview(line: string): string {
