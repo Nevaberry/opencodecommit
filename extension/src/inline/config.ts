@@ -40,6 +40,7 @@ interface ConfigState {
   syncingSettings: boolean
   unwatch?: () => void
   initialized: boolean
+  cachedConfig?: ExtensionConfig
 }
 
 const CONFIG_ENV = "OPENCODECOMMIT_CONFIG"
@@ -152,9 +153,13 @@ async function ensureConfigDocument(
   details: ConfigDetails,
 ): Promise<Record<string, unknown>> {
   if (!(await pathExists(details.path))) {
-    const defaults = buildDefaultTomlDocument(loadManifestDefaults())
+    const defaults = loadManifestDefaults()
+    const existingSettings = readMirroredSettingsFromGlobalSettings()
+    const baseDoc = buildDefaultTomlDocument(defaults)
+    const migratedDoc = applyMirroredSettingsToToml(baseDoc, existingSettings)
     await ensureDirectory(path.dirname(details.path))
-    await writeTextFile(details.path, stringifyToml(defaults))
+    await writeTextFile(details.path, stringifyToml(migratedDoc))
+    state.log(`Created config.toml at ${details.path} (migrated from VS Code settings)`)
   }
 
   const content = await readTextFile(details.path)
@@ -433,7 +438,9 @@ async function loadConfigFromToml(syncSettings = false): Promise<ExtensionConfig
     await syncSettingsFromToml(settings)
   }
 
-  return toExtensionConfig(settings)
+  const config = toExtensionConfig(settings)
+  state.cachedConfig = config
+  return config
 }
 
 function resetWatcher(): void {
@@ -494,10 +501,10 @@ export async function initializeConfig(
     resetWatcher()
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    vscode.window.showErrorMessage(
-      `OpenCodeCommit: ${message} ${configAccessGuidance()}`,
+    state.log(`Config initialization warning: ${message}`)
+    vscode.window.showWarningMessage(
+      `OpenCodeCommit: Could not load config.toml, using defaults. ${configAccessGuidance()}`,
     )
-    throw error
   }
 
   context.subscriptions.push(
@@ -520,7 +527,14 @@ export async function initializeConfig(
 }
 
 export async function getConfig(): Promise<ExtensionConfig> {
-  return await loadConfigFromToml(false)
+  try {
+    return await loadConfigFromToml(false)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    state.log(`Config read failed, using fallback: ${message}`)
+    if (state.cachedConfig) return state.cachedConfig
+    return toExtensionConfig(loadManifestDefaults())
+  }
 }
 
 export function getConfigDetails(): ConfigDetails | undefined {
