@@ -111,7 +111,7 @@ mkdir -p "$USER_DATA_DIR" "$EXTENSIONS_DIR"
 if [[ "$LAUNCH_ONLY" != true ]]; then
   (
     cd -- "${WORKTREE_PATH}/extension"
-    bun install --frozen-lockfile
+    bun install
     bunx tsc -p ./
     bunx @vscode/vsce package
   )
