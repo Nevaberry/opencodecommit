@@ -8,17 +8,17 @@ jobs:
   rust-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test --workspace
 
   ts-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
+      - run: bun install
       - working-directory: extension
-        run: bun install --frozen-lockfile
+        run: bun install
       - run: bunx tsc -p extension/tsconfig.json --noEmit
       - run: bun test extension/src/test/inline.test.ts extension/src/test/config.test.ts extension/src/test/api.test.ts

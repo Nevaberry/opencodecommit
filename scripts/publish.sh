@@ -77,7 +77,7 @@ build_vsix() {
   VSIX="${NAME}-${VERSION}.vsix"
 
   echo "==> Installing extension dependencies"
-  bun install --frozen-lockfile
+  bun install
 
   echo "==> Building extension"
   bunx tsc -p ./

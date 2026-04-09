@@ -12,18 +12,18 @@ jobs:
   rust-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test --workspace
 
   ts-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
+      - run: bun install
       - working-directory: extension
-        run: bun install --frozen-lockfile
+        run: bun install
       - run: bunx tsc -p extension/tsconfig.json --noEmit
       - run: bun test extension/src/test/inline.test.ts extension/src/test/config.test.ts extension/src/test/api.test.ts
 
@@ -50,7 +50,7 @@ jobs:
             platform: win32-x64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -64,7 +64,7 @@ jobs:
         run: |
           EXT=""; [[ "${{ matrix.target }}" == *windows* ]] && EXT=".exe"
           cp target/${{ matrix.target }}/release/occ${EXT} npm/opencodecommit/platforms/${{ matrix.platform }}/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: binary-${{ matrix.platform }}
           path: npm/opencodecommit/platforms/${{ matrix.platform }}/occ*
@@ -74,9 +74,9 @@ jobs:
     needs: [cross-compile]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: binary-*
           path: npm/opencodecommit/platforms/
@@ -95,9 +95,9 @@ jobs:
           done
           chmod +x linux-x64/occ linux-arm64/occ darwin-x64/occ darwin-arm64/occ
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 24
           registry-url: https://registry.npmjs.org
 
       - name: Publish opencodecommit (primary)
@@ -117,7 +117,7 @@ jobs:
     needs: [rust-test]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - name: Publish to crates.io
         working-directory: crates/opencodecommit
@@ -130,11 +130,11 @@ jobs:
     needs: [ts-test]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
+      - run: bun install
       - working-directory: extension
-        run: bun install --frozen-lockfile
+        run: bun install
       - name: Build extension
         working-directory: extension
         run: bunx tsc -p ./
@@ -154,7 +154,7 @@ jobs:
     needs: [cross-compile]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -162,7 +162,7 @@ jobs:
         id: version
         run: echo "version=v$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: binary-*
           path: artifacts/

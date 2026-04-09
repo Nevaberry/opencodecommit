@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 cd extension
-bun install --frozen-lockfile
+bun install
 bunx tsc -p ./
 bunx @vscode/vsce package
 
