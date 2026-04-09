@@ -6,6 +6,8 @@ use std::path::{Path, PathBuf};
 use crate::Error;
 use crate::sensitive::{SensitiveAllowlistEntry, SensitiveEnforcement};
 
+const CONFIG_ENV: &str = "OPENCODECOMMIT_CONFIG";
+
 // --- Enums ---
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
@@ -412,7 +414,7 @@ impl Default for Config {
             commit_template: default_commit_template(),
             languages: default_languages(),
             active_language: default_active_language(),
-            show_language_selector: false,
+            show_language_selector: true,
             auto_update: true,
             refine: RefineConfig::default(),
             custom: CustomConfig::default(),
@@ -422,20 +424,42 @@ impl Default for Config {
 }
 
 impl Config {
-    /// Default config directory: `$XDG_CONFIG_HOME/opencodecommit`
-    /// or `$HOME/.config/opencodecommit`.
+    fn default_config_dir_from_env(
+        is_windows: bool,
+        xdg: Option<PathBuf>,
+        home: Option<PathBuf>,
+        appdata: Option<PathBuf>,
+    ) -> Option<PathBuf> {
+        if is_windows {
+            if let Some(appdata) = appdata {
+                return Some(appdata.join("opencodecommit"));
+            }
+            return home.map(|home| home.join("AppData/Roaming/opencodecommit"));
+        }
+
+        if let Some(xdg) = xdg {
+            return Some(xdg.join("opencodecommit"));
+        }
+
+        home.map(|home| home.join(".config/opencodecommit"))
+    }
+
+    /// Default config directory for the current host.
     pub fn default_config_dir() -> Option<PathBuf> {
-        if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME") {
-            return Some(PathBuf::from(xdg).join("opencodecommit"));
-        }
-        if let Ok(home) = std::env::var("HOME") {
-            return Some(PathBuf::from(home).join(".config/opencodecommit"));
-        }
-        #[cfg(target_os = "windows")]
-        if let Ok(appdata) = std::env::var("APPDATA") {
-            return Some(PathBuf::from(appdata).join("opencodecommit"));
-        }
-        None
+        Self::default_config_dir_from_env(
+            cfg!(target_os = "windows"),
+            std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from),
+            std::env::var_os("HOME").map(PathBuf::from),
+            std::env::var_os("APPDATA").map(PathBuf::from),
+        )
+    }
+
+    /// Canonical config file path from env override or the host default path.
+    pub fn resolved_config_path() -> Option<PathBuf> {
+        std::env::var_os(CONFIG_ENV)
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+            .or_else(|| Self::default_config_dir().map(|dir| dir.join("config.toml")))
     }
 
     /// Resolve the language instruction for the active language.
@@ -542,28 +566,21 @@ impl Config {
         }
     }
 
-    /// Default config file path: `$XDG_CONFIG_HOME/opencodecommit/config.toml`
-    /// or `$HOME/.config/opencodecommit/config.toml`.
+    /// Existing canonical config file path, if present.
     pub fn default_config_path() -> Option<PathBuf> {
-        if let Some(dir) = Self::default_config_dir() {
-            let p = dir.join("config.toml");
-            if p.exists() {
-                return Some(p);
-            }
-        }
-        None
+        let path = Self::resolved_config_path()?;
+        path.exists().then_some(path)
     }
 
     fn materialize_default_config_path() -> crate::Result<Option<PathBuf>> {
-        if let Some(path) = Self::default_config_path() {
-            return Ok(Some(path));
-        }
-
-        let Some(dir) = Self::default_config_dir() else {
+        let Some(path) = Self::resolved_config_path() else {
             return Ok(None);
         };
 
-        let path = dir.join("config.toml");
+        if path.exists() {
+            return Ok(Some(path));
+        }
+
         let config = Self::default();
         config.save_to_path(&path)?;
         Ok(Some(path))
@@ -583,17 +600,22 @@ impl Config {
         Ok(config)
     }
 
-    /// Load from the default config path, or return defaults if no file exists.
+    /// Load from the explicit or canonical config path, or materialize defaults if absent.
     pub fn load_or_default(explicit_path: Option<&Path>) -> crate::Result<Self> {
         if let Some(path) = explicit_path {
             return Self::load(path);
         }
-        if let Some(path) = Self::default_config_path() {
-            return Self::load(&path);
+
+        if let Some(path) = Self::resolved_config_path() {
+            if path.exists() {
+                return Self::load(&path);
+            }
         }
+
         if Self::materialize_default_config_path()?.is_some() {
             return Ok(Self::default());
         }
+
         Ok(Self::default())
     }
 
@@ -609,9 +631,8 @@ impl Config {
     }
 
     pub fn save_default(&self) -> crate::Result<PathBuf> {
-        let dir = Self::default_config_dir()
-            .ok_or_else(|| Error::Config("failed to resolve config directory".to_owned()))?;
-        let path = dir.join("config.toml");
+        let path = Self::resolved_config_path()
+            .ok_or_else(|| Error::Config("failed to resolve config path".to_owned()))?;
         self.save_to_path(&path)?;
         Ok(path)
     }
@@ -718,6 +739,7 @@ mod tests {
         assert_eq!(cfg.languages[10].label, "German");
         assert_eq!(cfg.languages[11].label, "Custom (example)");
         assert_eq!(cfg.active_language, "English");
+        assert!(cfg.show_language_selector);
         assert_eq!(cfg.refine.default_feedback, "make it shorter");
         assert!(cfg.custom.prompt.is_empty());
         assert!(cfg.custom.emojis.is_empty());
@@ -924,6 +946,79 @@ prompt = "Generate: {{{{diff}}}}"
     }
 
     #[test]
+    fn default_config_dir_prefers_appdata_on_windows_inputs() {
+        let home = PathBuf::from(r"C:/Users/tester");
+        let appdata = PathBuf::from(r"C:/Users/tester/AppData/Roaming");
+        let dir = Config::default_config_dir_from_env(
+            true,
+            Some(PathBuf::from("/ignored-xdg")),
+            Some(home),
+            Some(appdata.clone()),
+        )
+        .unwrap();
+
+        assert_eq!(dir, appdata.join("opencodecommit"));
+    }
+
+    #[test]
+    fn default_config_dir_uses_windows_home_fallback_without_appdata() {
+        let home = PathBuf::from(r"C:/Users/tester");
+        let dir = Config::default_config_dir_from_env(true, None, Some(home.clone()), None)
+            .unwrap();
+
+        assert_eq!(dir, home.join("AppData/Roaming/opencodecommit"));
+    }
+
+    #[test]
+    fn env_config_path_overrides_default_location() {
+        let _env_guard = ENV_LOCK.lock().unwrap();
+        let temp_root = std::env::temp_dir().join(format!(
+            "occ-env-config-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let xdg_root = temp_root.join("xdg");
+        let env_path = temp_root.join("shared").join("config.toml");
+        let default_path = xdg_root.join("opencodecommit").join("config.toml");
+        let previous_xdg = std::env::var_os("XDG_CONFIG_HOME");
+        let previous_env = std::env::var_os(CONFIG_ENV);
+
+        let _ = std::fs::remove_dir_all(&temp_root);
+
+        unsafe {
+            std::env::set_var("XDG_CONFIG_HOME", &xdg_root);
+            std::env::set_var(CONFIG_ENV, &env_path);
+        }
+
+        let cfg = Config::load_or_default(None).unwrap();
+
+        assert_eq!(cfg.backend, CliBackend::Opencode);
+        assert!(env_path.exists());
+        assert!(!default_path.exists());
+
+        match previous_xdg {
+            Some(value) => unsafe {
+                std::env::set_var("XDG_CONFIG_HOME", value);
+            },
+            None => unsafe {
+                std::env::remove_var("XDG_CONFIG_HOME");
+            },
+        }
+        match previous_env {
+            Some(value) => unsafe {
+                std::env::set_var(CONFIG_ENV, value);
+            },
+            None => unsafe {
+                std::env::remove_var(CONFIG_ENV);
+            },
+        }
+        let _ = std::fs::remove_dir_all(&temp_root);
+    }
+
+    #[test]
     fn load_or_default_with_no_file() {
         let _env_guard = ENV_LOCK.lock().unwrap();
         let temp_root = std::env::temp_dir().join(format!(
@@ -937,11 +1032,13 @@ prompt = "Generate: {{{{diff}}}}"
         let config_root = temp_root.join("xdg");
         let config_path = config_root.join("opencodecommit").join("config.toml");
         let previous_xdg = std::env::var_os("XDG_CONFIG_HOME");
+        let previous_env = std::env::var_os(CONFIG_ENV);
 
         let _ = std::fs::remove_dir_all(&temp_root);
 
         unsafe {
             std::env::set_var("XDG_CONFIG_HOME", &config_root);
+            std::env::remove_var(CONFIG_ENV);
         }
 
         let cfg = Config::load_or_default(None).unwrap();
@@ -962,6 +1059,14 @@ prompt = "Generate: {{{{diff}}}}"
             },
             None => unsafe {
                 std::env::remove_var("XDG_CONFIG_HOME");
+            },
+        }
+        match previous_env {
+            Some(value) => unsafe {
+                std::env::set_var(CONFIG_ENV, value);
+            },
+            None => unsafe {
+                std::env::remove_var(CONFIG_ENV);
             },
         }
         let _ = std::fs::remove_dir_all(&temp_root);

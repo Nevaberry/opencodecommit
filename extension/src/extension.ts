@@ -1,7 +1,14 @@
 import * as vscode from "vscode"
 
 import { backendLabel, withBackendOverride } from "./inline/backends"
-import { getConfig as getInlineConfig } from "./inline/config"
+import {
+  getConfig as getInlineConfig,
+  getConfigDetails,
+  initializeConfig,
+  openConfigFile as openInlineConfigFile,
+  resetConfig,
+  revealConfigPath as revealInlineConfigPath,
+} from "./inline/config"
 import { gatherContext, getRecentBranchNames } from "./inline/context"
 import {
   generateBranchName,
@@ -153,14 +160,19 @@ async function getDiff(
   )
 }
 
+async function getResolvedConfig(
+  backendOverride?: CliBackend,
+) {
+  const config = await getInlineConfig()
+  return backendOverride ? withBackendOverride(config, backendOverride) : config
+}
+
 async function generateMessageInline(
   mode: CommitMode,
   repo: Repository,
   backendOverride?: CliBackend,
 ) {
-  const config = backendOverride
-    ? withBackendOverride(getInlineConfig(), backendOverride)
-    : getInlineConfig()
+  const config = await getResolvedConfig(backendOverride)
   log(`Mode: ${mode}, Backend order: [${config.backendOrder.join(", ")}]`)
 
   const diff = await getDiff(repo, config.diffSource)
@@ -240,7 +252,7 @@ async function refineMessageInline(repo: Repository) {
     return
   }
 
-  const config = getInlineConfig()
+  const config = await getInlineConfig()
 
   const feedback = await vscode.window.showInputBox({
     prompt: "How should the message be improved?",
@@ -293,9 +305,7 @@ async function generatePrInline(
   repo: Repository,
   backendOverride?: CliBackend,
 ) {
-  const config = backendOverride
-    ? withBackendOverride(getInlineConfig(), backendOverride)
-    : getInlineConfig()
+  const config = await getResolvedConfig(backendOverride)
   log(`PR backend order: [${config.backendOrder.join(", ")}]`)
 
   let workingDiff: string | undefined
@@ -452,7 +462,7 @@ async function generatePr(
 }
 
 async function generateBranchInline(mode: BranchMode, repo: Repository) {
-  const config = getInlineConfig()
+  const config = await getInlineConfig()
   log(
     `Branch mode: ${mode}, Backend order: [${config.backendOrder.join(", ")}]`,
   )
@@ -536,14 +546,19 @@ async function generateBranch(
 // Activation
 // ---------------------------------------------------------------------------
 
-export function activate(context: vscode.ExtensionContext) {
-  const cfg = vscode.workspace.getConfiguration("opencodecommit")
-  const sparkleMode = cfg.get<CommitMode>("sparkleMode", "adaptive")
+export async function activate(context: vscode.ExtensionContext) {
+  try {
+    await initializeConfig(context, log)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    log(`Config initialization failed: ${message}`)
+  }
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("opencodecommit.generate", (arg) =>
-      generateMessage(sparkleMode, arg),
-    ),
+    vscode.commands.registerCommand("opencodecommit.generate", async (arg) => {
+      const config = await getInlineConfig()
+      return generateMessage(config.sparkleMode, arg)
+    }),
     vscode.commands.registerCommand("opencodecommit.generateAdaptive", (arg) =>
       generateMessage("adaptive", arg),
     ),
@@ -596,9 +611,10 @@ export function activate(context: vscode.ExtensionContext) {
       "opencodecommit.generatePrGemini",
       (arg) => generatePr(arg, "gemini"),
     ),
-    vscode.commands.registerCommand("opencodecommit.generateBranch", (arg) =>
-      generateBranch(cfg.get<BranchMode>("branchMode", "conventional"), arg),
-    ),
+    vscode.commands.registerCommand("opencodecommit.generateBranch", async (arg) => {
+      const config = await getInlineConfig()
+      return generateBranch(config.branchMode, arg)
+    }),
     vscode.commands.registerCommand(
       "opencodecommit.generateBranchAdaptive",
       (arg) => generateBranch("adaptive", arg),
@@ -610,28 +626,59 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand(
       "opencodecommit.switchLanguage",
       async () => {
-        const cfg = vscode.workspace.getConfiguration("opencodecommit")
-        const languages = cfg.get<{ label: string; instruction: string }[]>(
-          "languages",
-          [],
-        )
-        const active = cfg.get<string>("activeLanguage", "English")
-        const items = languages.map((l) => ({
-          label: l.label === active ? `$(check) ${l.label}` : l.label,
-          langLabel: l.label,
-        }))
-        const picked = await vscode.window.showQuickPick(items, {
-          placeHolder: "Select language",
-        })
-        if (picked) {
-          await cfg.update(
-            "activeLanguage",
-            picked.langLabel,
-            vscode.ConfigurationTarget.Global,
-          )
+        try {
+          const config = await getInlineConfig()
+          if (config.languages.length === 0) {
+            vscode.window.showWarningMessage(
+              "OpenCodeCommit: No languages configured in config.toml.",
+            )
+            return
+          }
+
+          const items = config.languages.map((language) => ({
+            label:
+              language.label === config.activeLanguage
+                ? `$(check) ${language.label}`
+                : language.label,
+            langLabel: language.label,
+          }))
+          const picked = await vscode.window.showQuickPick(items, {
+            placeHolder: "Select language",
+          })
+          if (!picked) return
+
+          await vscode.workspace
+            .getConfiguration("opencodecommit")
+            .update(
+              "activeLanguage",
+              picked.langLabel,
+              vscode.ConfigurationTarget.Global,
+            )
           vscode.window.showInformationMessage(
             `Language set to ${picked.langLabel}`,
           )
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err)
+          vscode.window.showErrorMessage(`OpenCodeCommit: ${msg}`)
+        }
+      },
+    ),
+    vscode.commands.registerCommand("opencodecommit.openConfigFile", async () => {
+      try {
+        await openInlineConfigFile()
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+        vscode.window.showErrorMessage(`OpenCodeCommit: ${msg}`)
+      }
+    }),
+    vscode.commands.registerCommand(
+      "opencodecommit.revealConfigPath",
+      async () => {
+        try {
+          await revealInlineConfigPath()
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err)
+          vscode.window.showErrorMessage(`OpenCodeCommit: ${msg}`)
         }
       },
     ),
@@ -645,57 +692,21 @@ export function activate(context: vscode.ExtensionContext) {
       "opencodecommit.resetSettings",
       async () => {
         const choice = await vscode.window.showWarningMessage(
-          "Reset all OpenCodeCommit settings to defaults? This removes your customizations.",
+          "Reset the canonical OpenCodeCommit config.toml to defaults? This removes your customizations.",
           "Reset",
           "Cancel",
         )
         if (choice !== "Reset") return
 
-        const cfg = vscode.workspace.getConfiguration("opencodecommit")
-        const keys = [
-          "languages",
-          "activeLanguage",
-          "showLanguageSelector",
-          "backendOrder",
-          "commitMode",
-          "sparkleMode",
-          "codexCLIModel",
-          "codexCLIPath",
-          "codexCLIProvider",
-          "opencodeCLIModel",
-          "opencodeCLIPath",
-          "opencodeCLIProvider",
-          "claudeCodeCLIModel",
-          "claudeCodeCLIPath",
-          "geminiCLIModel",
-          "geminiCLIPath",
-          "diffSource",
-          "maxDiffLength",
-          "useEmojis",
-          "useLowerCase",
-          "commitTemplate",
-          "custom.emojis",
-          "refine.defaultFeedback",
-          "opencodePRProvider",
-          "opencodePRModel",
-          "opencodeCheapProvider",
-          "opencodeCheapModel",
-          "claudePRModel",
-          "claudeCheapModel",
-          "codexPRProvider",
-          "codexPRModel",
-          "codexCheapProvider",
-          "codexCheapModel",
-          "geminiPRModel",
-          "geminiCheapModel",
-          "prBaseBranch",
-        ]
-        for (const key of keys) {
-          await cfg.update(key, undefined, vscode.ConfigurationTarget.Global)
+        try {
+          await resetConfig()
+          vscode.window.showInformationMessage(
+            "OpenCodeCommit config reset to defaults.",
+          )
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err)
+          vscode.window.showErrorMessage(`OpenCodeCommit: ${msg}`)
         }
-        vscode.window.showInformationMessage(
-          "OpenCodeCommit settings reset to defaults.",
-        )
       },
     ),
     vscode.commands.registerCommand("opencodecommit.diagnose", async () => {
@@ -710,23 +721,31 @@ export function activate(context: vscode.ExtensionContext) {
         return
       }
 
-      const config = getInlineConfig()
-      log(`DIAGNOSE: Backend order: [${config.backendOrder.join(", ")}]`)
-      log(`DIAGNOSE: Provider: ${config.provider}, Model: ${config.model}`)
-      log(
-        `DIAGNOSE: Claude model: ${config.claudeModel}, Codex model: ${config.codexModel}`,
-      )
-      log(
-        `DIAGNOSE: PR models: opencode=${config.opencodePrModel}, claude=${config.claudePrModel}, codex=${config.codexPrModel}, gemini=${config.geminiPrModel}`,
-      )
-      log(
-        `DIAGNOSE: Cheap PR models: opencode=${config.opencodeCheapModel}, claude=${config.claudeCheapModel}, codex=${config.codexCheapModel}, gemini=${config.geminiCheapModel}`,
-      )
-      log(`DIAGNOSE: Commit mode: ${config.commitMode}`)
-      log(`DIAGNOSE: Diff source: ${config.diffSource}`)
-      log(`DIAGNOSE: Max diff length: ${config.maxDiffLength}`)
-
       try {
+        const config = await getInlineConfig()
+        const configDetails = getConfigDetails()
+        if (configDetails) {
+          log(`DIAGNOSE: Config path: ${configDetails.path}`)
+          log(`DIAGNOSE: Config source: ${configDetails.source}`)
+          log(`DIAGNOSE: Config sandbox: ${configDetails.sandbox}`)
+          log(`DIAGNOSE: Config direct access: ${configDetails.directAccess}`)
+        }
+
+        log(`DIAGNOSE: Backend order: [${config.backendOrder.join(", ")}]`)
+        log(`DIAGNOSE: Provider: ${config.provider}, Model: ${config.model}`)
+        log(
+          `DIAGNOSE: Claude model: ${config.claudeModel}, Codex model: ${config.codexModel}`,
+        )
+        log(
+          `DIAGNOSE: PR models: opencode=${config.opencodePrModel}, claude=${config.claudePrModel}, codex=${config.codexPrModel}, gemini=${config.geminiPrModel}`,
+        )
+        log(
+          `DIAGNOSE: Cheap PR models: opencode=${config.opencodeCheapModel}, claude=${config.claudeCheapModel}, codex=${config.codexCheapModel}, gemini=${config.geminiCheapModel}`,
+        )
+        log(`DIAGNOSE: Commit mode: ${config.commitMode}`)
+        log(`DIAGNOSE: Diff source: ${config.diffSource}`)
+        log(`DIAGNOSE: Max diff length: ${config.maxDiffLength}`)
+
         const { detectCli, getConfigPath: getCliConfigPath } = await import(
           "./inline/cli"
         )
@@ -748,7 +767,8 @@ export function activate(context: vscode.ExtensionContext) {
 
         const diff = await getDiff(repo, config.diffSource)
         log(`DIAGNOSE: Diff captured: ${diff.length} chars`)
-        log(`DIAGNOSE: Diff preview:\n${diff.slice(0, 500)}`)
+        log(`DIAGNOSE: Diff preview:
+${diff.slice(0, 500)}`)
 
         const branchName = repo.state.HEAD?.name ?? "unknown"
         const context = await gatherContext(
@@ -767,7 +787,8 @@ export function activate(context: vscode.ExtensionContext) {
         const { buildInvocation } = await import("./inline/cli")
         const prompt = buildPrompt(context, config, config.commitMode)
         log(`DIAGNOSE: Prompt length: ${prompt.length} chars`)
-        log(`DIAGNOSE: Prompt preview:\n${prompt.slice(0, 1000)}`)
+        log(`DIAGNOSE: Prompt preview:
+${prompt.slice(0, 1000)}`)
 
         const { invocation, stdin } = buildInvocation(
           cliPath,
