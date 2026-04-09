@@ -1,6 +1,8 @@
-import { backendLabel } from "./backends"
+import { backendLabel, isCliBackend } from "./backends"
+import { execApi } from "./api"
 import {
   buildInvocation,
+  getInvocationTimeoutMs,
   type InvocationOperation,
   detectCli,
   execCli,
@@ -9,8 +11,8 @@ import {
 } from "./cli"
 import type { CommitContext } from "./context"
 import type {
+  Backend,
   BranchMode,
-  CliBackend,
   CommitMode,
   ExtensionConfig,
 } from "./types"
@@ -21,7 +23,7 @@ interface ParsedCommit {
   description?: string
 }
 
-function throwBackendErrors(backends: CliBackend[], errors: string[]): never {
+function throwBackendErrors(backends: Backend[], errors: string[]): never {
   if (backends.length === 1 && errors.length === 1) {
     throw new Error(`${backendLabel(backends[0])} failed: ${errors[0]}`)
   }
@@ -355,40 +357,57 @@ export function formatCommitMessage(
 }
 
 async function tryBackend(
-  backend: CliBackend,
+  backend: Backend,
   prompt: string,
   config: ExtensionConfig,
   operation: InvocationOperation,
   logFn: (msg: string) => void,
 ): Promise<string> {
-  const configPath = getConfigPath(config, backend)
-  const cliPath = await detectCli(backend, configPath || undefined)
-  logFn(`[${backend}] CLI path: ${cliPath}`)
+  if (isCliBackend(backend)) {
+    const configPath = getConfigPath(config, backend)
+    const cliPath = await detectCli(backend, configPath || undefined)
+    logFn(`[${backend}] CLI path: ${cliPath}`)
 
-  const { invocation, stdin } = buildInvocation(
-    cliPath,
-    prompt,
-    config,
+    const { invocation, stdin } = buildInvocation(
+      cliPath,
+      prompt,
+      config,
+      backend,
+      operation,
+    )
+    logFn(
+      `[${backend}] Running: ${invocation.command} ${invocation.args.map((a) => (a.length > 100 ? `[${a.length} chars]` : a)).join(" ")}`,
+    )
+
+    const rawOutput = await execCli(invocation, stdin)
+    const response =
+      backend === "opencode" ? parseOpenCodeJson(rawOutput) : rawOutput
+    logFn(
+      `[${backend}] Response (${response.length} chars): "${response.slice(0, 500)}"`,
+    )
+
+    if (!response.trim()) {
+      throw new Error(`${backend} returned empty response`)
+    }
+
+    return response
+  }
+
+  const apiConfig = apiConfigFor(config, backend)
+  const response = await execApi(
+    {
+      endpoint: apiConfig.endpoint,
+      apiKey: resolveApiKey(apiConfig.keyEnv),
+      model: apiConfig.model,
+      prompt,
+      maxTokens: maxTokensForOperation(operation),
+      timeoutMs: getInvocationTimeoutMs(config, operation),
+    },
     backend,
-    operation,
   )
-  logFn(
-    `[${backend}] Running: ${invocation.command} ${invocation.args.map((a) => (a.length > 100 ? `[${a.length} chars]` : a)).join(" ")}`,
-  )
-
-  const rawOutput = await execCli(invocation, stdin)
-
-  // opencode --format json needs event parsing
-  const response =
-    backend === "opencode" ? parseOpenCodeJson(rawOutput) : rawOutput
   logFn(
     `[${backend}] Response (${response.length} chars): "${response.slice(0, 500)}"`,
   )
-
-  if (!response.trim()) {
-    throw new Error(`${backend} returned empty response`)
-  }
-
   return response
 }
 
@@ -486,4 +505,51 @@ export async function refineCommitMessage(
 
   const parsed = parseResponse(response)
   return formatCommitMessage(parsed, config)
+}
+
+function apiConfigFor(
+  config: ExtensionConfig,
+  backend: Exclude<Backend, "opencode" | "claude" | "codex" | "gemini">,
+) {
+  switch (backend) {
+    case "openai-api":
+      return config.api.openai
+    case "anthropic-api":
+      return config.api.anthropic
+    case "gemini-api":
+      return config.api.gemini
+    case "openrouter-api":
+      return config.api.openrouter
+    case "opencode-api":
+      return config.api.opencode
+    case "ollama-api":
+      return config.api.ollama
+    case "lm-studio-api":
+      return config.api.lmStudio
+    case "custom-api":
+      return config.api.custom
+  }
+}
+
+function resolveApiKey(keyEnv: string): string | undefined {
+  const envName = keyEnv.trim()
+  if (!envName) return undefined
+  const value = process.env[envName]?.trim()
+  if (!value) {
+    throw new Error(`API key env var ${envName} is not set`)
+  }
+  return value
+}
+
+function maxTokensForOperation(operation: InvocationOperation): number {
+  switch (operation) {
+    case "branch":
+      return 200
+    case "pr":
+      return 2000
+    case "changelog":
+      return 1500
+    case "commit":
+      return 1200
+  }
 }

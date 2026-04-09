@@ -1,0 +1,25 @@
+stages:
+  - scan
+
+variables:
+  OCC_VERSION: "latest"
+  OCC_CONTINUE_ON_BLOCKING_FINDINGS: "false"
+
+occ_scan:
+  image: node:22
+  stage: scan
+  script:
+    - npm install -g "opencodecommit@$OCC_VERSION"
+    - |
+      set +e
+      occ scan --enforcement block-high --format sarif --output occ-scan.sarif
+      scan_exit_code=$?
+      occ scan --enforcement block-high --format text || true
+      if [ "$scan_exit_code" = "2" ] && [ "$OCC_CONTINUE_ON_BLOCKING_FINDINGS" != "true" ]; then
+        exit 1
+      fi
+      exit 0
+  artifacts:
+    when: always
+    paths:
+      - occ-scan.sarif

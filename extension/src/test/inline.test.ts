@@ -133,6 +133,64 @@ function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
     prBaseBranch: "",
     backendOrder: ["codex", "opencode", "claude", "gemini"],
     branchMode: "conventional" as BranchMode,
+    api: {
+      openai: {
+        model: "gpt-5.4-mini",
+        endpoint: "https://api.openai.com/v1/chat/completions",
+        keyEnv: "OPENAI_API_KEY",
+        prModel: "gpt-5.4",
+        cheapModel: "gpt-5.4-mini",
+      },
+      anthropic: {
+        model: "claude-sonnet-4-6",
+        endpoint: "https://api.anthropic.com/v1/messages",
+        keyEnv: "ANTHROPIC_API_KEY",
+        prModel: "claude-opus-4-6",
+        cheapModel: "claude-haiku-4-5",
+      },
+      gemini: {
+        model: "gemini-2.5-flash",
+        endpoint: "https://generativelanguage.googleapis.com/v1beta",
+        keyEnv: "GEMINI_API_KEY",
+        prModel: "gemini-3-flash-preview",
+        cheapModel: "gemini-3.1-flash-lite-preview",
+      },
+      openrouter: {
+        model: "anthropic/claude-sonnet-4",
+        endpoint: "https://openrouter.ai/api/v1/chat/completions",
+        keyEnv: "OPENROUTER_API_KEY",
+        prModel: "openai/gpt-5.4",
+        cheapModel: "openai/gpt-5.4-mini",
+      },
+      opencode: {
+        model: "gpt-5.4-mini",
+        endpoint: "https://opencode.ai/zen/v1/chat/completions",
+        keyEnv: "OPENCODE_API_KEY",
+        prModel: "gpt-5.4",
+        cheapModel: "gpt-5.4-mini",
+      },
+      ollama: {
+        model: "",
+        endpoint: "http://localhost:11434",
+        keyEnv: "",
+        prModel: "",
+        cheapModel: "",
+      },
+      lmStudio: {
+        model: "",
+        endpoint: "http://localhost:1234",
+        keyEnv: "",
+        prModel: "",
+        cheapModel: "",
+      },
+      custom: {
+        model: "",
+        endpoint: "",
+        keyEnv: "",
+        prModel: "",
+        cheapModel: "",
+      },
+    },
     sensitive: {
       enforcement: "warn",
       allowlist: [],
@@ -163,6 +221,8 @@ describe("backend helpers", () => {
     assert.strictEqual(backendLabel("opencode"), "OpenCode")
     assert.strictEqual(backendLabel("claude"), "Claude")
     assert.strictEqual(backendLabel("gemini"), "Gemini")
+    assert.strictEqual(backendLabel("openai-api"), "OpenAI API")
+    assert.strictEqual(backendLabel("ollama-api"), "Ollama API")
   })
 
   it("restricts generation to the selected backend", () => {
@@ -248,6 +308,10 @@ describe("extension manifest", () => {
     assert.ok(commands.includes("opencodecommit.generatePrOpencode"))
     assert.ok(commands.includes("opencodecommit.generatePrClaude"))
     assert.ok(commands.includes("opencodecommit.generatePrGemini"))
+    assert.ok(commands.includes("opencodecommit.generatePrOpenaiApi"))
+    assert.ok(commands.includes("opencodecommit.generatePrCustomApi"))
+    assert.ok(commands.includes("opencodecommit.generateAdaptiveOpenaiApi"))
+    assert.ok(commands.includes("opencodecommit.generateAdaptiveCustomApi"))
 
     const submenus = manifest.contributes.submenus.map(
       (submenu: { id: string }) => submenu.id,
@@ -255,7 +319,7 @@ describe("extension manifest", () => {
     assert.ok(submenus.includes("opencodecommit.prBackendMenu"))
 
     const prBackendMenu = manifest.contributes.menus["opencodecommit.prBackendMenu"]
-    assert.strictEqual(prBackendMenu.length, 4)
+    assert.strictEqual(prBackendMenu.length, 12)
   })
 })
 

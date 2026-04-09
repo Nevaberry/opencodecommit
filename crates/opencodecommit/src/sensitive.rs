@@ -52,7 +52,7 @@ pub struct SensitiveFinding {
     pub severity: SensitiveSeverity,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SensitiveReport {
     pub findings: Vec<SensitiveFinding>,
     pub enforcement: SensitiveEnforcement,

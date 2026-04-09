@@ -7,7 +7,9 @@ use std::path::Path;
 use std::process;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use opencodecommit::config::{CliBackend, CommitMode, Config, DiffSource, SensitiveProfile};
+use opencodecommit::config::{Backend, CommitMode, Config, DiffSource, SensitiveProfile};
+use opencodecommit::scan::{self, ScanFormat};
+use opencodecommit::sensitive::SensitiveEnforcement;
 
 use crate::actions::{ActionError, BackendProgress, CommitRequest, HookOperation};
 
@@ -27,8 +29,8 @@ enum Commands {
     /// Generate a commit message from the current diff
     Commit {
         /// AI backend to use
-        #[arg(long, value_enum, default_value_t = CliBackendArg::Opencode)]
-        backend: CliBackendArg,
+        #[arg(long, value_enum, default_value_t = BackendArg::Opencode)]
+        backend: BackendArg,
 
         /// AI provider (for opencode backend)
         #[arg(long)]
@@ -116,8 +118,8 @@ enum Commands {
         /// Optional description to generate branch name from
         description: Option<String>,
 
-        #[arg(long, value_enum, default_value_t = CliBackendArg::Opencode)]
-        backend: CliBackendArg,
+        #[arg(long, value_enum, default_value_t = BackendArg::Opencode)]
+        backend: BackendArg,
 
         #[arg(long)]
         provider: Option<String>,
@@ -146,8 +148,8 @@ enum Commands {
 
     /// Generate a PR title and body
     Pr {
-        #[arg(long, value_enum, default_value_t = CliBackendArg::Opencode)]
-        backend: CliBackendArg,
+        #[arg(long, value_enum, default_value_t = BackendArg::Opencode)]
+        backend: BackendArg,
 
         #[arg(long)]
         provider: Option<String>,
@@ -186,7 +188,7 @@ enum Commands {
     Tui {
         /// AI backend to use
         #[arg(long, value_enum)]
-        backend: Option<CliBackendArg>,
+        backend: Option<BackendArg>,
 
         /// Path to config file
         #[arg(long)]
@@ -199,8 +201,8 @@ enum Commands {
 
     /// Generate a changelog entry
     Changelog {
-        #[arg(long, value_enum, default_value_t = CliBackendArg::Opencode)]
-        backend: CliBackendArg,
+        #[arg(long, value_enum, default_value_t = BackendArg::Opencode)]
+        backend: BackendArg,
 
         #[arg(long)]
         provider: Option<String>,
@@ -219,6 +221,41 @@ enum Commands {
         text: bool,
     },
 
+    /// Scan a diff for sensitive content
+    Scan {
+        /// Read diff from file instead of git
+        #[arg(long)]
+        diff_file: Option<String>,
+
+        /// Read diff from stdin
+        #[arg(long)]
+        stdin: bool,
+
+        /// Diff source when using git
+        #[arg(long, value_enum)]
+        diff_source: Option<DiffSourceArg>,
+
+        /// Enforcement level
+        #[arg(long, value_enum, default_value_t = SensitiveEnforcementArg::BlockHigh)]
+        enforcement: SensitiveEnforcementArg,
+
+        /// Output format
+        #[arg(long, value_enum, default_value_t = ScanFormatArg::Text)]
+        format: ScanFormatArg,
+
+        /// Output file instead of stdout
+        #[arg(long)]
+        output: Option<String>,
+
+        /// Path to config file
+        #[arg(long)]
+        config: Option<String>,
+
+        /// Additional allowlist TOML file
+        #[arg(long)]
+        allowlist: Option<String>,
+    },
+
     #[command(hide = true)]
     Internal {
         #[command(subcommand)]
@@ -227,20 +264,36 @@ enum Commands {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
-enum CliBackendArg {
+enum BackendArg {
     Opencode,
     Claude,
     Codex,
     Gemini,
+    OpenaiApi,
+    AnthropicApi,
+    GeminiApi,
+    OpenrouterApi,
+    OpencodeApi,
+    OllamaApi,
+    LmStudioApi,
+    CustomApi,
 }
 
-impl CliBackendArg {
-    fn to_config(&self) -> CliBackend {
+impl BackendArg {
+    fn to_config(&self) -> Backend {
         match self {
-            CliBackendArg::Opencode => CliBackend::Opencode,
-            CliBackendArg::Claude => CliBackend::Claude,
-            CliBackendArg::Codex => CliBackend::Codex,
-            CliBackendArg::Gemini => CliBackend::Gemini,
+            BackendArg::Opencode => Backend::Opencode,
+            BackendArg::Claude => Backend::Claude,
+            BackendArg::Codex => Backend::Codex,
+            BackendArg::Gemini => Backend::Gemini,
+            BackendArg::OpenaiApi => Backend::OpenaiApi,
+            BackendArg::AnthropicApi => Backend::AnthropicApi,
+            BackendArg::GeminiApi => Backend::GeminiApi,
+            BackendArg::OpenrouterApi => Backend::OpenrouterApi,
+            BackendArg::OpencodeApi => Backend::OpencodeApi,
+            BackendArg::OllamaApi => Backend::OllamaApi,
+            BackendArg::LmStudioApi => Backend::LmStudioApi,
+            BackendArg::CustomApi => Backend::CustomApi,
         }
     }
 }
@@ -363,6 +416,46 @@ impl SensitiveProfileArg {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum SensitiveEnforcementArg {
+    Warn,
+    BlockHigh,
+    BlockAll,
+    StrictHigh,
+    StrictAll,
+}
+
+impl SensitiveEnforcementArg {
+    fn to_config(self) -> SensitiveEnforcement {
+        match self {
+            SensitiveEnforcementArg::Warn => SensitiveEnforcement::Warn,
+            SensitiveEnforcementArg::BlockHigh => SensitiveEnforcement::BlockHigh,
+            SensitiveEnforcementArg::BlockAll => SensitiveEnforcement::BlockAll,
+            SensitiveEnforcementArg::StrictHigh => SensitiveEnforcement::StrictHigh,
+            SensitiveEnforcementArg::StrictAll => SensitiveEnforcement::StrictAll,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum ScanFormatArg {
+    Text,
+    Json,
+    Sarif,
+    GithubAnnotations,
+}
+
+impl ScanFormatArg {
+    fn to_config(self) -> ScanFormat {
+        match self {
+            ScanFormatArg::Text => ScanFormat::Text,
+            ScanFormatArg::Json => ScanFormat::Json,
+            ScanFormatArg::Sarif => ScanFormat::Sarif,
+            ScanFormatArg::GithubAnnotations => ScanFormat::GithubAnnotations,
+        }
+    }
+}
+
 fn json_error(message: impl ToString) {
     let output = serde_json::json!({
         "status": "error",
@@ -399,7 +492,7 @@ fn load_config_or_exit_plain(config: Option<&str>) -> Config {
 
 fn apply_backend_overrides(
     config: &mut Config,
-    backend: &CliBackendArg,
+    backend: &BackendArg,
     provider: &Option<String>,
     model: &Option<String>,
     cli_path: &Option<String>,
@@ -407,22 +500,51 @@ fn apply_backend_overrides(
     config.backend = backend.to_config();
     config.backend_order = vec![config.backend];
     if let Some(provider) = provider {
-        config.provider = provider.clone();
+        match config.backend {
+            Backend::Opencode => config.provider = provider.clone(),
+            Backend::Codex => config.codex_provider = provider.clone(),
+            Backend::OpencodeApi
+            | Backend::OpenaiApi
+            | Backend::AnthropicApi
+            | Backend::GeminiApi
+            | Backend::OpenrouterApi
+            | Backend::OllamaApi
+            | Backend::LmStudioApi
+            | Backend::CustomApi
+            | Backend::Claude
+            | Backend::Gemini => {}
+        }
     }
     if let Some(model) = model {
         match config.backend {
-            CliBackend::Opencode => config.model = model.clone(),
-            CliBackend::Claude => config.claude_model = model.clone(),
-            CliBackend::Codex => config.codex_model = model.clone(),
-            CliBackend::Gemini => config.gemini_model = model.clone(),
+            Backend::Opencode => config.model = model.clone(),
+            Backend::Claude => config.claude_model = model.clone(),
+            Backend::Codex => config.codex_model = model.clone(),
+            Backend::Gemini => config.gemini_model = model.clone(),
+            Backend::OpenaiApi => config.api.openai.model = model.clone(),
+            Backend::AnthropicApi => config.api.anthropic.model = model.clone(),
+            Backend::GeminiApi => config.api.gemini.model = model.clone(),
+            Backend::OpenrouterApi => config.api.openrouter.model = model.clone(),
+            Backend::OpencodeApi => config.api.opencode.model = model.clone(),
+            Backend::OllamaApi => config.api.ollama.model = model.clone(),
+            Backend::LmStudioApi => config.api.lm_studio.model = model.clone(),
+            Backend::CustomApi => config.api.custom.model = model.clone(),
         }
     }
     if let Some(path) = cli_path {
         match config.backend {
-            CliBackend::Opencode => config.cli_path = path.clone(),
-            CliBackend::Claude => config.claude_path = path.clone(),
-            CliBackend::Codex => config.codex_path = path.clone(),
-            CliBackend::Gemini => config.gemini_path = path.clone(),
+            Backend::Opencode => config.cli_path = path.clone(),
+            Backend::Claude => config.claude_path = path.clone(),
+            Backend::Codex => config.codex_path = path.clone(),
+            Backend::Gemini => config.gemini_path = path.clone(),
+            Backend::OpenaiApi
+            | Backend::AnthropicApi
+            | Backend::GeminiApi
+            | Backend::OpenrouterApi
+            | Backend::OpencodeApi
+            | Backend::OllamaApi
+            | Backend::LmStudioApi
+            | Backend::CustomApi => {}
         }
     }
 }
@@ -449,7 +571,7 @@ fn set_language(config: &mut Config, language: &Option<String>) -> Result<(), St
 #[allow(clippy::too_many_arguments)]
 fn apply_commit_args(
     config: &mut Config,
-    backend: &CliBackendArg,
+    backend: &BackendArg,
     provider: &Option<String>,
     model: &Option<String>,
     mode: &CommitModeArg,
@@ -766,6 +888,111 @@ fn handle_changelog(config: &Config, text: bool) {
     }
 }
 
+fn handle_scan(
+    diff_file: Option<String>,
+    use_stdin: bool,
+    diff_source: Option<DiffSourceArg>,
+    enforcement: SensitiveEnforcementArg,
+    format: ScanFormatArg,
+    output: Option<String>,
+    config: Option<String>,
+    allowlist: Option<String>,
+) {
+    let selected_inputs = usize::from(use_stdin) + usize::from(diff_file.is_some());
+    if selected_inputs > 1 {
+        eprintln!("error: choose only one of --stdin or --diff-file");
+        process::exit(1);
+    }
+
+    let cfg = load_config_or_exit_plain(config.as_deref());
+    let enforcement = enforcement.to_config();
+    let format = format.to_config();
+    let mut allowlist_entries = cfg.sensitive.allowlist.clone();
+    if let Some(path) = allowlist.as_deref() {
+        match scan::load_allowlist_file(Path::new(path)) {
+            Ok(mut entries) => allowlist_entries.append(&mut entries),
+            Err(err) => {
+                eprintln!("error: {err}");
+                process::exit(3);
+            }
+        }
+    }
+
+    let (diff, changed_files) = if use_stdin {
+        use std::io::Read;
+
+        let mut diff = String::new();
+        if let Err(err) = std::io::stdin().read_to_string(&mut diff) {
+            eprintln!("error: failed to read stdin: {err}");
+            process::exit(1);
+        }
+        if diff.trim().is_empty() {
+            eprintln!("error: stdin diff was empty");
+            process::exit(1);
+        }
+        let changed_files = scan::changed_files_from_diff(&diff);
+        (diff, changed_files)
+    } else if let Some(path) = diff_file.as_deref() {
+        match std::fs::read_to_string(path) {
+            Ok(diff) => {
+                let changed_files = scan::changed_files_from_diff(&diff);
+                (diff, changed_files)
+            }
+            Err(err) => {
+                eprintln!("error: failed to read diff file {path}: {err}");
+                process::exit(1);
+            }
+        }
+    } else {
+        let repo_root = match opencodecommit::git::get_repo_root() {
+            Ok(root) => root,
+            Err(err) => {
+                eprintln!("error: {err}");
+                process::exit(1);
+            }
+        };
+        let source = diff_source
+            .map(|value| value.to_config())
+            .unwrap_or(cfg.diff_source);
+        match scan::read_git_diff(&repo_root, source) {
+            Ok(result) => result,
+            Err(err) => {
+                eprintln!("error: {err}");
+                process::exit(1);
+            }
+        }
+    };
+
+    let result = scan::run_scan(&diff, &changed_files, enforcement, &allowlist_entries);
+    let rendered = match format {
+        ScanFormat::Text => scan::format_text(&result.report),
+        ScanFormat::Json => serde_json::to_string_pretty(&serde_json::json!({
+            "scanned_files": result.scanned_files,
+            "report": scan::format_json(&result.report),
+        }))
+        .unwrap(),
+        ScanFormat::Sarif => {
+            serde_json::to_string_pretty(&scan::format_sarif(&result.report)).unwrap()
+        }
+        ScanFormat::GithubAnnotations => scan::format_github_annotations(&result.report),
+    };
+
+    if let Some(path) = output.as_deref() {
+        if let Err(err) = std::fs::write(path, &rendered) {
+            eprintln!("error: failed to write output file {path}: {err}");
+            process::exit(1);
+        }
+    } else if !rendered.is_empty() {
+        println!("{rendered}");
+    }
+
+    process::exit(if result.report.has_blocking_findings() {
+        2
+    } else {
+        0
+    });
+}
+
 fn handle_hook(action: HookAction) {
     match actions::run_hook(action.to_operation()) {
         Ok(message) => println!("{message}"),
@@ -845,7 +1072,7 @@ fn handle_internal(action: InternalAction) {
     process::exit(code);
 }
 
-fn handle_tui(config: Option<String>, backend: Option<CliBackendArg>) {
+fn handle_tui(config: Option<String>, backend: Option<BackendArg>) {
     let mut cfg = load_config_or_exit_plain(config.as_deref());
     if let Some(backend) = backend {
         cfg.backend = backend.to_config();
@@ -983,6 +1210,25 @@ fn main() {
             apply_backend_overrides(&mut cfg, &backend, &provider, &model, &cli_path);
             handle_changelog(&cfg, text);
         }
+        Commands::Scan {
+            diff_file,
+            stdin,
+            diff_source,
+            enforcement,
+            format,
+            output,
+            config,
+            allowlist,
+        } => handle_scan(
+            diff_file,
+            stdin,
+            diff_source,
+            enforcement,
+            format,
+            output,
+            config,
+            allowlist,
+        ),
         Commands::Internal { action } => handle_internal(action),
     }
 }
@@ -996,7 +1242,7 @@ mod tests {
         let cli = Cli::try_parse_from(["occ", "tui", "--backend", "codex"]).unwrap();
         match cli.command {
             Commands::Tui { backend, config } => {
-                assert_eq!(backend, Some(CliBackendArg::Codex));
+                assert_eq!(backend, Some(BackendArg::Codex));
                 assert_eq!(config, None);
             }
             _ => panic!("expected tui command"),
@@ -1006,11 +1252,11 @@ mod tests {
     #[test]
     fn backend_override_locks_backend_order() {
         let mut config = Config::default();
-        config.backend_order = vec![CliBackend::Codex, CliBackend::Opencode];
+        config.backend_order = vec![Backend::Codex, Backend::Opencode];
 
-        apply_backend_overrides(&mut config, &CliBackendArg::Claude, &None, &None, &None);
+        apply_backend_overrides(&mut config, &BackendArg::Claude, &None, &None, &None);
 
-        assert_eq!(config.backend, CliBackend::Claude);
-        assert_eq!(config.backend_order, vec![CliBackend::Claude]);
+        assert_eq!(config.backend, Backend::Claude);
+        assert_eq!(config.backend_order, vec![Backend::Claude]);
     }
 }

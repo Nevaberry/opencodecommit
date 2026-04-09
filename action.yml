@@ -1,0 +1,134 @@
+name: OpenCodeCommit Scan
+description: Run occ scan in GitHub Actions with optional SARIF upload, annotations, and manual override.
+
+inputs:
+  version:
+    description: opencodecommit npm package version to install.
+    required: false
+    default: latest
+  enforcement:
+    description: Sensitive enforcement mode passed to occ scan.
+    required: false
+    default: block-high
+  diff-source:
+    description: Diff source used when reading from git.
+    required: false
+    default: auto
+  config:
+    description: Optional path to config.toml.
+    required: false
+    default: ""
+  allowlist:
+    description: Optional extra allowlist TOML for CI-specific suppressions.
+    required: false
+    default: ""
+  upload-sarif:
+    description: Upload the generated SARIF report to GitHub code scanning.
+    required: false
+    default: "true"
+  emit-annotations:
+    description: Emit GitHub workflow annotations from the scan findings.
+    required: false
+    default: "true"
+  continue-on-blocking-findings:
+    description: Preserve reports but do not fail the workflow when occ scan exits 2.
+    required: false
+    default: "false"
+
+outputs:
+  exit-code:
+    description: Raw occ scan exit code.
+    value: ${{ steps.scan.outputs.exit-code }}
+  blocked:
+    description: Whether occ scan reported blocking findings.
+    value: ${{ steps.scan.outputs.blocked }}
+  sarif-path:
+    description: Path to the generated SARIF file.
+    value: ${{ steps.scan.outputs.sarif-path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Install OpenCodeCommit
+      shell: bash
+      run: npm install -g "opencodecommit@${{ inputs.version }}"
+
+    - id: scan
+      name: Run occ scan (SARIF)
+      shell: bash
+      run: |
+        set +e
+        sarif_path="${RUNNER_TEMP}/occ-scan.sarif"
+        args=(scan --enforcement "${{ inputs.enforcement }}" --diff-source "${{ inputs.diff-source }}" --format sarif --output "$sarif_path")
+        if [[ -n "${{ inputs.config }}" ]]; then
+          args+=(--config "${{ inputs.config }}")
+        fi
+        if [[ -n "${{ inputs.allowlist }}" ]]; then
+          args+=(--allowlist "${{ inputs.allowlist }}")
+        fi
+
+        occ "${args[@]}"
+        exit_code=$?
+        blocked=false
+        if [[ "$exit_code" -eq 2 ]]; then
+          blocked=true
+        fi
+
+        echo "exit-code=$exit_code" >> "$GITHUB_OUTPUT"
+        echo "blocked=$blocked" >> "$GITHUB_OUTPUT"
+        echo "sarif-path=$sarif_path" >> "$GITHUB_OUTPUT"
+        exit 0
+
+    - name: Print text summary
+      shell: bash
+      run: |
+        set +e
+        args=(scan --enforcement "${{ inputs.enforcement }}" --diff-source "${{ inputs.diff-source }}" --format text)
+        if [[ -n "${{ inputs.config }}" ]]; then
+          args+=(--config "${{ inputs.config }}")
+        fi
+        if [[ -n "${{ inputs.allowlist }}" ]]; then
+          args+=(--allowlist "${{ inputs.allowlist }}")
+        fi
+        occ "${args[@]}"
+        exit 0
+
+    - name: Emit GitHub annotations
+      if: ${{ inputs.emit-annotations == 'true' }}
+      shell: bash
+      run: |
+        set +e
+        args=(scan --enforcement "${{ inputs.enforcement }}" --diff-source "${{ inputs.diff-source }}" --format github-annotations)
+        if [[ -n "${{ inputs.config }}" ]]; then
+          args+=(--config "${{ inputs.config }}")
+        fi
+        if [[ -n "${{ inputs.allowlist }}" ]]; then
+          args+=(--allowlist "${{ inputs.allowlist }}")
+        fi
+        occ "${args[@]}"
+        exit 0
+
+    - name: Upload SARIF
+      if: ${{ inputs.upload-sarif == 'true' }}
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ steps.scan.outputs.sarif-path }}
+
+    - name: Enforce blocking findings
+      if: ${{ steps.scan.outputs.exit-code == '2' && inputs.continue-on-blocking-findings != 'true' }}
+      shell: bash
+      run: |
+        echo "OpenCodeCommit detected blocking sensitive findings." >&2
+        echo "Set continue-on-blocking-findings: true to keep reports without failing the workflow." >&2
+        exit 1
+
+    - name: Blocking findings overridden
+      if: ${{ steps.scan.outputs.exit-code == '2' && inputs.continue-on-blocking-findings == 'true' }}
+      shell: bash
+      run: |
+        echo "OpenCodeCommit detected blocking sensitive findings, but continue-on-blocking-findings=true so the workflow continues." >&2

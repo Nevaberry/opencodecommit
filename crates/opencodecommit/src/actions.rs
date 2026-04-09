@@ -2,12 +2,10 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use opencodecommit::backend::{
-    build_invocation, build_invocation_for, build_invocation_with_model, detect_cli,
-    exec_cli_with_timeout,
-};
-use opencodecommit::config::{BranchMode, CliBackend, CommitMode, Config, DiffSource};
+use opencodecommit::backend::detect_cli;
+use opencodecommit::config::{Backend, BranchMode, CommitMode, Config, DiffSource};
 use opencodecommit::context::{self, CommitContext};
+use opencodecommit::dispatch::{self, DispatchTask};
 use opencodecommit::git;
 use opencodecommit::prompt::{
     build_branch_prompt, build_changelog_prompt, build_pr_final_prompt, build_pr_prompt,
@@ -69,8 +67,8 @@ impl fmt::Display for DiffOrigin {
 
 #[derive(Debug, Clone)]
 pub enum BackendProgress {
-    Trying(CliBackend),
-    Failed { backend: CliBackend, error: String },
+    Trying(Backend),
+    Failed { backend: Backend, error: String },
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -161,13 +159,8 @@ pub struct RepoSummary {
     pub backend_error: Option<String>,
 }
 
-fn backend_label(backend: opencodecommit::config::CliBackend) -> &'static str {
-    match backend {
-        opencodecommit::config::CliBackend::Opencode => "OpenCode CLI",
-        opencodecommit::config::CliBackend::Claude => "Claude Code CLI",
-        opencodecommit::config::CliBackend::Codex => "Codex CLI",
-        opencodecommit::config::CliBackend::Gemini => "Gemini CLI",
-    }
+fn backend_label(backend: Backend) -> &'static str {
+    backend.label()
 }
 
 fn truncate_diff(context: &mut CommitContext, max_diff_length: usize) {
@@ -236,7 +229,6 @@ fn truncate_error(err: &str) -> String {
     }
 }
 
-
 pub fn generate_commit_preview_with_fallback(
     config: &Config,
     request: &CommitRequest,
@@ -272,6 +264,7 @@ pub fn generate_commit_preview_with_fallback(
     let (response, backend, failures) = exec_with_fallback(
         config,
         &prompt,
+        DispatchTask::Commit,
         config.commit_branch_timeout_seconds,
         &on_progress,
     )?;
@@ -415,32 +408,18 @@ fn generate_pr_preview_internal(
     timeout_secs: u64,
 ) -> Result<PrPreview> {
     let pr_ctx = load_pr_context(config, explicit_base)?;
-    let cli_path = detect_cli(config.backend, config.backend_cli_path())?;
 
     let pr_model = config.backend_pr_model();
     let cheap_model = config.backend_cheap_model();
 
     if pr_model == cheap_model || !pr_ctx.from_branch_diff {
         let prompt = build_pr_prompt(&pr_commit_context(&pr_ctx), config);
-        let invocation = if pr_model != config.backend_model() {
-            let provider = match config.backend {
-                opencodecommit::config::CliBackend::Opencode
-                | opencodecommit::config::CliBackend::Codex => {
-                    let provider = config.backend_pr_provider();
-                    if provider.is_empty() {
-                        None
-                    } else {
-                        Some(provider)
-                    }
-                }
-                _ => None,
-            };
-            build_invocation_with_model(&cli_path, &prompt, config, pr_model, provider)
+        let task = if pr_model != config.backend_model() {
+            DispatchTask::PrFinal
         } else {
-            build_invocation(&cli_path, &prompt, config)
+            DispatchTask::Commit
         };
-
-        let response = exec_cli_with_timeout(&invocation, timeout_secs)?;
+        let response = dispatch::dispatch(config.backend, &prompt, config, task, timeout_secs)?;
         let parsed: ParsedPr = parse_pr_response(&response);
         return Ok(PrPreview {
             title: parsed.title,
@@ -450,36 +429,24 @@ fn generate_pr_preview_internal(
     }
 
     let summary_prompt = build_pr_summary_prompt(&pr_ctx.diff, &pr_ctx.commits, config);
-    let cheap_provider = {
-        let provider = config.backend_cheap_provider();
-        if provider.is_empty() {
-            None
-        } else {
-            Some(provider)
-        }
-    };
-    let summary_invocation = build_invocation_with_model(
-        &cli_path,
+    let summary = dispatch::dispatch(
+        config.backend,
         &summary_prompt,
         config,
-        cheap_model,
-        cheap_provider,
+        DispatchTask::PrSummary,
+        timeout_secs,
     );
-    let summary = exec_cli_with_timeout(&summary_invocation, timeout_secs)?;
+    let summary = summary?;
 
     let commit_onelines = pr_commit_onelines(&pr_ctx.commits);
     let final_prompt = build_pr_final_prompt(&summary, &pr_ctx.branch, &commit_onelines, config);
-    let pr_provider = {
-        let provider = config.backend_pr_provider();
-        if provider.is_empty() {
-            None
-        } else {
-            Some(provider)
-        }
-    };
-    let final_invocation =
-        build_invocation_with_model(&cli_path, &final_prompt, config, pr_model, pr_provider);
-    let response = exec_cli_with_timeout(&final_invocation, timeout_secs)?;
+    let response = dispatch::dispatch(
+        config.backend,
+        &final_prompt,
+        config,
+        DispatchTask::PrFinal,
+        timeout_secs,
+    )?;
     let parsed: ParsedPr = parse_pr_response(&response);
     Ok(PrPreview {
         title: parsed.title,
@@ -492,33 +459,17 @@ fn generate_pr_preview_internal(
 fn exec_with_fallback(
     config: &Config,
     prompt: &str,
+    task: DispatchTask,
     timeout_secs: u64,
     on_progress: &impl Fn(BackendProgress),
-) -> std::result::Result<(String, CliBackend, Vec<BackendFailure>), ActionError> {
+) -> std::result::Result<(String, Backend, Vec<BackendFailure>), ActionError> {
     let backends = config.effective_backend_order();
     let mut failures: Vec<BackendFailure> = vec![];
 
     for &backend in backends {
         on_progress(BackendProgress::Trying(backend));
 
-        let cli_path = match detect_cli(backend, config.cli_path_for(backend)) {
-            Ok(p) => p,
-            Err(e) => {
-                let error = truncate_error(&e.to_string());
-                on_progress(BackendProgress::Failed {
-                    backend,
-                    error: error.clone(),
-                });
-                failures.push(BackendFailure {
-                    backend: backend.to_string(),
-                    error,
-                });
-                continue;
-            }
-        };
-
-        let invocation = build_invocation_for(&cli_path, prompt, config, backend);
-        match exec_cli_with_timeout(&invocation, timeout_secs) {
+        match dispatch::dispatch(backend, prompt, config, task, timeout_secs) {
             Ok(response) => return Ok((response, backend, failures)),
             Err(e) => {
                 let error = truncate_error(&e.to_string());
@@ -575,6 +526,7 @@ pub fn generate_branch_preview_with_fallback(
     let (response, _backend, failures) = exec_with_fallback(
         config,
         &prompt,
+        DispatchTask::Branch,
         config.commit_branch_timeout_seconds,
         &on_progress,
     )?;
@@ -640,6 +592,7 @@ pub fn generate_changelog_preview_with_fallback(
     let (response, _backend, failures) = exec_with_fallback(
         config,
         &prompt,
+        DispatchTask::Changelog,
         config.commit_branch_timeout_seconds,
         &on_progress,
     )?;
@@ -735,10 +688,13 @@ pub fn load_repo_summary_for_root(config: &Config, repo_root: &Path) -> Result<R
     let staged_files = changes.iter().filter(|change| change.staged).count();
     let unstaged_files = changes.iter().filter(|change| change.unstaged).count();
     let backend_label = backend_label(config.backend);
-    let (backend_path, backend_error) = match detect_cli(config.backend, config.backend_cli_path())
-    {
-        Ok(path) => (Some(path), None),
-        Err(err) => (None, Some(err.to_string())),
+    let (backend_path, backend_error) = if let Some(cli_backend) = config.backend.cli_backend() {
+        match detect_cli(cli_backend, config.backend_cli_path()) {
+            Ok(path) => (Some(path), None),
+            Err(err) => (None, Some(err.to_string())),
+        }
+    } else {
+        (None, None)
     };
 
     Ok(RepoSummary {

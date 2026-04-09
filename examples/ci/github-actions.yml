@@ -1,0 +1,33 @@
+name: OpenCodeCommit Scan
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      continue_on_blocking_findings:
+        description: Keep the workflow green even if occ scan reports blocking findings.
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  occ-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run OpenCodeCommit scan
+        uses: Nevaberry/opencodecommit@v1
+        with:
+          version: latest
+          enforcement: block-high
+          allowlist: .github/opencodecommit-allowlist.toml
+          upload-sarif: true
+          emit-annotations: true
+          continue-on-blocking-findings: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.continue_on_blocking_findings == 'true' }}

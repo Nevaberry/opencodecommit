@@ -1,6 +1,35 @@
-import type { CliBackend, ExtensionConfig } from "./types"
+import type {
+  ApiConfig,
+  ApiProviderConfig,
+  Backend,
+  CliBackend,
+  ExtensionConfig,
+} from "./types"
 
-export function backendLabel(backend: CliBackend): string {
+export const CLI_BACKENDS = [
+  "opencode",
+  "claude",
+  "codex",
+  "gemini",
+] as const satisfies readonly CliBackend[]
+
+export const ALL_BACKENDS = [
+  ...CLI_BACKENDS,
+  "openai-api",
+  "anthropic-api",
+  "gemini-api",
+  "openrouter-api",
+  "opencode-api",
+  "ollama-api",
+  "lm-studio-api",
+  "custom-api",
+] as const satisfies readonly Backend[]
+
+export function isCliBackend(backend: Backend): backend is CliBackend {
+  return CLI_BACKENDS.includes(backend as CliBackend)
+}
+
+export function backendLabel(backend: Backend): string {
   switch (backend) {
     case "opencode":
       return "OpenCode"
@@ -10,12 +39,28 @@ export function backendLabel(backend: CliBackend): string {
       return "Codex"
     case "gemini":
       return "Gemini"
+    case "openai-api":
+      return "OpenAI API"
+    case "anthropic-api":
+      return "Anthropic API"
+    case "gemini-api":
+      return "Gemini API"
+    case "openrouter-api":
+      return "OpenRouter API"
+    case "opencode-api":
+      return "OpenCode Zen API"
+    case "ollama-api":
+      return "Ollama API"
+    case "lm-studio-api":
+      return "LM Studio API"
+    case "custom-api":
+      return "Custom API"
   }
 }
 
 export function withBackendOverride(
   config: ExtensionConfig,
-  backend: CliBackend,
+  backend: Backend,
 ): ExtensionConfig {
   return {
     ...config,
@@ -25,7 +70,7 @@ export function withBackendOverride(
 
 export function backendModel(
   config: ExtensionConfig,
-  backend: CliBackend,
+  backend: Backend,
 ): string {
   switch (backend) {
     case "opencode":
@@ -36,12 +81,14 @@ export function backendModel(
       return config.codexModel
     case "gemini":
       return config.geminiModel
+    default:
+      return apiConfigFor(config.api, backend).model
   }
 }
 
 export function backendPrModel(
   config: ExtensionConfig,
-  backend: CliBackend,
+  backend: Backend,
 ): string {
   switch (backend) {
     case "opencode":
@@ -52,12 +99,16 @@ export function backendPrModel(
       return config.codexPrModel
     case "gemini":
       return config.geminiPrModel
+    default: {
+      const provider = apiConfigFor(config.api, backend)
+      return provider.prModel || provider.model
+    }
   }
 }
 
 export function backendCheapModel(
   config: ExtensionConfig,
-  backend: CliBackend,
+  backend: Backend,
 ): string {
   switch (backend) {
     case "opencode":
@@ -68,46 +119,51 @@ export function backendCheapModel(
       return config.codexCheapModel
     case "gemini":
       return config.geminiCheapModel
+    default: {
+      const provider = apiConfigFor(config.api, backend)
+      return provider.cheapModel || provider.model
+    }
   }
 }
 
 export function backendPrProvider(
   config: ExtensionConfig,
-  backend: CliBackend,
+  backend: Backend,
 ): string {
   switch (backend) {
     case "opencode":
       return config.opencodePrProvider
     case "codex":
       return config.codexPrProvider
-    case "claude":
-    case "gemini":
+    default:
       return ""
   }
 }
 
 export function backendCheapProvider(
   config: ExtensionConfig,
-  backend: CliBackend,
+  backend: Backend,
 ): string {
   switch (backend) {
     case "opencode":
       return config.opencodeCheapProvider
     case "codex":
       return config.codexCheapProvider
-    case "claude":
-    case "gemini":
+    default:
       return ""
   }
 }
 
 export function withModelProviderOverride(
   config: ExtensionConfig,
-  backend: CliBackend,
+  backend: Backend,
   model: string,
   provider?: string,
 ): ExtensionConfig {
-  const next: ExtensionConfig = { ...config }
+  const next: ExtensionConfig = {
+    ...config,
+    api: { ...config.api },
+  }
 
   switch (backend) {
     case "opencode":
@@ -124,7 +180,42 @@ export function withModelProviderOverride(
     case "gemini":
       next.geminiModel = model
       break
+    default: {
+      const key = apiConfigKey(backend)
+      next.api[key] = { ...next.api[key], model }
+      break
+    }
   }
 
   return next
+}
+
+export function apiConfigFor(
+  api: ApiConfig,
+  backend: Exclude<Backend, CliBackend>,
+): ApiProviderConfig {
+  return api[apiConfigKey(backend)]
+}
+
+function apiConfigKey(
+  backend: Exclude<Backend, CliBackend>,
+): keyof ApiConfig {
+  switch (backend) {
+    case "openai-api":
+      return "openai"
+    case "anthropic-api":
+      return "anthropic"
+    case "gemini-api":
+      return "gemini"
+    case "openrouter-api":
+      return "openrouter"
+    case "opencode-api":
+      return "opencode"
+    case "ollama-api":
+      return "ollama"
+    case "lm-studio-api":
+      return "lmStudio"
+    case "custom-api":
+      return "custom"
+  }
 }

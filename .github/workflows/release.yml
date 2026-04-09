@@ -24,7 +24,8 @@ jobs:
       - run: bun install --frozen-lockfile
       - working-directory: extension
         run: bun install --frozen-lockfile
-      - run: bun test extension/src/test/inline.test.ts
+      - run: bunx tsc -p extension/tsconfig.json --noEmit
+      - run: bun test extension/src/test/inline.test.ts extension/src/test/config.test.ts extension/src/test/api.test.ts
 
   # ── Cross-compile ─────────────────────────────────────────────────
   cross-compile:

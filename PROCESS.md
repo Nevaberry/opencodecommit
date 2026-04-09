@@ -1,8 +1,15 @@
 # OpenCodeCommit Process Flow
 
+This diagram focuses on generation flows (`occ commit`, `occ branch`, `occ pr`, `occ changelog`, TUI, and the VS Code extension).
+
+`occ scan` reuses the same config loading, diff acquisition, and sensitive scanning phases, then exits after reporting:
+- exit `0` when the selected enforcement allows the diff
+- exit `2` when blocking findings remain
+- output in `text`, `json`, `sarif`, or `github-annotations`
+
 ```mermaid
 flowchart TD
-    START(["User runs occ commit / TUI action / Extension"])
+    START(["User runs occ commit / occ branch / occ pr / TUI action / Extension"])
 
     %% Phase 1: Config & Input
     START --> LOAD_CFG["Load config.toml + CLI args"]
@@ -68,17 +75,20 @@ flowchart TD
     ADD_LANG --> APPEND_CONTEXT["Append branch + file contents + diff"]
     APPEND_CONTEXT --> DETECT
 
-    %% Phase 5: Backend Detection & Fallback
-    DETECT["Detect backend CLI"]
+    %% Phase 5: Backend Dispatch & Fallback
+    DETECT["Resolve backend in order<br/>(CLI path or API config)"]
     DETECT --> FALLBACK_LOOP
 
-    subgraph FALLBACK_LOOP ["Backend Fallback Loop"]
+    subgraph FALLBACK_LOOP ["Backend Dispatch & Fallback"]
         direction TB
         TRY["Try next backend in order"]
-        TRY --> FOUND{"CLI found<br/>in PATH?"}
+        TRY --> FOUND{"Backend ready?"}
         FOUND -->|no| MORE{"More backends<br/>to try?"}
-        FOUND -->|yes| INVOKE["Spawn CLI process<br/>(timeout 120s)"]
+        FOUND -->|yes| KIND{"CLI or API?"}
+        KIND -->|CLI| INVOKE["Spawn CLI process<br/>(timeout 120s)"]
+        KIND -->|API| INVOKE_API["Send HTTP request<br/>(timeout 120s)"]
         INVOKE --> EXEC_OK{"Execution<br/>succeeded?"}
+        INVOKE_API --> EXEC_OK
         EXEC_OK -->|yes| DONE_LOOP(["Got response"])
         EXEC_OK -->|no| MORE
         MORE -->|yes| TRY

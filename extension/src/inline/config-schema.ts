@@ -1,6 +1,7 @@
 import type {
+  ApiProviderConfig,
+  Backend,
   BranchMode,
-  CliBackend,
   CommitMode,
   ExtensionConfig,
   LanguageConfig,
@@ -37,7 +38,15 @@ export interface MirroredSettings {
   geminiPRModel: string
   geminiCheapModel: string
   prBaseBranch: string
-  backendOrder: CliBackend[]
+  backendOrder: Backend[]
+  apiOpenai: ApiProviderConfig
+  apiAnthropic: ApiProviderConfig
+  apiGemini: ApiProviderConfig
+  apiOpenrouter: ApiProviderConfig
+  apiOpencode: ApiProviderConfig
+  apiOllama: ApiProviderConfig
+  apiLmStudio: ApiProviderConfig
+  apiCustom: ApiProviderConfig
   activeLanguage: string
   languages: LanguageConfig[]
   showLanguageSelector: boolean
@@ -61,7 +70,20 @@ interface ManifestProperty {
   default: unknown
 }
 
-const CLI_BACKENDS = ["opencode", "claude", "codex", "gemini"] as const
+const BACKENDS = [
+  "opencode",
+  "claude",
+  "codex",
+  "gemini",
+  "openai-api",
+  "anthropic-api",
+  "gemini-api",
+  "openrouter-api",
+  "opencode-api",
+  "ollama-api",
+  "lm-studio-api",
+  "custom-api",
+] as const
 const COMMIT_MODES = [
   "adaptive",
   "adaptive-oneliner",
@@ -103,6 +125,14 @@ export const MIRRORED_SETTING_FIELDS = [
   { property: "geminiCheapModel", settingKey: "geminiCheapModel" },
   { property: "prBaseBranch", settingKey: "prBaseBranch" },
   { property: "backendOrder", settingKey: "backendOrder" },
+  { property: "apiOpenai", settingKey: "api.openai" },
+  { property: "apiAnthropic", settingKey: "api.anthropic" },
+  { property: "apiGemini", settingKey: "api.gemini" },
+  { property: "apiOpenrouter", settingKey: "api.openrouter" },
+  { property: "apiOpencode", settingKey: "api.opencode" },
+  { property: "apiOllama", settingKey: "api.ollama" },
+  { property: "apiLmStudio", settingKey: "api.lmStudio" },
+  { property: "apiCustom", settingKey: "api.custom" },
   { property: "activeLanguage", settingKey: "activeLanguage" },
   { property: "languages", settingKey: "languages" },
   { property: "showLanguageSelector", settingKey: "showLanguageSelector" },
@@ -208,6 +238,35 @@ function readStringRecord(
     return [key, item] as const
   })
   return Object.fromEntries(entries)
+}
+
+function apiProviderToToml(config: ApiProviderConfig): TomlObject {
+  return {
+    model: config.model,
+    endpoint: config.endpoint,
+    "key-env": config.keyEnv,
+    "pr-model": config.prModel,
+    "cheap-model": config.cheapModel,
+  }
+}
+
+function readApiProviderConfig(
+  value: unknown,
+  fallback: ApiProviderConfig,
+  context: string,
+): ApiProviderConfig {
+  const object = readObject(value, apiProviderToToml(fallback), context)
+  return {
+    model: readString(object.model, fallback.model, `${context}.model`),
+    endpoint: readString(object.endpoint, fallback.endpoint, `${context}.endpoint`),
+    keyEnv: readString(object["key-env"], fallback.keyEnv, `${context}.key-env`),
+    prModel: readString(object["pr-model"], fallback.prModel, `${context}.pr-model`),
+    cheapModel: readString(
+      object["cheap-model"],
+      fallback.cheapModel,
+      `${context}.cheap-model`,
+    ),
+  }
 }
 
 function languageToToml(language: LanguageConfig): TomlObject {
@@ -400,6 +459,14 @@ export function getManifestDefaults(manifest: {
     geminiCheapModel: getPropertyDefault(properties, "geminiCheapModel"),
     prBaseBranch: getPropertyDefault(properties, "prBaseBranch"),
     backendOrder: getPropertyDefault(properties, "backendOrder"),
+    apiOpenai: getPropertyDefault(properties, "api.openai"),
+    apiAnthropic: getPropertyDefault(properties, "api.anthropic"),
+    apiGemini: getPropertyDefault(properties, "api.gemini"),
+    apiOpenrouter: getPropertyDefault(properties, "api.openrouter"),
+    apiOpencode: getPropertyDefault(properties, "api.opencode"),
+    apiOllama: getPropertyDefault(properties, "api.ollama"),
+    apiLmStudio: getPropertyDefault(properties, "api.lmStudio"),
+    apiCustom: getPropertyDefault(properties, "api.custom"),
     activeLanguage: getPropertyDefault(properties, "activeLanguage"),
     languages: getPropertyDefault(properties, "languages"),
     showLanguageSelector: getPropertyDefault(properties, "showLanguageSelector"),
@@ -470,6 +537,16 @@ export function buildDefaultTomlDocument(defaults: MirroredSettings): TomlConfig
     "active-language": defaults.activeLanguage,
     "show-language-selector": defaults.showLanguageSelector,
     "auto-update": true,
+    api: {
+      openai: apiProviderToToml(defaults.apiOpenai),
+      anthropic: apiProviderToToml(defaults.apiAnthropic),
+      gemini: apiProviderToToml(defaults.apiGemini),
+      openrouter: apiProviderToToml(defaults.apiOpenrouter),
+      opencode: apiProviderToToml(defaults.apiOpencode),
+      ollama: apiProviderToToml(defaults.apiOllama),
+      "lm-studio": apiProviderToToml(defaults.apiLmStudio),
+      custom: apiProviderToToml(defaults.apiCustom),
+    },
     refine: {
       "default-feedback": defaults.refineDefaultFeedback,
     },
@@ -488,8 +565,8 @@ export function buildDefaultTomlDocument(defaults: MirroredSettings): TomlConfig
 
 function readBackendOrder(
   value: unknown,
-  fallback: CliBackend[],
-): CliBackend[] {
+  fallback: Backend[],
+): Backend[] {
   if (value === undefined) return fallback
   if (!Array.isArray(value)) {
     throw new Error("backend-order must be an array")
@@ -497,7 +574,7 @@ function readBackendOrder(
   return value.map((item, index) =>
     readEnum(
       item,
-      CLI_BACKENDS,
+      BACKENDS,
       fallback[index] ?? fallback[0],
       `backend-order[${index}]`,
     ),
@@ -511,6 +588,7 @@ export function readMirroredSettings(
   const refine = readObject(doc.refine, {}, "refine")
   const custom = readObject(doc.custom, {}, "custom")
   const sensitive = readObject(doc.sensitive, {}, "sensitive")
+  const api = readObject(doc.api, {}, "api")
 
   return {
     codexCLIProvider: readString(
@@ -625,6 +703,30 @@ export function readMirroredSettings(
       "pr-base-branch",
     ),
     backendOrder: readBackendOrder(doc["backend-order"], defaults.backendOrder),
+    apiOpenai: readApiProviderConfig(api.openai, defaults.apiOpenai, "api.openai"),
+    apiAnthropic: readApiProviderConfig(
+      api.anthropic,
+      defaults.apiAnthropic,
+      "api.anthropic",
+    ),
+    apiGemini: readApiProviderConfig(api.gemini, defaults.apiGemini, "api.gemini"),
+    apiOpenrouter: readApiProviderConfig(
+      api.openrouter,
+      defaults.apiOpenrouter,
+      "api.openrouter",
+    ),
+    apiOpencode: readApiProviderConfig(
+      api.opencode,
+      defaults.apiOpencode,
+      "api.opencode",
+    ),
+    apiOllama: readApiProviderConfig(api.ollama, defaults.apiOllama, "api.ollama"),
+    apiLmStudio: readApiProviderConfig(
+      api["lm-studio"],
+      defaults.apiLmStudio,
+      "api.lm-studio",
+    ),
+    apiCustom: readApiProviderConfig(api.custom, defaults.apiCustom, "api.custom"),
     activeLanguage: readString(
       doc["active-language"],
       defaults.activeLanguage,
@@ -789,6 +891,16 @@ export function toExtensionConfig(settings: MirroredSettings): ExtensionConfig {
     prBaseBranch: settings.prBaseBranch,
     backendOrder: settings.backendOrder,
     branchMode: settings.branchMode,
+    api: {
+      openai: settings.apiOpenai,
+      anthropic: settings.apiAnthropic,
+      gemini: settings.apiGemini,
+      openrouter: settings.apiOpenrouter,
+      opencode: settings.apiOpencode,
+      ollama: settings.apiOllama,
+      lmStudio: settings.apiLmStudio,
+      custom: settings.apiCustom,
+    },
     sensitive: {
       enforcement: settings.sensitiveEnforcement,
       allowlist: settings.sensitiveAllowlist,
@@ -839,6 +951,16 @@ export function applyMirroredSettingsToToml(
     languages: settings.languages.map(languageToToml),
     "active-language": settings.activeLanguage,
     "show-language-selector": settings.showLanguageSelector,
+    api: {
+      openai: apiProviderToToml(settings.apiOpenai),
+      anthropic: apiProviderToToml(settings.apiAnthropic),
+      gemini: apiProviderToToml(settings.apiGemini),
+      openrouter: apiProviderToToml(settings.apiOpenrouter),
+      opencode: apiProviderToToml(settings.apiOpencode),
+      ollama: apiProviderToToml(settings.apiOllama),
+      "lm-studio": apiProviderToToml(settings.apiLmStudio),
+      custom: apiProviderToToml(settings.apiCustom),
+    },
   }
 
   const custom = readObject(next.custom, {}, "custom")

@@ -31,6 +31,113 @@ impl fmt::Display for CliBackend {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum Backend {
+    #[default]
+    Opencode,
+    Claude,
+    Codex,
+    Gemini,
+    OpenaiApi,
+    AnthropicApi,
+    GeminiApi,
+    OpenrouterApi,
+    OpencodeApi,
+    OllamaApi,
+    LmStudioApi,
+    CustomApi,
+}
+
+impl Backend {
+    pub const ALL: [Backend; 12] = [
+        Backend::Opencode,
+        Backend::Claude,
+        Backend::Codex,
+        Backend::Gemini,
+        Backend::OpenaiApi,
+        Backend::AnthropicApi,
+        Backend::GeminiApi,
+        Backend::OpenrouterApi,
+        Backend::OpencodeApi,
+        Backend::OllamaApi,
+        Backend::LmStudioApi,
+        Backend::CustomApi,
+    ];
+
+    pub fn is_cli(self) -> bool {
+        self.cli_backend().is_some()
+    }
+
+    pub fn is_api(self) -> bool {
+        !self.is_cli()
+    }
+
+    pub fn cli_backend(self) -> Option<CliBackend> {
+        match self {
+            Backend::Opencode => Some(CliBackend::Opencode),
+            Backend::Claude => Some(CliBackend::Claude),
+            Backend::Codex => Some(CliBackend::Codex),
+            Backend::Gemini => Some(CliBackend::Gemini),
+            Backend::OpenaiApi
+            | Backend::AnthropicApi
+            | Backend::GeminiApi
+            | Backend::OpenrouterApi
+            | Backend::OpencodeApi
+            | Backend::OllamaApi
+            | Backend::LmStudioApi
+            | Backend::CustomApi => None,
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Backend::Opencode => "OpenCode CLI",
+            Backend::Claude => "Claude Code CLI",
+            Backend::Codex => "Codex CLI",
+            Backend::Gemini => "Gemini CLI",
+            Backend::OpenaiApi => "OpenAI API",
+            Backend::AnthropicApi => "Anthropic API",
+            Backend::GeminiApi => "Gemini API",
+            Backend::OpenrouterApi => "OpenRouter API",
+            Backend::OpencodeApi => "OpenCode Zen API",
+            Backend::OllamaApi => "Ollama API",
+            Backend::LmStudioApi => "LM Studio API",
+            Backend::CustomApi => "Custom API",
+        }
+    }
+}
+
+impl fmt::Display for Backend {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Backend::Opencode => write!(f, "opencode"),
+            Backend::Claude => write!(f, "claude"),
+            Backend::Codex => write!(f, "codex"),
+            Backend::Gemini => write!(f, "gemini"),
+            Backend::OpenaiApi => write!(f, "openai-api"),
+            Backend::AnthropicApi => write!(f, "anthropic-api"),
+            Backend::GeminiApi => write!(f, "gemini-api"),
+            Backend::OpenrouterApi => write!(f, "openrouter-api"),
+            Backend::OpencodeApi => write!(f, "opencode-api"),
+            Backend::OllamaApi => write!(f, "ollama-api"),
+            Backend::LmStudioApi => write!(f, "lm-studio-api"),
+            Backend::CustomApi => write!(f, "custom-api"),
+        }
+    }
+}
+
+impl From<CliBackend> for Backend {
+    fn from(value: CliBackend) -> Self {
+        match value {
+            CliBackend::Opencode => Backend::Opencode,
+            CliBackend::Claude => Backend::Claude,
+            CliBackend::Codex => Backend::Codex,
+            CliBackend::Gemini => Backend::Gemini,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum CommitMode {
@@ -112,6 +219,57 @@ pub struct CustomConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+pub struct ApiProviderConfig {
+    #[serde(default)]
+    pub model: String,
+    #[serde(default)]
+    pub endpoint: String,
+    #[serde(default)]
+    pub key_env: String,
+    #[serde(default)]
+    pub pr_model: String,
+    #[serde(default)]
+    pub cheap_model: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct ApiConfig {
+    #[serde(default = "default_openai_api_config")]
+    pub openai: ApiProviderConfig,
+    #[serde(default = "default_anthropic_api_config")]
+    pub anthropic: ApiProviderConfig,
+    #[serde(default = "default_gemini_api_config")]
+    pub gemini: ApiProviderConfig,
+    #[serde(default = "default_openrouter_api_config")]
+    pub openrouter: ApiProviderConfig,
+    #[serde(default = "default_opencode_api_config")]
+    pub opencode: ApiProviderConfig,
+    #[serde(default = "default_ollama_api_config")]
+    pub ollama: ApiProviderConfig,
+    #[serde(default = "default_lm_studio_api_config")]
+    pub lm_studio: ApiProviderConfig,
+    #[serde(default = "default_custom_api_config")]
+    pub custom: ApiProviderConfig,
+}
+
+impl Default for ApiConfig {
+    fn default() -> Self {
+        Self {
+            openai: default_openai_api_config(),
+            anthropic: default_anthropic_api_config(),
+            gemini: default_gemini_api_config(),
+            openrouter: default_openrouter_api_config(),
+            opencode: default_opencode_api_config(),
+            ollama: default_ollama_api_config(),
+            lm_studio: default_lm_studio_api_config(),
+            custom: default_custom_api_config(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub struct RefineConfig {
     #[serde(default = "default_refine_feedback")]
     pub default_feedback: String,
@@ -147,15 +305,19 @@ fn default_refine_feedback() -> String {
     "make it shorter".to_owned()
 }
 
+fn fallback_str<'a>(value: &'a str, fallback: &'a str) -> &'a str {
+    if value.is_empty() { fallback } else { value }
+}
+
 /// Main configuration. All fields have defaults matching the TypeScript extension.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Config {
     #[serde(default = "default_backend")]
-    pub backend: CliBackend,
+    pub backend: Backend,
 
     #[serde(default = "default_backend_order")]
-    pub backend_order: Vec<CliBackend>,
+    pub backend_order: Vec<Backend>,
 
     #[serde(default = "default_commit_mode")]
     pub commit_mode: CommitMode,
@@ -277,20 +439,23 @@ pub struct Config {
 
     #[serde(default)]
     pub sensitive: SensitiveConfig,
+
+    #[serde(default)]
+    pub api: ApiConfig,
 }
 
 // --- Default value functions ---
 
-fn default_backend() -> CliBackend {
-    CliBackend::Opencode
+fn default_backend() -> Backend {
+    Backend::Opencode
 }
 
-fn default_backend_order() -> Vec<CliBackend> {
+fn default_backend_order() -> Vec<Backend> {
     vec![
-        CliBackend::Codex,
-        CliBackend::Opencode,
-        CliBackend::Claude,
-        CliBackend::Gemini,
+        Backend::Codex,
+        Backend::Opencode,
+        Backend::Claude,
+        Backend::Gemini,
     ]
 }
 
@@ -390,6 +555,86 @@ fn default_gemini_cheap_model() -> String {
     "gemini-3.1-flash-lite-preview".to_owned()
 }
 
+fn default_openai_api_config() -> ApiProviderConfig {
+    ApiProviderConfig {
+        model: "gpt-5.4-mini".to_owned(),
+        endpoint: "https://api.openai.com/v1/chat/completions".to_owned(),
+        key_env: "OPENAI_API_KEY".to_owned(),
+        pr_model: "gpt-5.4".to_owned(),
+        cheap_model: "gpt-5.4-mini".to_owned(),
+    }
+}
+
+fn default_anthropic_api_config() -> ApiProviderConfig {
+    ApiProviderConfig {
+        model: "claude-sonnet-4-6".to_owned(),
+        endpoint: "https://api.anthropic.com/v1/messages".to_owned(),
+        key_env: "ANTHROPIC_API_KEY".to_owned(),
+        pr_model: "claude-opus-4-6".to_owned(),
+        cheap_model: "claude-haiku-4-5".to_owned(),
+    }
+}
+
+fn default_gemini_api_config() -> ApiProviderConfig {
+    ApiProviderConfig {
+        model: "gemini-2.5-flash".to_owned(),
+        endpoint: "https://generativelanguage.googleapis.com/v1beta".to_owned(),
+        key_env: "GEMINI_API_KEY".to_owned(),
+        pr_model: "gemini-3-flash-preview".to_owned(),
+        cheap_model: "gemini-3.1-flash-lite-preview".to_owned(),
+    }
+}
+
+fn default_openrouter_api_config() -> ApiProviderConfig {
+    ApiProviderConfig {
+        model: "anthropic/claude-sonnet-4".to_owned(),
+        endpoint: "https://openrouter.ai/api/v1/chat/completions".to_owned(),
+        key_env: "OPENROUTER_API_KEY".to_owned(),
+        pr_model: "openai/gpt-5.4".to_owned(),
+        cheap_model: "openai/gpt-5.4-mini".to_owned(),
+    }
+}
+
+fn default_opencode_api_config() -> ApiProviderConfig {
+    ApiProviderConfig {
+        model: "gpt-5.4-mini".to_owned(),
+        endpoint: "https://opencode.ai/zen/v1/chat/completions".to_owned(),
+        key_env: "OPENCODE_API_KEY".to_owned(),
+        pr_model: "gpt-5.4".to_owned(),
+        cheap_model: "gpt-5.4-mini".to_owned(),
+    }
+}
+
+fn default_ollama_api_config() -> ApiProviderConfig {
+    ApiProviderConfig {
+        model: String::new(),
+        endpoint: "http://localhost:11434".to_owned(),
+        key_env: String::new(),
+        pr_model: String::new(),
+        cheap_model: String::new(),
+    }
+}
+
+fn default_lm_studio_api_config() -> ApiProviderConfig {
+    ApiProviderConfig {
+        model: String::new(),
+        endpoint: "http://localhost:1234".to_owned(),
+        key_env: String::new(),
+        pr_model: String::new(),
+        cheap_model: String::new(),
+    }
+}
+
+fn default_custom_api_config() -> ApiProviderConfig {
+    ApiProviderConfig {
+        model: String::new(),
+        endpoint: String::new(),
+        key_env: String::new(),
+        pr_model: String::new(),
+        cheap_model: String::new(),
+    }
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -435,6 +680,7 @@ impl Default for Config {
             refine: RefineConfig::default(),
             custom: CustomConfig::default(),
             sensitive: SensitiveConfig::default(),
+            api: ApiConfig::default(),
         }
     }
 }
@@ -516,7 +762,10 @@ impl Config {
 
     /// Return the CLI path for the current backend.
     pub fn backend_cli_path(&self) -> &str {
-        self.cli_path_for(self.backend)
+        self.backend
+            .cli_backend()
+            .map(|backend| self.cli_path_for(backend))
+            .unwrap_or("")
     }
 
     /// Return the CLI path for a specific backend.
@@ -530,56 +779,150 @@ impl Config {
     }
 
     /// Return the effective backend order for failover.
-    pub fn effective_backend_order(&self) -> &[CliBackend] {
+    pub fn effective_backend_order(&self) -> &[Backend] {
         &self.backend_order
     }
 
     /// Return the model for the current backend.
     pub fn backend_model(&self) -> &str {
-        match self.backend {
-            CliBackend::Opencode => &self.model,
-            CliBackend::Claude => &self.claude_model,
-            CliBackend::Codex => &self.codex_model,
-            CliBackend::Gemini => &self.gemini_model,
-        }
+        self.backend_model_for(self.backend)
     }
 
     /// Return the PR model for the current backend.
     pub fn backend_pr_model(&self) -> &str {
-        match self.backend {
-            CliBackend::Opencode => &self.opencode_pr_model,
-            CliBackend::Claude => &self.claude_pr_model,
-            CliBackend::Codex => &self.codex_pr_model,
-            CliBackend::Gemini => &self.gemini_pr_model,
-        }
+        self.backend_pr_model_for(self.backend)
     }
 
     /// Return the cheap model for the current backend.
     pub fn backend_cheap_model(&self) -> &str {
-        match self.backend {
-            CliBackend::Opencode => &self.opencode_cheap_model,
-            CliBackend::Claude => &self.claude_cheap_model,
-            CliBackend::Codex => &self.codex_cheap_model,
-            CliBackend::Gemini => &self.gemini_cheap_model,
-        }
+        self.backend_cheap_model_for(self.backend)
     }
 
     /// Return the PR provider for the current backend (OpenCode/Codex only).
     pub fn backend_pr_provider(&self) -> &str {
-        match self.backend {
-            CliBackend::Opencode => &self.opencode_pr_provider,
-            CliBackend::Codex => &self.codex_pr_provider,
-            _ => "",
-        }
+        self.backend_pr_provider_for(self.backend)
     }
 
     /// Return the cheap provider for the current backend (OpenCode/Codex only).
     pub fn backend_cheap_provider(&self) -> &str {
-        match self.backend {
-            CliBackend::Opencode => &self.opencode_cheap_provider,
-            CliBackend::Codex => &self.codex_cheap_provider,
+        self.backend_cheap_provider_for(self.backend)
+    }
+
+    pub fn backend_model_for(&self, backend: Backend) -> &str {
+        match backend {
+            Backend::Opencode => &self.model,
+            Backend::Claude => &self.claude_model,
+            Backend::Codex => &self.codex_model,
+            Backend::Gemini => &self.gemini_model,
+            Backend::OpenaiApi => &self.api.openai.model,
+            Backend::AnthropicApi => &self.api.anthropic.model,
+            Backend::GeminiApi => &self.api.gemini.model,
+            Backend::OpenrouterApi => &self.api.openrouter.model,
+            Backend::OpencodeApi => &self.api.opencode.model,
+            Backend::OllamaApi => &self.api.ollama.model,
+            Backend::LmStudioApi => &self.api.lm_studio.model,
+            Backend::CustomApi => &self.api.custom.model,
+        }
+    }
+
+    pub fn backend_pr_model_for(&self, backend: Backend) -> &str {
+        match backend {
+            Backend::Opencode => &self.opencode_pr_model,
+            Backend::Claude => &self.claude_pr_model,
+            Backend::Codex => &self.codex_pr_model,
+            Backend::Gemini => &self.gemini_pr_model,
+            Backend::OpenaiApi => fallback_str(&self.api.openai.pr_model, &self.api.openai.model),
+            Backend::AnthropicApi => {
+                fallback_str(&self.api.anthropic.pr_model, &self.api.anthropic.model)
+            }
+            Backend::GeminiApi => fallback_str(&self.api.gemini.pr_model, &self.api.gemini.model),
+            Backend::OpenrouterApi => {
+                fallback_str(&self.api.openrouter.pr_model, &self.api.openrouter.model)
+            }
+            Backend::OpencodeApi => {
+                fallback_str(&self.api.opencode.pr_model, &self.api.opencode.model)
+            }
+            Backend::OllamaApi => fallback_str(&self.api.ollama.pr_model, &self.api.ollama.model),
+            Backend::LmStudioApi => {
+                fallback_str(&self.api.lm_studio.pr_model, &self.api.lm_studio.model)
+            }
+            Backend::CustomApi => fallback_str(&self.api.custom.pr_model, &self.api.custom.model),
+        }
+    }
+
+    pub fn backend_cheap_model_for(&self, backend: Backend) -> &str {
+        match backend {
+            Backend::Opencode => &self.opencode_cheap_model,
+            Backend::Claude => &self.claude_cheap_model,
+            Backend::Codex => &self.codex_cheap_model,
+            Backend::Gemini => &self.gemini_cheap_model,
+            Backend::OpenaiApi => {
+                fallback_str(&self.api.openai.cheap_model, &self.api.openai.model)
+            }
+            Backend::AnthropicApi => {
+                fallback_str(&self.api.anthropic.cheap_model, &self.api.anthropic.model)
+            }
+            Backend::GeminiApi => {
+                fallback_str(&self.api.gemini.cheap_model, &self.api.gemini.model)
+            }
+            Backend::OpenrouterApi => {
+                fallback_str(&self.api.openrouter.cheap_model, &self.api.openrouter.model)
+            }
+            Backend::OpencodeApi => {
+                fallback_str(&self.api.opencode.cheap_model, &self.api.opencode.model)
+            }
+            Backend::OllamaApi => {
+                fallback_str(&self.api.ollama.cheap_model, &self.api.ollama.model)
+            }
+            Backend::LmStudioApi => {
+                fallback_str(&self.api.lm_studio.cheap_model, &self.api.lm_studio.model)
+            }
+            Backend::CustomApi => {
+                fallback_str(&self.api.custom.cheap_model, &self.api.custom.model)
+            }
+        }
+    }
+
+    pub fn backend_pr_provider_for(&self, backend: Backend) -> &str {
+        match backend {
+            Backend::Opencode => &self.opencode_pr_provider,
+            Backend::Codex => &self.codex_pr_provider,
             _ => "",
         }
+    }
+
+    pub fn backend_cheap_provider_for(&self, backend: Backend) -> &str {
+        match backend {
+            Backend::Opencode => &self.opencode_cheap_provider,
+            Backend::Codex => &self.codex_cheap_provider,
+            _ => "",
+        }
+    }
+
+    pub fn api_config_for(&self, backend: Backend) -> Option<&ApiProviderConfig> {
+        match backend {
+            Backend::OpenaiApi => Some(&self.api.openai),
+            Backend::AnthropicApi => Some(&self.api.anthropic),
+            Backend::GeminiApi => Some(&self.api.gemini),
+            Backend::OpenrouterApi => Some(&self.api.openrouter),
+            Backend::OpencodeApi => Some(&self.api.opencode),
+            Backend::OllamaApi => Some(&self.api.ollama),
+            Backend::LmStudioApi => Some(&self.api.lm_studio),
+            Backend::CustomApi => Some(&self.api.custom),
+            Backend::Opencode | Backend::Claude | Backend::Codex | Backend::Gemini => None,
+        }
+    }
+
+    pub fn api_endpoint_for(&self, backend: Backend) -> &str {
+        self.api_config_for(backend)
+            .map(|provider| provider.endpoint.as_str())
+            .unwrap_or("")
+    }
+
+    pub fn api_key_env_for(&self, backend: Backend) -> &str {
+        self.api_config_for(backend)
+            .map(|provider| provider.key_env.as_str())
+            .unwrap_or("")
     }
 
     /// Existing canonical config file path, if present.
@@ -714,14 +1057,14 @@ mod tests {
     #[test]
     fn default_values_match_typescript() {
         let cfg = Config::default();
-        assert_eq!(cfg.backend, CliBackend::Opencode);
+        assert_eq!(cfg.backend, Backend::Opencode);
         assert_eq!(
             cfg.backend_order,
             vec![
-                CliBackend::Codex,
-                CliBackend::Opencode,
-                CliBackend::Claude,
-                CliBackend::Gemini
+                Backend::Codex,
+                Backend::Opencode,
+                Backend::Claude,
+                Backend::Gemini
             ]
         );
         assert_eq!(cfg.commit_mode, CommitMode::Adaptive);
@@ -761,6 +1104,15 @@ mod tests {
         assert_eq!(cfg.refine.default_feedback, "make it shorter");
         assert!(cfg.custom.prompt.is_empty());
         assert!(cfg.custom.emojis.is_empty());
+        assert_eq!(cfg.api.openai.key_env, "OPENAI_API_KEY");
+        assert_eq!(
+            cfg.api.openai.endpoint,
+            "https://api.openai.com/v1/chat/completions"
+        );
+        assert_eq!(cfg.api.anthropic.key_env, "ANTHROPIC_API_KEY");
+        assert_eq!(cfg.api.ollama.endpoint, "http://localhost:11434");
+        assert!(cfg.api.ollama.key_env.is_empty());
+        assert_eq!(cfg.api.lm_studio.endpoint, "http://localhost:1234");
     }
 
     #[test]
@@ -835,7 +1187,10 @@ mod tests {
         let mods = cfg.active_prompt_modules();
         assert!(mods.base_module.contains("コミットメッセージ"));
         assert!(mods.adaptive_format.contains("最近のコミット"));
-        assert!(mods.conventional_format.contains("conventional commit 形式"));
+        assert!(
+            mods.conventional_format
+                .contains("conventional commit 形式")
+        );
     }
 
     #[test]
@@ -847,7 +1202,10 @@ mod tests {
         let mods = cfg.active_prompt_modules();
         assert!(mods.base_module.contains("提交信息"));
         assert!(mods.adaptive_format.contains("最近的提交"));
-        assert!(mods.conventional_format.contains("conventional commit 格式"));
+        assert!(
+            mods.conventional_format
+                .contains("conventional commit 格式")
+        );
     }
 
     #[test]
@@ -892,17 +1250,17 @@ mod tests {
         assert_eq!(cfg.backend_model(), "gpt-5.4-mini");
         assert_eq!(cfg.backend_cli_path(), "");
 
-        cfg.backend = CliBackend::Claude;
+        cfg.backend = Backend::Claude;
         cfg.claude_path = "/usr/bin/claude".to_owned();
         assert_eq!(cfg.backend_model(), "claude-sonnet-4-6");
         assert_eq!(cfg.backend_cli_path(), "/usr/bin/claude");
 
-        cfg.backend = CliBackend::Codex;
+        cfg.backend = Backend::Codex;
         cfg.codex_path = "/usr/bin/codex".to_owned();
         assert_eq!(cfg.backend_model(), "gpt-5.4-mini");
         assert_eq!(cfg.backend_cli_path(), "/usr/bin/codex");
 
-        cfg.backend = CliBackend::Gemini;
+        cfg.backend = Backend::Gemini;
         cfg.gemini_path = "/usr/bin/gemini".to_owned();
         cfg.gemini_model = "gemini-2.5-flash".to_owned();
         assert_eq!(cfg.backend_model(), "gemini-2.5-flash");
@@ -940,7 +1298,7 @@ prompt = "Generate: {{{{diff}}}}"
         drop(f);
 
         let cfg = Config::load(&path).unwrap();
-        assert_eq!(cfg.backend, CliBackend::Claude);
+        assert_eq!(cfg.backend, Backend::Claude);
         assert_eq!(cfg.commit_mode, CommitMode::Conventional);
         assert_eq!(cfg.provider, "anthropic");
         assert_eq!(cfg.model, "opus");
@@ -959,6 +1317,47 @@ prompt = "Generate: {{{{diff}}}}"
         assert_eq!(cfg.codex_model, "gpt-5.4-mini");
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn api_tables_deserialize_and_drive_backend_helpers() {
+        let cfg: Config = toml::from_str(
+            r#"
+backend = "openai-api"
+backend-order = ["openai-api", "claude", "ollama-api"]
+
+[api.openai]
+model = "gpt-test"
+endpoint = "https://example.test/v1/chat/completions"
+key-env = "TEST_OPENAI_KEY"
+pr-model = "gpt-test-pr"
+cheap-model = "gpt-test-cheap"
+
+[api.ollama]
+model = "qwen2.5:latest"
+endpoint = "http://127.0.0.1:11434"
+"#,
+        )
+        .unwrap();
+
+        assert_eq!(cfg.backend, Backend::OpenaiApi);
+        assert_eq!(
+            cfg.backend_order,
+            vec![Backend::OpenaiApi, Backend::Claude, Backend::OllamaApi]
+        );
+        assert_eq!(cfg.backend_model(), "gpt-test");
+        assert_eq!(cfg.backend_pr_model(), "gpt-test-pr");
+        assert_eq!(cfg.backend_cheap_model(), "gpt-test-cheap");
+        assert_eq!(
+            cfg.api_endpoint_for(Backend::OpenaiApi),
+            "https://example.test/v1/chat/completions"
+        );
+        assert_eq!(cfg.api_key_env_for(Backend::OpenaiApi), "TEST_OPENAI_KEY");
+        assert_eq!(cfg.backend_model_for(Backend::OllamaApi), "qwen2.5:latest");
+        assert_eq!(
+            cfg.api_endpoint_for(Backend::OllamaApi),
+            "http://127.0.0.1:11434"
+        );
     }
 
     #[test]
@@ -985,8 +1384,8 @@ prompt = "Generate: {{{{diff}}}}"
     #[test]
     fn default_config_dir_uses_windows_home_fallback_without_appdata() {
         let home = PathBuf::from(r"C:/Users/tester");
-        let dir = Config::default_config_dir_from_env(true, None, Some(home.clone()), None)
-            .unwrap();
+        let dir =
+            Config::default_config_dir_from_env(true, None, Some(home.clone()), None).unwrap();
 
         assert_eq!(dir, home.join("AppData/Roaming/opencodecommit"));
     }
@@ -1017,7 +1416,7 @@ prompt = "Generate: {{{{diff}}}}"
 
         let cfg = Config::load_or_default(None).unwrap();
 
-        assert_eq!(cfg.backend, CliBackend::Opencode);
+        assert_eq!(cfg.backend, Backend::Opencode);
         assert!(env_path.exists());
         assert!(!default_path.exists());
 
@@ -1066,7 +1465,7 @@ prompt = "Generate: {{{{diff}}}}"
         let cfg = Config::load_or_default(None).unwrap();
 
         let serialized = std::fs::read_to_string(&config_path).unwrap();
-        assert_eq!(cfg.backend, CliBackend::Opencode);
+        assert_eq!(cfg.backend, Backend::Opencode);
         assert_eq!(cfg.model, "gpt-5.4-mini");
         assert!(config_path.exists());
         assert!(serialized.contains("backend-order"));
@@ -1076,6 +1475,9 @@ prompt = "Generate: {{{{diff}}}}"
         assert!(serialized.contains("[[languages]]"));
         assert!(serialized.contains("base-module"));
         assert!(serialized.contains("sensitive-content-note"));
+        assert!(serialized.contains("[api.openai]"));
+        assert!(serialized.contains("key-env = \"OPENAI_API_KEY\""));
+        assert!(serialized.contains("[api.ollama]"));
 
         match previous_xdg {
             Some(value) => unsafe {
@@ -1104,17 +1506,17 @@ prompt = "Generate: {{{{diff}}}}"
         assert_eq!(cfg.backend_pr_provider(), "openai");
         assert_eq!(cfg.backend_cheap_provider(), "openai");
 
-        cfg.backend = CliBackend::Claude;
+        cfg.backend = Backend::Claude;
         assert_eq!(cfg.backend_pr_model(), "claude-opus-4-6");
         assert_eq!(cfg.backend_cheap_model(), "claude-haiku-4-5");
         assert_eq!(cfg.backend_pr_provider(), "");
         assert_eq!(cfg.backend_cheap_provider(), "");
 
-        cfg.backend = CliBackend::Codex;
+        cfg.backend = Backend::Codex;
         assert_eq!(cfg.backend_pr_model(), "gpt-5.4");
         assert_eq!(cfg.backend_cheap_model(), "gpt-5.4-mini");
 
-        cfg.backend = CliBackend::Gemini;
+        cfg.backend = Backend::Gemini;
         assert_eq!(cfg.backend_pr_model(), "gemini-3-flash-preview");
         assert_eq!(cfg.backend_cheap_model(), "gemini-3.1-flash-lite-preview");
     }

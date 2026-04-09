@@ -1,7 +1,7 @@
 {
   "name": "opencodecommit",
-  "version": "1.4.2",
-  "description": "AI-powered git commit message generator that delegates to terminal AI agents",
+  "version": "1.5.0",
+  "description": "AI commit, branch, PR, changelog, and CI scan tooling for CLI backends and direct provider APIs",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -27,6 +27,10 @@
     "commit",
     "ai",
     "cli",
+    "api",
+    "ci",
+    "scanner",
+    "security",
     "opencode",
     "claude",
     "codex"

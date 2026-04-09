@@ -1,11 +1,12 @@
 # OpenCodeCommit
 
-AI commit, branch, PR, and changelog generation through terminal AI CLIs.
+AI commit, branch, PR, and changelog generation through terminal AI CLIs and direct provider APIs.
 
 OpenCodeCommit works as:
+- a VS Code / VSCodium extension
 - a Rust / npm CLI (`occ`)
 - a terminal TUI (`occ tui`)
-- a VS Code / VSCodium extension
+- a standalone CI/CD scanner in cloud (`occ scan`)
 
 Before any prompt leaves your machine, OpenCodeCommit scans the diff locally for secrets, credential files, source maps, private keys, and other sensitive artifacts.
 
@@ -24,18 +25,31 @@ CLI:
 - `cargo install opencodecommit`
 - `npm i -g opencodecommit`
 
-Backends:
+Optional CLI backends:
 - `npm i -g @openai/codex`
 - `npm i -g opencode`
 - `npm i -g @anthropic-ai/claude-code`
 - `npm i -g @google/gemini-cli`
 
+Direct API backends:
+- OpenAI
+- Anthropic
+- Google Gemini
+- OpenRouter
+- OpenCode Zen
+- Ollama
+- LM Studio
+- Custom OpenAI-compatible endpoints
+
+Hosted API backends use API keys from environment variables. Ollama and LM Studio can auto-detect the lexicographically first available model when their `model` field is left empty.
+
 ## Highlights
 
-- Backend fallback across Codex, OpenCode, Claude Code, and Gemini, plus one-shot backend picks in the TUI and extension.
-- Commit, PR, branch, and changelog generation from the same config surface.
+- Mixed fallback chains across CLI and API backends from the same `backend` / `backend-order` config.
+- Commit, PR, branch, and changelog generation from the CLI, TUI, and extension with the same config surface.
+- `occ scan` for CI/CD with `text`, `json`, `sarif`, and `github-annotations` output modes.
 - Built-in languages: English, Finnish, Japanese, Chinese, Spanish, Portuguese, French, Korean, Russian, Vietnamese, and German.
-- Terminal TUI with a file sidebar that merges staged, unstaged, and untracked files and lets you stage or unstage the selected file with `Space`.
+- Terminal TUI with one-shot backend picks and a file sidebar that stages or unstages the selected file with `Space`.
 - Transparent git guard for normal `git commit` flows.
 
 ## Quick Start
@@ -50,18 +64,20 @@ CLI:
 ```bash
 occ tui
 occ commit
+occ commit --backend openai-api --dry-run --text
 occ commit --backend gemini --dry-run --text
-occ commit --language Japanese
 occ branch --dry-run
-occ pr --text
+occ pr --backend openrouter-api --text
 occ changelog --text
+occ scan --format text
+occ scan --format sarif --output occ-scan.sarif
 occ guard install --global
 occ update
 ```
 
 ## Security Scanner
 
-The local scanner now checks for:
+The local scanner checks for:
 - provider tokens and webhook URLs for OpenAI, Anthropic, GitHub, GitLab, AWS, Slack, Stripe, SendGrid, npm, PyPI, Docker, Vault, Discord, Teams, and more
 - bearer tokens, JWTs, Docker auth blobs, kube auth fields, and credential-bearing connection strings
 - `.env*`, `.npmrc`, `.git-credentials`, `.kube/config`, Terraform state and vars, service-account JSON, key stores, SSH keys, and private key material
@@ -74,9 +90,11 @@ Enforcement modes:
 - `strict-high`
 - `strict-all`
 
+`occ scan` reuses the same scanner outside the AI flow. It accepts git diff input, `--stdin`, or `--diff-file`, returns `0` when the selected enforcement allows the diff, and returns `2` when blocking findings remain.
+
 Use `occ guard profile human` for warnings-first local use, or `occ guard profile strict-agent` when you want non-bypassable blocking behavior for autonomous tooling.
 
-See [SENSITIVE.md](SENSITIVE.md) for the full scanning flow and [PROCESS.md](PROCESS.md) for how it fits into the overall commit pipeline.
+See [SENSITIVE.md](SENSITIVE.md) for the full scanning flow and [PROCESS.md](PROCESS.md) for how it fits into generation and CI/CD.
 
 ## Config
 
@@ -87,6 +105,7 @@ VS Code / VSCodium settings under `opencodecommit.*` are synced bidirectionally 
 Override the path with the `OPENCODECOMMIT_CONFIG` environment variable.
 
 Useful settings:
+- `backend`
 - `backend-order`
 - `commit-mode`
 - `branch-mode`
@@ -95,6 +114,40 @@ Useful settings:
 - `commit-template`
 - `sensitive.enforcement`
 - `sensitive.allowlist`
+- `api.openai`
+- `api.anthropic`
+- `api.gemini`
+- `api.openrouter`
+- `api.opencode`
+- `api.ollama`
+- `api.lm-studio`
+- `api.custom`
+
+Example:
+
+```toml
+backend = "openai-api"
+backend-order = ["claude", "openai-api", "ollama-api"]
+
+[api.openai]
+model = "gpt-5.4-mini"
+endpoint = "https://api.openai.com/v1/chat/completions"
+key-env = "OPENAI_API_KEY"
+pr-model = "gpt-5.4"
+cheap-model = "gpt-5.4-mini"
+
+[api.ollama]
+model = ""
+endpoint = "http://localhost:11434"
+key-env = ""
+```
+
+## CI/CD
+
+- GitHub Action: [`action.yml`](action.yml)
+- Examples: [`examples/ci/github-actions.yml`](examples/ci/github-actions.yml), [`examples/ci/azure-pipelines.yml`](examples/ci/azure-pipelines.yml), [`examples/ci/gitlab-ci.yml`](examples/ci/gitlab-ci.yml)
+
+The composite action installs the published `opencodecommit` package, runs `occ scan`, can upload SARIF to GitHub code scanning, emits GitHub annotations, and supports a workflow-level manual override that preserves reports without hiding findings.
 
 ## License
 

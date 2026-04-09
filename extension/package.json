@@ -1,15 +1,14 @@
 {
   "name": "opencodecommit",
   "displayName": "OpenCodeCommit",
-  "description": "AI commit messages via OpenCode, Claude Code, or Codex CLI — supports every major LLM provider from a single extension",
-  "version": "1.4.2",
+  "description": "AI commit messages via CLI backends and direct provider APIs for local use and CI/CD",
+  "version": "1.5.0",
   "publisher": "Nevaberry",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/Nevaberry/opencodecommit"
   },
-  "icon": "icon.png",
   "engines": {
     "vscode": "^1.106.0"
   },
@@ -30,6 +29,7 @@
   "activationEvents": [
     "onStartupFinished"
   ],
+  "icon": "icon.png",
   "main": "./out/extension.js",
   "extensionDependencies": [
     "vscode.git"
@@ -66,22 +66,6 @@
         "command": "opencodecommit.generatePr",
         "title": "occ: Generate PR",
         "icon": "$(git-pull-request)"
-      },
-      {
-        "command": "opencodecommit.generatePrCodex",
-        "title": "occ: Generate PR via Codex"
-      },
-      {
-        "command": "opencodecommit.generatePrOpencode",
-        "title": "occ: Generate PR via OpenCode"
-      },
-      {
-        "command": "opencodecommit.generatePrClaude",
-        "title": "occ: Generate PR via Claude"
-      },
-      {
-        "command": "opencodecommit.generatePrGemini",
-        "title": "occ: Generate PR via Gemini"
       },
       {
         "command": "opencodecommit.createChangelog",
@@ -136,16 +120,96 @@
         "title": "occ: Generate Adaptive via Codex"
       },
       {
+        "command": "opencodecommit.generatePrCodex",
+        "title": "occ: Generate PR via Codex"
+      },
+      {
         "command": "opencodecommit.generateAdaptiveOpencode",
         "title": "occ: Generate Adaptive via OpenCode"
+      },
+      {
+        "command": "opencodecommit.generatePrOpencode",
+        "title": "occ: Generate PR via OpenCode"
       },
       {
         "command": "opencodecommit.generateAdaptiveClaude",
         "title": "occ: Generate Adaptive via Claude"
       },
       {
+        "command": "opencodecommit.generatePrClaude",
+        "title": "occ: Generate PR via Claude"
+      },
+      {
         "command": "opencodecommit.generateAdaptiveGemini",
         "title": "occ: Generate Adaptive via Gemini"
+      },
+      {
+        "command": "opencodecommit.generatePrGemini",
+        "title": "occ: Generate PR via Gemini"
+      },
+      {
+        "command": "opencodecommit.generateAdaptiveOpenaiApi",
+        "title": "occ: Generate Adaptive via OpenAI API"
+      },
+      {
+        "command": "opencodecommit.generatePrOpenaiApi",
+        "title": "occ: Generate PR via OpenAI API"
+      },
+      {
+        "command": "opencodecommit.generateAdaptiveAnthropicApi",
+        "title": "occ: Generate Adaptive via Anthropic API"
+      },
+      {
+        "command": "opencodecommit.generatePrAnthropicApi",
+        "title": "occ: Generate PR via Anthropic API"
+      },
+      {
+        "command": "opencodecommit.generateAdaptiveGeminiApi",
+        "title": "occ: Generate Adaptive via Gemini API"
+      },
+      {
+        "command": "opencodecommit.generatePrGeminiApi",
+        "title": "occ: Generate PR via Gemini API"
+      },
+      {
+        "command": "opencodecommit.generateAdaptiveOpenrouterApi",
+        "title": "occ: Generate Adaptive via OpenRouter API"
+      },
+      {
+        "command": "opencodecommit.generatePrOpenrouterApi",
+        "title": "occ: Generate PR via OpenRouter API"
+      },
+      {
+        "command": "opencodecommit.generateAdaptiveOpencodeApi",
+        "title": "occ: Generate Adaptive via OpenCode Zen API"
+      },
+      {
+        "command": "opencodecommit.generatePrOpencodeApi",
+        "title": "occ: Generate PR via OpenCode Zen API"
+      },
+      {
+        "command": "opencodecommit.generateAdaptiveOllamaApi",
+        "title": "occ: Generate Adaptive via Ollama API"
+      },
+      {
+        "command": "opencodecommit.generatePrOllamaApi",
+        "title": "occ: Generate PR via Ollama API"
+      },
+      {
+        "command": "opencodecommit.generateAdaptiveLmStudioApi",
+        "title": "occ: Generate Adaptive via LM Studio API"
+      },
+      {
+        "command": "opencodecommit.generatePrLmStudioApi",
+        "title": "occ: Generate PR via LM Studio API"
+      },
+      {
+        "command": "opencodecommit.generateAdaptiveCustomApi",
+        "title": "occ: Generate Adaptive via Custom API"
+      },
+      {
+        "command": "opencodecommit.generatePrCustomApi",
+        "title": "occ: Generate PR via Custom API"
       }
     ],
     "submenus": [
@@ -266,6 +330,38 @@
         {
           "command": "opencodecommit.generateAdaptiveGemini",
           "group": "1_backend"
+        },
+        {
+          "command": "opencodecommit.generateAdaptiveOpenaiApi",
+          "group": "1_backend"
+        },
+        {
+          "command": "opencodecommit.generateAdaptiveAnthropicApi",
+          "group": "1_backend"
+        },
+        {
+          "command": "opencodecommit.generateAdaptiveGeminiApi",
+          "group": "1_backend"
+        },
+        {
+          "command": "opencodecommit.generateAdaptiveOpenrouterApi",
+          "group": "1_backend"
+        },
+        {
+          "command": "opencodecommit.generateAdaptiveOpencodeApi",
+          "group": "1_backend"
+        },
+        {
+          "command": "opencodecommit.generateAdaptiveOllamaApi",
+          "group": "1_backend"
+        },
+        {
+          "command": "opencodecommit.generateAdaptiveLmStudioApi",
+          "group": "1_backend"
+        },
+        {
+          "command": "opencodecommit.generateAdaptiveCustomApi",
+          "group": "1_backend"
         }
       ],
       "opencodecommit.prBackendMenu": [
@@ -283,6 +379,38 @@
         },
         {
           "command": "opencodecommit.generatePrGemini",
+          "group": "1_backend"
+        },
+        {
+          "command": "opencodecommit.generatePrOpenaiApi",
+          "group": "1_backend"
+        },
+        {
+          "command": "opencodecommit.generatePrAnthropicApi",
+          "group": "1_backend"
+        },
+        {
+          "command": "opencodecommit.generatePrGeminiApi",
+          "group": "1_backend"
+        },
+        {
+          "command": "opencodecommit.generatePrOpenrouterApi",
+          "group": "1_backend"
+        },
+        {
+          "command": "opencodecommit.generatePrOpencodeApi",
+          "group": "1_backend"
+        },
+        {
+          "command": "opencodecommit.generatePrOllamaApi",
+          "group": "1_backend"
+        },
+        {
+          "command": "opencodecommit.generatePrLmStudioApi",
+          "group": "1_backend"
+        },
+        {
+          "command": "opencodecommit.generatePrCustomApi",
           "group": "1_backend"
         }
       ]
@@ -467,13 +595,29 @@
               "codex",
               "opencode",
               "claude",
-              "gemini"
+              "gemini",
+              "openai-api",
+              "anthropic-api",
+              "gemini-api",
+              "openrouter-api",
+              "opencode-api",
+              "ollama-api",
+              "lm-studio-api",
+              "custom-api"
             ],
             "enumItemLabels": [
               "Codex CLI",
               "OpenCode CLI",
               "Claude Code CLI",
-              "Gemini CLI"
+              "Gemini CLI",
+              "OpenAI API",
+              "Anthropic API",
+              "Gemini API",
+              "OpenRouter API",
+              "OpenCode Zen API",
+              "Ollama API",
+              "LM Studio API",
+              "Custom API"
             ]
           },
           "default": [
@@ -482,7 +626,7 @@
             "claude",
             "gemini"
           ],
-          "description": "Backend CLI fallback order. Tries each in sequence until one succeeds. First entry is the primary default.",
+          "description": "Backend fallback order. Tries each CLI or direct API backend in sequence until one succeeds. The first entry is the primary default.",
           "scope": "machine"
         },
         "opencodecommit.activeLanguage": {
@@ -812,22 +956,367 @@
           "default": "conventional",
           "description": "Branch naming mode",
           "scope": "machine"
+        },
+        "opencodecommit.api.openai": {
+          "order": 43,
+          "type": "object",
+          "scope": "machine",
+          "additionalProperties": false,
+          "default": {
+            "model": "gpt-5.4-mini",
+            "endpoint": "https://api.openai.com/v1/chat/completions",
+            "keyEnv": "OPENAI_API_KEY",
+            "prModel": "gpt-5.4",
+            "cheapModel": "gpt-5.4-mini"
+          },
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "gpt-5.4-mini",
+              "description": "Primary model for commit, refine, branch, and changelog generation."
+            },
+            "endpoint": {
+              "type": "string",
+              "default": "https://api.openai.com/v1/chat/completions",
+              "description": "HTTP endpoint or base URL for the provider."
+            },
+            "keyEnv": {
+              "type": "string",
+              "default": "OPENAI_API_KEY",
+              "description": "Environment variable name that contains the API key. Leave empty for local providers."
+            },
+            "prModel": {
+              "type": "string",
+              "default": "gpt-5.4",
+              "description": "Model for the final PR generation step. Falls back to model when empty."
+            },
+            "cheapModel": {
+              "type": "string",
+              "default": "gpt-5.4-mini",
+              "description": "Model for the cheap PR summarization step. Falls back to model when empty."
+            }
+          },
+          "markdownDescription": "OpenAI API backend configuration. Mirrors `[api.openai]` in `config.toml`."
+        },
+        "opencodecommit.api.anthropic": {
+          "order": 44,
+          "type": "object",
+          "scope": "machine",
+          "additionalProperties": false,
+          "default": {
+            "model": "claude-sonnet-4-6",
+            "endpoint": "https://api.anthropic.com/v1/messages",
+            "keyEnv": "ANTHROPIC_API_KEY",
+            "prModel": "claude-opus-4-6",
+            "cheapModel": "claude-haiku-4-5"
+          },
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "claude-sonnet-4-6",
+              "description": "Primary model for commit, refine, branch, and changelog generation."
+            },
+            "endpoint": {
+              "type": "string",
+              "default": "https://api.anthropic.com/v1/messages",
+              "description": "HTTP endpoint or base URL for the provider."
+            },
+            "keyEnv": {
+              "type": "string",
+              "default": "ANTHROPIC_API_KEY",
+              "description": "Environment variable name that contains the API key. Leave empty for local providers."
+            },
+            "prModel": {
+              "type": "string",
+              "default": "claude-opus-4-6",
+              "description": "Model for the final PR generation step. Falls back to model when empty."
+            },
+            "cheapModel": {
+              "type": "string",
+              "default": "claude-haiku-4-5",
+              "description": "Model for the cheap PR summarization step. Falls back to model when empty."
+            }
+          },
+          "markdownDescription": "Anthropic API backend configuration. Mirrors `[api.anthropic]` in `config.toml`."
+        },
+        "opencodecommit.api.gemini": {
+          "order": 45,
+          "type": "object",
+          "scope": "machine",
+          "additionalProperties": false,
+          "default": {
+            "model": "gemini-2.5-flash",
+            "endpoint": "https://generativelanguage.googleapis.com/v1beta",
+            "keyEnv": "GEMINI_API_KEY",
+            "prModel": "gemini-3-flash-preview",
+            "cheapModel": "gemini-3.1-flash-lite-preview"
+          },
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "gemini-2.5-flash",
+              "description": "Primary model for commit, refine, branch, and changelog generation."
+            },
+            "endpoint": {
+              "type": "string",
+              "default": "https://generativelanguage.googleapis.com/v1beta",
+              "description": "HTTP endpoint or base URL for the provider."
+            },
+            "keyEnv": {
+              "type": "string",
+              "default": "GEMINI_API_KEY",
+              "description": "Environment variable name that contains the API key. Leave empty for local providers."
+            },
+            "prModel": {
+              "type": "string",
+              "default": "gemini-3-flash-preview",
+              "description": "Model for the final PR generation step. Falls back to model when empty."
+            },
+            "cheapModel": {
+              "type": "string",
+              "default": "gemini-3.1-flash-lite-preview",
+              "description": "Model for the cheap PR summarization step. Falls back to model when empty."
+            }
+          },
+          "markdownDescription": "Google Gemini API backend configuration. Mirrors `[api.gemini]` in `config.toml`."
+        },
+        "opencodecommit.api.openrouter": {
+          "order": 46,
+          "type": "object",
+          "scope": "machine",
+          "additionalProperties": false,
+          "default": {
+            "model": "anthropic/claude-sonnet-4",
+            "endpoint": "https://openrouter.ai/api/v1/chat/completions",
+            "keyEnv": "OPENROUTER_API_KEY",
+            "prModel": "openai/gpt-5.4",
+            "cheapModel": "openai/gpt-5.4-mini"
+          },
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "anthropic/claude-sonnet-4",
+              "description": "Primary model for commit, refine, branch, and changelog generation."
+            },
+            "endpoint": {
+              "type": "string",
+              "default": "https://openrouter.ai/api/v1/chat/completions",
+              "description": "HTTP endpoint or base URL for the provider."
+            },
+            "keyEnv": {
+              "type": "string",
+              "default": "OPENROUTER_API_KEY",
+              "description": "Environment variable name that contains the API key. Leave empty for local providers."
+            },
+            "prModel": {
+              "type": "string",
+              "default": "openai/gpt-5.4",
+              "description": "Model for the final PR generation step. Falls back to model when empty."
+            },
+            "cheapModel": {
+              "type": "string",
+              "default": "openai/gpt-5.4-mini",
+              "description": "Model for the cheap PR summarization step. Falls back to model when empty."
+            }
+          },
+          "markdownDescription": "OpenRouter API backend configuration. Mirrors `[api.openrouter]` in `config.toml`."
+        },
+        "opencodecommit.api.opencode": {
+          "order": 47,
+          "type": "object",
+          "scope": "machine",
+          "additionalProperties": false,
+          "default": {
+            "model": "gpt-5.4-mini",
+            "endpoint": "https://opencode.ai/zen/v1/chat/completions",
+            "keyEnv": "OPENCODE_API_KEY",
+            "prModel": "gpt-5.4",
+            "cheapModel": "gpt-5.4-mini"
+          },
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "gpt-5.4-mini",
+              "description": "Primary model for commit, refine, branch, and changelog generation."
+            },
+            "endpoint": {
+              "type": "string",
+              "default": "https://opencode.ai/zen/v1/chat/completions",
+              "description": "HTTP endpoint or base URL for the provider."
+            },
+            "keyEnv": {
+              "type": "string",
+              "default": "OPENCODE_API_KEY",
+              "description": "Environment variable name that contains the API key. Leave empty for local providers."
+            },
+            "prModel": {
+              "type": "string",
+              "default": "gpt-5.4",
+              "description": "Model for the final PR generation step. Falls back to model when empty."
+            },
+            "cheapModel": {
+              "type": "string",
+              "default": "gpt-5.4-mini",
+              "description": "Model for the cheap PR summarization step. Falls back to model when empty."
+            }
+          },
+          "markdownDescription": "OpenCode Zen API backend configuration. Mirrors `[api.opencode]` in `config.toml`."
+        },
+        "opencodecommit.api.ollama": {
+          "order": 48,
+          "type": "object",
+          "scope": "machine",
+          "additionalProperties": false,
+          "default": {
+            "model": "",
+            "endpoint": "http://localhost:11434",
+            "keyEnv": "",
+            "prModel": "",
+            "cheapModel": ""
+          },
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "",
+              "description": "Primary model for commit, refine, branch, and changelog generation."
+            },
+            "endpoint": {
+              "type": "string",
+              "default": "http://localhost:11434",
+              "description": "HTTP endpoint or base URL for the provider."
+            },
+            "keyEnv": {
+              "type": "string",
+              "default": "",
+              "description": "Environment variable name that contains the API key. Leave empty for local providers."
+            },
+            "prModel": {
+              "type": "string",
+              "default": "",
+              "description": "Model for the final PR generation step. Falls back to model when empty."
+            },
+            "cheapModel": {
+              "type": "string",
+              "default": "",
+              "description": "Model for the cheap PR summarization step. Falls back to model when empty."
+            }
+          },
+          "markdownDescription": "Ollama API backend configuration. Leave model empty to auto-detect the first available local model."
+        },
+        "opencodecommit.api.lmStudio": {
+          "order": 49,
+          "type": "object",
+          "scope": "machine",
+          "additionalProperties": false,
+          "default": {
+            "model": "",
+            "endpoint": "http://localhost:1234",
+            "keyEnv": "",
+            "prModel": "",
+            "cheapModel": ""
+          },
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "",
+              "description": "Primary model for commit, refine, branch, and changelog generation."
+            },
+            "endpoint": {
+              "type": "string",
+              "default": "http://localhost:1234",
+              "description": "HTTP endpoint or base URL for the provider."
+            },
+            "keyEnv": {
+              "type": "string",
+              "default": "",
+              "description": "Environment variable name that contains the API key. Leave empty for local providers."
+            },
+            "prModel": {
+              "type": "string",
+              "default": "",
+              "description": "Model for the final PR generation step. Falls back to model when empty."
+            },
+            "cheapModel": {
+              "type": "string",
+              "default": "",
+              "description": "Model for the cheap PR summarization step. Falls back to model when empty."
+            }
+          },
+          "markdownDescription": "LM Studio API backend configuration. Leave model empty to auto-detect the first available local model."
+        },
+        "opencodecommit.api.custom": {
+          "order": 50,
+          "type": "object",
+          "scope": "machine",
+          "additionalProperties": false,
+          "default": {
+            "model": "",
+            "endpoint": "",
+            "keyEnv": "",
+            "prModel": "",
+            "cheapModel": ""
+          },
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "",
+              "description": "Primary model for commit, refine, branch, and changelog generation."
+            },
+            "endpoint": {
+              "type": "string",
+              "default": "",
+              "description": "HTTP endpoint or base URL for the provider."
+            },
+            "keyEnv": {
+              "type": "string",
+              "default": "",
+              "description": "Environment variable name that contains the API key. Leave empty for local providers."
+            },
+            "prModel": {
+              "type": "string",
+              "default": "",
+              "description": "Model for the final PR generation step. Falls back to model when empty."
+            },
+            "cheapModel": {
+              "type": "string",
+              "default": "",
+              "description": "Model for the cheap PR summarization step. Falls back to model when empty."
+            }
+          },
+          "markdownDescription": "Custom OpenAI-compatible API backend configuration. Mirrors `[api.custom]` in `config.toml`."
         }
       }
     }
   },
   "scripts": {
-    "build": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
+    "prepare": "git config core.hooksPath .githooks",
+    "build": "tsc -p extension/",
+    "watch": "tsc -watch -p extension/",
+    "lint": "biome check extension/src/",
+    "lint:fix": "biome check --write extension/src/",
+    "pretest": "bun run build",
+    "test": "bun run test:ts && bun run test:rust",
     "package": "vsce package",
     "publish:vsx": "ovsx publish",
-    "publish:vsce": "vsce publish"
+    "publish:vsce": "vsce publish",
+    "check-deps": "node scripts/check-package-age.mjs",
+    "test:extension": "bun test extension/src/test",
+    "test:ts": "bun run test:extension",
+    "test:rust": "cargo test --package opencodecommit",
+    "test:live-backends": "bash scripts/test-live-backends.sh"
   },
   "devDependencies": {
-    "@types/node": "20.19.37",
+    "@biomejs/biome": "^2.3.0",
+    "@types/mocha": "^10.0.0",
+    "@types/node": "^20.0.0",
+    "@types/sinon": "^17.0.0",
     "@types/vscode": "^1.106.0",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.0",
     "@vscode/vsce": "^3.0.0",
+    "mocha": "^11.0.0",
     "ovsx": "^0.10.0",
+    "sinon": "^21.0.0",
     "typescript": "^5.9.0"
   },
   "dependencies": {

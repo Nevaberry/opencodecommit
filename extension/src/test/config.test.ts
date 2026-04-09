@@ -80,17 +80,25 @@ describe("config schema", () => {
         "expert at writing git commit messages",
       ),
     )
+    assert.deepStrictEqual((defaultDoc.api as Record<string, unknown> | undefined)?.openai, {
+      model: "gpt-5.4-mini",
+      endpoint: "https://api.openai.com/v1/chat/completions",
+      "key-env": "OPENAI_API_KEY",
+      "pr-model": "gpt-5.4",
+      "cheap-model": "gpt-5.4-mini",
+    })
     assert.strictEqual(runtimeConfig.activeLanguage, "English")
     assert.ok(
       runtimeConfig.prompt.baseModule.includes(
         "expert at writing git commit messages",
       ),
     )
+    assert.strictEqual(runtimeConfig.api.openai.keyEnv, "OPENAI_API_KEY")
 
     const updatedDoc = applyMirroredSettingsToToml(parsedDoc, {
       ...mirrored,
       activeLanguage: "Finnish",
-      backendOrder: ["gemini", "codex", "opencode", "claude"],
+      backendOrder: ["gemini", "codex", "openai-api", "opencode"],
       useEmojis: true,
       commitBranchTimeoutSeconds: 95,
       prTimeoutSeconds: 240,
@@ -100,8 +108,8 @@ describe("config schema", () => {
     assert.deepStrictEqual(updatedDoc["backend-order"], [
       "gemini",
       "codex",
+      "openai-api",
       "opencode",
-      "claude",
     ])
     assert.strictEqual(updatedDoc["use-emojis"], true)
     assert.strictEqual(updatedDoc["commit-branch-timeout-seconds"], 95)

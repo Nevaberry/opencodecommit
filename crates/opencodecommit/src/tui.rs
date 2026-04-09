@@ -8,7 +8,7 @@ use crossterm::execute;
 use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
-use opencodecommit::config::{Config, SensitiveProfile};
+use opencodecommit::config::{Backend, Config, SensitiveProfile};
 use opencodecommit::sensitive::{SensitiveReport, allows_sensitive_bypass};
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Layout, Rect};
@@ -16,8 +16,6 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 use ratatui::{Frame, Terminal};
-
-use opencodecommit::config::CliBackend;
 
 use crate::actions::{
     self, ActionError, BackendProgress, BranchPreview, CommitPreview, CommitRequest, HookOperation,
@@ -50,36 +48,44 @@ enum OutputContent {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PreviewOrigin {
     Fallback,
-    SingleBackend(CliBackend),
+    SingleBackend(Backend),
 }
 
 // ── Panel buttons (rendered inside the output panel) ──
 
 /// Returns the labels for panel buttons given the current output content.
-fn panel_buttons(output: &OutputContent) -> &'static [&'static str] {
+fn panel_buttons(output: &OutputContent) -> Vec<String> {
     match output {
-        OutputContent::CommitMessage { .. } => &["[c Commit]", "[s Shorten]", "[r Regenerate]"],
+        OutputContent::CommitMessage { .. } => vec![
+            "[c Commit]".to_owned(),
+            "[s Shorten]".to_owned(),
+            "[r Regenerate]".to_owned(),
+        ],
         OutputContent::SensitiveWarning { report } => {
             if !report.has_blocking_findings() || allows_sensitive_bypass(report.enforcement) {
-                &["[c Continue]", "[x Cancel]"]
+                vec!["[c Continue]".to_owned(), "[x Cancel]".to_owned()]
             } else {
-                &["[x Cancel]"]
+                vec!["[x Cancel]".to_owned()]
             }
         }
-        OutputContent::BranchPreview { .. } => &["[c Create Branch]", "[r Regenerate]"],
-        OutputContent::PrPreview { .. } => &["[s Submit PR]", "[p Copy]", "[r Regenerate]"],
+        OutputContent::BranchPreview { .. } => {
+            vec!["[c Create Branch]".to_owned(), "[r Regenerate]".to_owned()]
+        }
+        OutputContent::PrPreview { .. } => vec![
+            "[s Submit PR]".to_owned(),
+            "[p Copy]".to_owned(),
+            "[r Regenerate]".to_owned(),
+        ],
         OutputContent::BackendMenu
         | OutputContent::CommitBackendMenu
-        | OutputContent::PrBackendMenu => {
-            &["[c Codex]", "[o OpenCode]", "[l Claude]", "[g Gemini]"]
-        }
-        OutputContent::HookMenu => &[
-            "[i Install Hook]",
-            "[u Uninstall Hook]",
-            "[h Human Profile]",
-            "[a Strict Agent]",
+        | OutputContent::PrBackendMenu => backend_menu_buttons(),
+        OutputContent::HookMenu => vec![
+            "[i Install Hook]".to_owned(),
+            "[u Uninstall Hook]".to_owned(),
+            "[h Human Profile]".to_owned(),
+            "[a Strict Agent]".to_owned(),
         ],
-        OutputContent::HookConfirm { .. } => &["[y Yes]", "[n No]"],
+        OutputContent::HookConfirm { .. } => vec!["[y Yes]".to_owned(), "[n No]".to_owned()],
     }
 }
 
@@ -166,13 +172,56 @@ impl ButtonId {
     }
 }
 
-fn backend_label(backend: CliBackend) -> &'static str {
+fn backend_short_label(backend: Backend) -> &'static str {
     match backend {
-        CliBackend::Opencode => "OpenCode CLI",
-        CliBackend::Claude => "Claude Code CLI",
-        CliBackend::Codex => "Codex CLI",
-        CliBackend::Gemini => "Gemini CLI",
+        Backend::Opencode => "OpenCode",
+        Backend::Claude => "Claude",
+        Backend::Codex => "Codex",
+        Backend::Gemini => "Gemini",
+        Backend::OpenaiApi => "OpenAI API",
+        Backend::AnthropicApi => "Anthropic API",
+        Backend::GeminiApi => "Gemini API",
+        Backend::OpenrouterApi => "OpenRouter API",
+        Backend::OpencodeApi => "OpenCode Zen API",
+        Backend::OllamaApi => "Ollama API",
+        Backend::LmStudioApi => "LM Studio API",
+        Backend::CustomApi => "Custom API",
     }
+}
+
+fn backend_menu_shortcut(index: usize) -> char {
+    match index {
+        0..=8 => char::from_digit((index + 1) as u32, 10).unwrap_or('?'),
+        9 => 'a',
+        10 => 'b',
+        11 => 'c',
+        _ => '?',
+    }
+}
+
+fn backend_menu_buttons() -> Vec<String> {
+    Backend::ALL
+        .iter()
+        .enumerate()
+        .map(|(index, backend)| {
+            format!(
+                "[{} {}]",
+                backend_menu_shortcut(index),
+                backend_short_label(*backend)
+            )
+        })
+        .collect()
+}
+
+fn backend_menu_backend(index: usize) -> Option<Backend> {
+    Backend::ALL.get(index).copied()
+}
+
+fn backend_menu_backend_for_shortcut(ch: char) -> Option<Backend> {
+    Backend::ALL
+        .iter()
+        .enumerate()
+        .find_map(|(index, backend)| (backend_menu_shortcut(index) == ch).then_some(*backend))
 }
 
 // ── File sidebar types ──
@@ -276,7 +325,7 @@ enum BackendLogStatus {
 
 #[derive(Debug, Clone)]
 struct BackendLogEntry {
-    backend: CliBackend,
+    backend: Backend,
     status: BackendLogStatus,
 }
 
@@ -607,10 +656,10 @@ impl App {
         });
     }
 
-    fn set_backend(&mut self, backend: CliBackend) {
+    fn set_backend(&mut self, backend: Backend) {
         self.config.backend = backend;
         self.config.backend_order = vec![backend];
-        self.repo.backend_label = backend_label(backend);
+        self.repo.backend_label = backend.label();
         self.repo.backend_path = None;
         self.repo.backend_error = None;
         self.refresh_repo();
@@ -732,27 +781,27 @@ fn panel_button_description(content: &OutputContent, index: usize) -> &'static s
             2 => "Regenerate the PR title and body",
             _ => "",
         },
-        OutputContent::BackendMenu => match index {
-            0 => "Use Codex CLI for commit, branch, and PR generation",
-            1 => "Use OpenCode CLI for commit, branch, and PR generation",
-            2 => "Use Claude Code CLI for commit, branch, and PR generation",
-            3 => "Use Gemini CLI for commit, branch, and PR generation",
-            _ => "",
-        },
-        OutputContent::CommitBackendMenu => match index {
-            0 => "Run commit generation once with Codex CLI",
-            1 => "Run commit generation once with OpenCode CLI",
-            2 => "Run commit generation once with Claude Code CLI",
-            3 => "Run commit generation once with Gemini CLI",
-            _ => "",
-        },
-        OutputContent::PrBackendMenu => match index {
-            0 => "Run PR generation once with Codex CLI",
-            1 => "Run PR generation once with OpenCode CLI",
-            2 => "Run PR generation once with Claude Code CLI",
-            3 => "Run PR generation once with Gemini CLI",
-            _ => "",
-        },
+        OutputContent::BackendMenu => {
+            if backend_menu_backend(index).is_some() {
+                "Use the selected backend for commit, branch, and PR generation"
+            } else {
+                ""
+            }
+        }
+        OutputContent::CommitBackendMenu => {
+            if backend_menu_backend(index).is_some() {
+                "Run commit generation once with the selected backend"
+            } else {
+                ""
+            }
+        }
+        OutputContent::PrBackendMenu => {
+            if backend_menu_backend(index).is_some() {
+                "Run PR generation once with the selected backend"
+            } else {
+                ""
+            }
+        }
         OutputContent::HookMenu => match index {
             0 => "Install the prepare-commit-msg hook to auto-generate commit messages",
             1 => "Remove the prepare-commit-msg hook",
@@ -1163,63 +1212,26 @@ fn activate_panel_button(app: &mut App, index: usize, tx: &Sender<WorkerMessage>
             2 => spawn_generate_pr_with_origin(app, tx, current_pr_origin(app)),
             _ => {}
         },
-        OutputContent::BackendMenu => match index {
-            0 => app.set_backend(CliBackend::Codex),
-            1 => app.set_backend(CliBackend::Opencode),
-            2 => app.set_backend(CliBackend::Claude),
-            3 => app.set_backend(CliBackend::Gemini),
-            _ => {}
-        },
-        OutputContent::CommitBackendMenu => match index {
-            0 => spawn_generate_commit_with_origin(
-                app,
-                tx,
-                PreviewOrigin::SingleBackend(CliBackend::Codex),
-                false,
-            ),
-            1 => spawn_generate_commit_with_origin(
-                app,
-                tx,
-                PreviewOrigin::SingleBackend(CliBackend::Opencode),
-                false,
-            ),
-            2 => spawn_generate_commit_with_origin(
-                app,
-                tx,
-                PreviewOrigin::SingleBackend(CliBackend::Claude),
-                false,
-            ),
-            3 => spawn_generate_commit_with_origin(
-                app,
-                tx,
-                PreviewOrigin::SingleBackend(CliBackend::Gemini),
-                false,
-            ),
-            _ => {}
-        },
-        OutputContent::PrBackendMenu => match index {
-            0 => spawn_generate_pr_with_origin(
-                app,
-                tx,
-                PreviewOrigin::SingleBackend(CliBackend::Codex),
-            ),
-            1 => spawn_generate_pr_with_origin(
-                app,
-                tx,
-                PreviewOrigin::SingleBackend(CliBackend::Opencode),
-            ),
-            2 => spawn_generate_pr_with_origin(
-                app,
-                tx,
-                PreviewOrigin::SingleBackend(CliBackend::Claude),
-            ),
-            3 => spawn_generate_pr_with_origin(
-                app,
-                tx,
-                PreviewOrigin::SingleBackend(CliBackend::Gemini),
-            ),
-            _ => {}
-        },
+        OutputContent::BackendMenu => {
+            if let Some(backend) = backend_menu_backend(index) {
+                app.set_backend(backend);
+            }
+        }
+        OutputContent::CommitBackendMenu => {
+            if let Some(backend) = backend_menu_backend(index) {
+                spawn_generate_commit_with_origin(
+                    app,
+                    tx,
+                    PreviewOrigin::SingleBackend(backend),
+                    false,
+                );
+            }
+        }
+        OutputContent::PrBackendMenu => {
+            if let Some(backend) = backend_menu_backend(index) {
+                spawn_generate_pr_with_origin(app, tx, PreviewOrigin::SingleBackend(backend));
+            }
+        }
         OutputContent::HookMenu => match index {
             0 => {
                 app.set_output(OutputContent::HookConfirm {
@@ -1291,79 +1303,26 @@ fn handle_panel_shortcut(app: &mut App, ch: char, tx: &Sender<WorkerMessage>) {
             'r' => spawn_generate_pr_with_origin(app, tx, current_pr_origin(app)),
             _ => {}
         },
-        OutputContent::BackendMenu => match ch {
-            'c' => app.set_backend(CliBackend::Codex),
-            'o' => app.set_backend(CliBackend::Opencode),
-            'l' => app.set_backend(CliBackend::Claude),
-            'g' => app.set_backend(CliBackend::Gemini),
-            _ => {}
-        },
-        OutputContent::CommitBackendMenu => match ch {
-            'c' => {
+        OutputContent::BackendMenu => {
+            if let Some(backend) = backend_menu_backend_for_shortcut(ch) {
+                app.set_backend(backend);
+            }
+        }
+        OutputContent::CommitBackendMenu => {
+            if let Some(backend) = backend_menu_backend_for_shortcut(ch) {
                 spawn_generate_commit_with_origin(
                     app,
                     tx,
-                    PreviewOrigin::SingleBackend(CliBackend::Codex),
+                    PreviewOrigin::SingleBackend(backend),
                     false,
                 );
             }
-            'o' => {
-                spawn_generate_commit_with_origin(
-                    app,
-                    tx,
-                    PreviewOrigin::SingleBackend(CliBackend::Opencode),
-                    false,
-                );
+        }
+        OutputContent::PrBackendMenu => {
+            if let Some(backend) = backend_menu_backend_for_shortcut(ch) {
+                spawn_generate_pr_with_origin(app, tx, PreviewOrigin::SingleBackend(backend));
             }
-            'l' => {
-                spawn_generate_commit_with_origin(
-                    app,
-                    tx,
-                    PreviewOrigin::SingleBackend(CliBackend::Claude),
-                    false,
-                );
-            }
-            'g' => {
-                spawn_generate_commit_with_origin(
-                    app,
-                    tx,
-                    PreviewOrigin::SingleBackend(CliBackend::Gemini),
-                    false,
-                );
-            }
-            _ => {}
-        },
-        OutputContent::PrBackendMenu => match ch {
-            'c' => {
-                spawn_generate_pr_with_origin(
-                    app,
-                    tx,
-                    PreviewOrigin::SingleBackend(CliBackend::Codex),
-                );
-            }
-            'o' => {
-                spawn_generate_pr_with_origin(
-                    app,
-                    tx,
-                    PreviewOrigin::SingleBackend(CliBackend::Opencode),
-                );
-            }
-            'l' => {
-                spawn_generate_pr_with_origin(
-                    app,
-                    tx,
-                    PreviewOrigin::SingleBackend(CliBackend::Claude),
-                );
-            }
-            'g' => {
-                spawn_generate_pr_with_origin(
-                    app,
-                    tx,
-                    PreviewOrigin::SingleBackend(CliBackend::Gemini),
-                );
-            }
-            _ => {}
-        },
+        }
         OutputContent::HookMenu => match ch {
             'i' => {
                 app.set_output(OutputContent::HookConfirm {
@@ -1861,7 +1820,10 @@ fn output_panel_height(app: &App, viewport_height: u16) -> u16 {
         }
         Some(OutputContent::BackendMenu)
         | Some(OutputContent::CommitBackendMenu)
-        | Some(OutputContent::PrBackendMenu) => 8.min(max_output_height),
+        | Some(OutputContent::PrBackendMenu) => {
+            let button_lines = panel_buttons(&OutputContent::BackendMenu).len().div_ceil(4) as u16;
+            (button_lines + 7).min(max_output_height)
+        }
         Some(OutputContent::HookMenu) => 7.min(max_output_height),
         Some(OutputContent::HookConfirm { .. }) => 5.min(max_output_height),
     }
@@ -2087,36 +2049,46 @@ fn render_output_panel(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 /// Render a row of panel buttons with focus highlighting.
-fn render_panel_button_line(app: &App) -> Line<'static> {
+fn render_panel_button_lines(app: &App) -> Vec<Line<'static>> {
     let Some(content) = &app.output else {
-        return Line::raw("");
+        return vec![Line::raw("")];
     };
     let labels = panel_buttons(content);
-    let mut spans: Vec<Span> = Vec::new();
+    let chunk_size = if labels.len() > 4 {
+        4
+    } else {
+        labels.len().max(1)
+    };
 
-    for (i, label) in labels.iter().enumerate() {
-        if i > 0 {
-            spans.push(Span::raw("  "));
-        }
-        let focused = app.focus_area == FocusArea::Panel && app.focused_panel_btn == i;
-        let style = if focused {
-            // First button gets a primary color, rest are secondary
-            if i == 0 {
-                Style::default().fg(Color::Black).bg(Color::Cyan)
-            } else {
-                Style::default().fg(Color::Black).bg(Color::White)
+    labels
+        .chunks(chunk_size)
+        .enumerate()
+        .map(|(chunk_index, chunk)| {
+            let mut spans: Vec<Span> = Vec::new();
+            for (offset, label) in chunk.iter().enumerate() {
+                let index = chunk_index * chunk_size + offset;
+                if offset > 0 {
+                    spans.push(Span::raw("  "));
+                }
+                let focused = app.focus_area == FocusArea::Panel && app.focused_panel_btn == index;
+                let style = if focused {
+                    if index == 0 {
+                        Style::default().fg(Color::Black).bg(Color::Cyan)
+                    } else {
+                        Style::default().fg(Color::Black).bg(Color::White)
+                    }
+                } else if index == 0 {
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(Color::White)
+                };
+                spans.push(Span::styled(label.to_string(), style));
             }
-        } else if i == 0 {
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(Color::White)
-        };
-        spans.push(Span::styled(label.to_string(), style));
-    }
-
-    Line::from(spans)
+            Line::from(spans)
+        })
+        .collect()
 }
 
 fn render_output_with_footer<'a>(
@@ -2183,7 +2155,7 @@ fn render_commit_output(frame: &mut Frame, area: Rect, preview: &CommitPreview, 
         ),
         Style::default().fg(Color::DarkGray),
     ));
-    let footer_lines = vec![render_panel_button_line(app)];
+    let footer_lines = render_panel_button_lines(app);
 
     render_output_with_footer(
         frame,
@@ -2239,10 +2211,9 @@ fn render_sensitive_output(frame: &mut Frame, area: Rect, report: &SensitiveRepo
     }
 
     let footer_lines = if has_actions {
-        vec![
-            render_panel_button_line(app),
-            Line::styled(footer, Style::default().fg(Color::DarkGray)),
-        ]
+        let mut lines = render_panel_button_lines(app);
+        lines.push(Line::styled(footer, Style::default().fg(Color::DarkGray)));
+        lines
     } else {
         vec![Line::styled(footer, Style::default().fg(Color::DarkGray))]
     };
@@ -2279,7 +2250,7 @@ fn render_branch_output(frame: &mut Frame, area: Rect, preview: &BranchPreview, 
                 .add_modifier(Modifier::BOLD),
         ),
     ];
-    let footer_lines = vec![render_panel_button_line(app)];
+    let footer_lines = render_panel_button_lines(app);
 
     render_output_with_footer(
         frame,
@@ -2314,7 +2285,7 @@ fn render_pr_output(frame: &mut Frame, area: Rect, preview: &PrPreview, app: &Ap
         body_lines.push(Line::raw(line.to_owned()));
     }
 
-    let footer_lines = vec![render_panel_button_line(app)];
+    let footer_lines = render_panel_button_lines(app);
     render_output_with_footer(
         frame,
         area,
@@ -2350,7 +2321,7 @@ fn render_backend_selector(
         ),
         Line::styled(detail, Style::default().fg(Color::DarkGray)),
     ];
-    let footer_lines = vec![render_panel_button_line(app)];
+    let footer_lines = render_panel_button_lines(app);
 
     render_output_with_footer(
         frame,
@@ -2424,7 +2395,7 @@ fn render_hook_menu(frame: &mut Frame, area: Rect, app: &App) {
             Style::default().fg(Color::DarkGray),
         ),
     ];
-    let footer_lines = vec![render_panel_button_line(app)];
+    let footer_lines = render_panel_button_lines(app);
 
     render_output_with_footer(
         frame,
@@ -2449,7 +2420,7 @@ fn render_hook_confirm(frame: &mut Frame, area: Rect, operation: HookOperation, 
         format!("{action} the prepare-commit-msg hook?"),
         Style::default().add_modifier(Modifier::BOLD),
     )];
-    let footer_lines = vec![render_panel_button_line(app)];
+    let footer_lines = render_panel_button_lines(app);
 
     render_output_with_footer(
         frame,
@@ -2577,7 +2548,7 @@ fn centered_rect(percent_x: u16, height: u16, area: Rect) -> Rect {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use opencodecommit::config::CliBackend;
+    use opencodecommit::config::Backend;
     use ratatui::backend::TestBackend;
     use std::fs;
     use std::path::{Path, PathBuf};
@@ -2612,7 +2583,7 @@ mod tests {
 
     fn test_app() -> App {
         let config = Config {
-            backend: CliBackend::Codex,
+            backend: Backend::Codex,
             ..Config::default()
         };
         App::new(config, None, test_repo(), test_diff(), false)
@@ -2672,7 +2643,7 @@ mod tests {
 
     fn app_for_repo(repo_root: &Path) -> App {
         let config = Config {
-            backend: CliBackend::Codex,
+            backend: Backend::Codex,
             ..Config::default()
         };
         let repo = actions::load_repo_summary_for_root(&config, repo_root).unwrap();
@@ -3123,7 +3094,7 @@ mod tests {
         let _ = fs::remove_file(&config_path);
 
         let config = Config {
-            backend: CliBackend::Codex,
+            backend: Backend::Codex,
             ..Config::default()
         };
         let mut app = App::new(
@@ -3163,8 +3134,8 @@ mod tests {
             text.contains("Current default: Codex CLI"),
             "missing current backend"
         );
-        assert!(text.contains("[c Codex]"), "missing codex action");
-        assert!(text.contains("[o OpenCode]"), "missing opencode action");
+        assert!(text.contains("[3 Codex]"), "missing codex action");
+        assert!(text.contains("[1 OpenCode]"), "missing opencode action");
     }
 
     #[test]
@@ -3195,11 +3166,11 @@ mod tests {
 
         let text = render_text(&app, 100, 12);
         assert!(
-            text.contains("[c Codex]"),
+            text.contains("[3 Codex]"),
             "codex action should stay visible"
         );
         assert!(
-            text.contains("[g Gemini]"),
+            text.contains("[4 Gemini]"),
             "gemini action should stay visible"
         );
     }
@@ -3226,11 +3197,11 @@ mod tests {
 
         let text = render_text(&app, 100, 12);
         assert!(
-            text.contains("[l Claude]"),
+            text.contains("[2 Claude]"),
             "claude action should stay visible"
         );
         assert!(
-            text.contains("[g Gemini]"),
+            text.contains("[4 Gemini]"),
             "gemini action should stay visible"
         );
     }
@@ -3257,11 +3228,11 @@ mod tests {
 
         let text = render_text(&app, 100, 12);
         assert!(
-            text.contains("[o OpenCode]"),
+            text.contains("[1 OpenCode]"),
             "opencode action should stay visible"
         );
         assert!(
-            text.contains("[g Gemini]"),
+            text.contains("[4 Gemini]"),
             "gemini action should stay visible"
         );
     }
@@ -3313,8 +3284,8 @@ mod tests {
         let mut app = test_app();
         let (tx, _rx) = mpsc::channel();
         app.set_output(OutputContent::BackendMenu);
-        activate_panel_button(&mut app, 1, &tx);
-        assert_eq!(app.config.backend, CliBackend::Opencode);
+        activate_panel_button(&mut app, 0, &tx);
+        assert_eq!(app.config.backend, Backend::Opencode);
         assert_eq!(app.repo.backend_label, "OpenCode CLI");
         assert!(app.output.is_none());
     }
@@ -3322,7 +3293,7 @@ mod tests {
     #[test]
     fn empty_diff_shows_no_changes() {
         let config = Config {
-            backend: CliBackend::Codex,
+            backend: Backend::Codex,
             ..Config::default()
         };
         let app = App::new(config, None, test_repo(), String::new(), false);
@@ -3383,31 +3354,31 @@ mod tests {
     #[test]
     fn backend_picker_locks_backend_order() {
         let mut app = test_app();
-        app.config.backend_order = vec![CliBackend::Codex, CliBackend::Opencode];
+        app.config.backend_order = vec![Backend::Codex, Backend::Opencode];
 
-        app.set_backend(CliBackend::Gemini);
+        app.set_backend(Backend::Gemini);
 
-        assert_eq!(app.config.backend, CliBackend::Gemini);
-        assert_eq!(app.config.backend_order, vec![CliBackend::Gemini]);
+        assert_eq!(app.config.backend, Backend::Gemini);
+        assert_eq!(app.config.backend_order, vec![Backend::Gemini]);
     }
 
     #[test]
     fn one_shot_origin_clones_config_without_mutating_defaults() {
         let config = Config {
-            backend: CliBackend::Codex,
-            backend_order: vec![CliBackend::Codex, CliBackend::Opencode],
+            backend: Backend::Codex,
+            backend_order: vec![Backend::Codex, Backend::Opencode],
             ..Config::default()
         };
 
-        let one_shot = config_for_origin(&config, PreviewOrigin::SingleBackend(CliBackend::Gemini));
+        let one_shot = config_for_origin(&config, PreviewOrigin::SingleBackend(Backend::Gemini));
 
-        assert_eq!(config.backend, CliBackend::Codex);
+        assert_eq!(config.backend, Backend::Codex);
         assert_eq!(
             config.backend_order,
-            vec![CliBackend::Codex, CliBackend::Opencode]
+            vec![Backend::Codex, Backend::Opencode]
         );
-        assert_eq!(one_shot.backend, CliBackend::Gemini);
-        assert_eq!(one_shot.backend_order, vec![CliBackend::Gemini]);
+        assert_eq!(one_shot.backend, Backend::Gemini);
+        assert_eq!(one_shot.backend_order, vec![Backend::Gemini]);
     }
 
     #[test]
@@ -3420,16 +3391,16 @@ mod tests {
     #[test]
     fn preview_origin_reuses_single_backend() {
         let mut app = test_app();
-        app.commit_preview_origin = Some(PreviewOrigin::SingleBackend(CliBackend::Claude));
-        app.pr_preview_origin = Some(PreviewOrigin::SingleBackend(CliBackend::Gemini));
+        app.commit_preview_origin = Some(PreviewOrigin::SingleBackend(Backend::Claude));
+        app.pr_preview_origin = Some(PreviewOrigin::SingleBackend(Backend::Gemini));
 
         assert_eq!(
             current_commit_origin(&app),
-            PreviewOrigin::SingleBackend(CliBackend::Claude)
+            PreviewOrigin::SingleBackend(Backend::Claude)
         );
         assert_eq!(
             current_pr_origin(&app),
-            PreviewOrigin::SingleBackend(CliBackend::Gemini)
+            PreviewOrigin::SingleBackend(Backend::Gemini)
         );
     }
 

@@ -328,6 +328,30 @@ function readMirroredSettingsFromGlobalSettings(): MirroredSettings {
       "backendOrder",
       defaults.backendOrder,
     ),
+    apiOpenai: readGlobalSetting(configuration, "api.openai", defaults.apiOpenai),
+    apiAnthropic: readGlobalSetting(
+      configuration,
+      "api.anthropic",
+      defaults.apiAnthropic,
+    ),
+    apiGemini: readGlobalSetting(configuration, "api.gemini", defaults.apiGemini),
+    apiOpenrouter: readGlobalSetting(
+      configuration,
+      "api.openrouter",
+      defaults.apiOpenrouter,
+    ),
+    apiOpencode: readGlobalSetting(
+      configuration,
+      "api.opencode",
+      defaults.apiOpencode,
+    ),
+    apiOllama: readGlobalSetting(configuration, "api.ollama", defaults.apiOllama),
+    apiLmStudio: readGlobalSetting(
+      configuration,
+      "api.lmStudio",
+      defaults.apiLmStudio,
+    ),
+    apiCustom: readGlobalSetting(configuration, "api.custom", defaults.apiCustom),
     activeLanguage: readGlobalSetting(
       configuration,
       "activeLanguage",

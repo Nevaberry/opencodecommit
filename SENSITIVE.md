@@ -1,5 +1,20 @@
 # Sensitive Content Scanning Flow
 
+The same scanner is used in both the generation path and the standalone `occ scan` command.
+
+`occ scan` supports:
+- git diff input from the current repo
+- `--stdin` for pipeline-fed unified diffs
+- `--diff-file <path>` for stored unified diff fixtures
+- `--format text|json|sarif|github-annotations`
+- repo/global allowlists plus an extra `--allowlist <path>` for CI-specific suppressions
+
+Exit behavior is tied to enforcement, not to the presence of warnings:
+- exit `0` when findings are allowed by the selected enforcement
+- exit `2` when blocking findings remain
+
+Manual CI bypass is intentionally outside `occ scan`. The scanner still reports findings; the workflow decides whether blocking results should fail the job.
+
 ```mermaid
 flowchart TD
     START(["Diff ready for scanning"])

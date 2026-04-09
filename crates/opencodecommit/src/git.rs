@@ -639,7 +639,10 @@ mod tests {
 
         let staged = git(&dir, &["diff", "--cached", "--name-only"]).unwrap();
         let changes = get_file_changes(&dir).unwrap();
-        let change = changes.iter().find(|change| change.path == "a.txt").unwrap();
+        let change = changes
+            .iter()
+            .find(|change| change.path == "a.txt")
+            .unwrap();
         assert!(staged.is_empty());
         assert!(!change.staged);
         assert!(change.unstaged);

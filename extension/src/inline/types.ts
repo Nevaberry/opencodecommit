@@ -1,12 +1,41 @@
 import type { Event, Uri } from "vscode"
 
 export type CliBackend = "opencode" | "claude" | "codex" | "gemini"
+export type ApiBackend =
+  | "openai-api"
+  | "anthropic-api"
+  | "gemini-api"
+  | "openrouter-api"
+  | "opencode-api"
+  | "ollama-api"
+  | "lm-studio-api"
+  | "custom-api"
+export type Backend = CliBackend | ApiBackend
 export type SensitiveEnforcement =
   | "warn"
   | "block-high"
   | "block-all"
   | "strict-high"
   | "strict-all"
+
+export interface ApiProviderConfig {
+  model: string
+  endpoint: string
+  keyEnv: string
+  prModel: string
+  cheapModel: string
+}
+
+export interface ApiConfig {
+  openai: ApiProviderConfig
+  anthropic: ApiProviderConfig
+  gemini: ApiProviderConfig
+  openrouter: ApiProviderConfig
+  opencode: ApiProviderConfig
+  ollama: ApiProviderConfig
+  lmStudio: ApiProviderConfig
+  custom: ApiProviderConfig
+}
 
 export interface SensitiveAllowlistEntry {
   pathRegex?: string
@@ -84,8 +113,9 @@ export interface ExtensionConfig {
   geminiPrModel: string
   geminiCheapModel: string
   prBaseBranch: string
-  backendOrder: CliBackend[]
+  backendOrder: Backend[]
   branchMode: BranchMode
+  api: ApiConfig
   sensitive: {
     enforcement: SensitiveEnforcement
     allowlist: SensitiveAllowlistEntry[]

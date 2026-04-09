@@ -214,7 +214,8 @@ pub struct Invocation {
 
 /// Build the command invocation for a given backend.
 pub fn build_invocation(cli_path: &Path, prompt: &str, config: &Config) -> Invocation {
-    build_invocation_for(cli_path, prompt, config, config.backend)
+    let backend = config.backend.cli_backend().unwrap_or(CliBackend::Opencode);
+    build_invocation_for(cli_path, prompt, config, backend)
 }
 
 /// Build the command invocation for a specific backend (used in failover).
@@ -295,7 +296,19 @@ pub fn build_invocation_with_model(
     model: &str,
     provider: Option<&str>,
 ) -> Invocation {
-    match config.backend {
+    let backend = config.backend.cli_backend().unwrap_or(CliBackend::Opencode);
+    build_invocation_with_model_for(cli_path, prompt, config, backend, model, provider)
+}
+
+pub fn build_invocation_with_model_for(
+    cli_path: &Path,
+    prompt: &str,
+    config: &Config,
+    backend: CliBackend,
+    model: &str,
+    provider: Option<&str>,
+) -> Invocation {
+    match backend {
         CliBackend::Opencode => {
             let prov = provider.unwrap_or(&config.provider);
             Invocation {
@@ -450,11 +463,12 @@ pub fn exec_cli(invocation: &Invocation) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::Backend;
 
     #[test]
     fn build_invocation_opencode() {
         let config = Config {
-            backend: CliBackend::Opencode,
+            backend: Backend::Opencode,
             provider: "openai".to_owned(),
             model: "gpt-5.4-mini".to_owned(),
             ..Config::default()
@@ -470,7 +484,7 @@ mod tests {
     #[test]
     fn build_invocation_claude() {
         let config = Config {
-            backend: CliBackend::Claude,
+            backend: Backend::Claude,
             claude_model: "claude-sonnet-4-6".to_owned(),
             ..Config::default()
         };
@@ -488,7 +502,7 @@ mod tests {
     #[test]
     fn build_invocation_codex() {
         let config = Config {
-            backend: CliBackend::Codex,
+            backend: Backend::Codex,
             codex_model: "gpt-5.4-mini".to_owned(),
             ..Config::default()
         };
@@ -507,7 +521,7 @@ mod tests {
     #[test]
     fn build_invocation_codex_with_provider() {
         let config = Config {
-            backend: CliBackend::Codex,
+            backend: Backend::Codex,
             codex_model: "gpt-5.4-mini".to_owned(),
             codex_provider: "openrouter".to_owned(),
             ..Config::default()
@@ -523,7 +537,7 @@ mod tests {
     #[test]
     fn build_invocation_gemini() {
         let config = Config {
-            backend: CliBackend::Gemini,
+            backend: Backend::Gemini,
             gemini_model: "gemini-2.5-flash".to_owned(),
             ..Config::default()
         };
@@ -540,7 +554,7 @@ mod tests {
     #[test]
     fn build_invocation_gemini_no_model() {
         let config = Config {
-            backend: CliBackend::Gemini,
+            backend: Backend::Gemini,
             gemini_model: String::new(),
             ..Config::default()
         };
@@ -555,7 +569,7 @@ mod tests {
     #[test]
     fn build_invocation_with_model_opencode() {
         let config = Config {
-            backend: CliBackend::Opencode,
+            backend: Backend::Opencode,
             provider: "openai".to_owned(),
             ..Config::default()
         };
@@ -572,7 +586,7 @@ mod tests {
     #[test]
     fn build_invocation_with_model_claude() {
         let config = Config {
-            backend: CliBackend::Claude,
+            backend: Backend::Claude,
             ..Config::default()
         };
         let inv = build_invocation_with_model(
@@ -589,7 +603,7 @@ mod tests {
     #[test]
     fn build_invocation_with_model_codex_provider() {
         let config = Config {
-            backend: CliBackend::Codex,
+            backend: Backend::Codex,
             ..Config::default()
         };
         let inv = build_invocation_with_model(
@@ -609,7 +623,7 @@ mod tests {
     #[test]
     fn build_invocation_with_model_gemini() {
         let config = Config {
-            backend: CliBackend::Gemini,
+            backend: Backend::Gemini,
             ..Config::default()
         };
         let inv = build_invocation_with_model(

@@ -1,6 +1,6 @@
 import * as vscode from "vscode"
 
-import { backendLabel, withBackendOverride } from "./inline/backends"
+import { backendLabel, isCliBackend, withBackendOverride } from "./inline/backends"
 import {
   getConfig as getInlineConfig,
   getConfigDetails,
@@ -27,9 +27,9 @@ import {
   formatSensitiveWarningSummary,
 } from "./inline/sensitive"
 import type {
+  Backend,
   BranchMode,
   Change,
-  CliBackend,
   CommitMode,
   GitExtension,
   Repository,
@@ -50,6 +50,21 @@ const SENSITIVE_CONTINUE_ACTION = "Continue"
 const SENSITIVE_BYPASS_ACTION = "Bypass Once"
 const SENSITIVE_INSPECT_ACTION = "Inspect Report"
 const SENSITIVE_CANCEL_ACTION = "Cancel"
+
+const ONE_SHOT_BACKENDS: Array<{ backend: Backend; suffix: string }> = [
+  { backend: "codex", suffix: "Codex" },
+  { backend: "opencode", suffix: "Opencode" },
+  { backend: "claude", suffix: "Claude" },
+  { backend: "gemini", suffix: "Gemini" },
+  { backend: "openai-api", suffix: "OpenaiApi" },
+  { backend: "anthropic-api", suffix: "AnthropicApi" },
+  { backend: "gemini-api", suffix: "GeminiApi" },
+  { backend: "openrouter-api", suffix: "OpenrouterApi" },
+  { backend: "opencode-api", suffix: "OpencodeApi" },
+  { backend: "ollama-api", suffix: "OllamaApi" },
+  { backend: "lm-studio-api", suffix: "LmStudioApi" },
+  { backend: "custom-api", suffix: "CustomApi" },
+]
 
 function log(msg: string) {
   if (!outputChannel)
@@ -165,7 +180,7 @@ async function getDiff(
 }
 
 async function getResolvedConfig(
-  backendOverride?: CliBackend,
+  backendOverride?: Backend,
 ) {
   const config = await getInlineConfig()
   return backendOverride ? withBackendOverride(config, backendOverride) : config
@@ -174,7 +189,7 @@ async function getResolvedConfig(
 async function generateMessageInline(
   mode: CommitMode,
   repo: Repository,
-  backendOverride?: CliBackend,
+  backendOverride?: Backend,
 ) {
   const config = await getResolvedConfig(backendOverride)
   log(`Mode: ${mode}, Backend order: [${config.backendOrder.join(", ")}]`)
@@ -369,7 +384,7 @@ async function createChangelogInline(repo: Repository, version: string) {
 
 async function generatePrInline(
   repo: Repository,
-  backendOverride?: CliBackend,
+  backendOverride?: Backend,
 ) {
   const config = await getResolvedConfig(backendOverride)
   log(`PR backend order: [${config.backendOrder.join(", ")}]`)
@@ -416,7 +431,7 @@ async function generatePrInline(
 async function generateMessage(
   mode: CommitMode,
   arg?: { rootUri?: vscode.Uri },
-  backendOverride?: CliBackend,
+  backendOverride?: Backend,
 ) {
   const repo = resolveRepository(arg)
   if (!repo) {
@@ -486,7 +501,7 @@ async function refineMessage(arg?: { rootUri?: vscode.Uri }) {
 
 async function generatePr(
   arg?: { rootUri?: vscode.Uri },
-  backendOverride?: CliBackend,
+  backendOverride?: Backend,
 ) {
   const repo = resolveRepository(arg)
   if (!repo) {
@@ -663,6 +678,17 @@ export async function activate(context: vscode.ExtensionContext) {
     log(`Config initialization failed: ${message}`)
   }
 
+  const oneShotCommands = ONE_SHOT_BACKENDS.flatMap(({ backend, suffix }) => [
+    vscode.commands.registerCommand(
+      `opencodecommit.generateAdaptive${suffix}`,
+      (arg) => generateMessage("adaptive", arg, backend),
+    ),
+    vscode.commands.registerCommand(
+      `opencodecommit.generatePr${suffix}`,
+      (arg) => generatePr(arg, backend),
+    ),
+  ])
+
   context.subscriptions.push(
     vscode.commands.registerCommand("opencodecommit.generate", async (arg) => {
       const config = await getInlineConfig()
@@ -670,22 +696,6 @@ export async function activate(context: vscode.ExtensionContext) {
     }),
     vscode.commands.registerCommand("opencodecommit.generateAdaptive", (arg) =>
       generateMessage("adaptive", arg),
-    ),
-    vscode.commands.registerCommand(
-      "opencodecommit.generateAdaptiveCodex",
-      (arg) => generateMessage("adaptive", arg, "codex"),
-    ),
-    vscode.commands.registerCommand(
-      "opencodecommit.generateAdaptiveOpencode",
-      (arg) => generateMessage("adaptive", arg, "opencode"),
-    ),
-    vscode.commands.registerCommand(
-      "opencodecommit.generateAdaptiveClaude",
-      (arg) => generateMessage("adaptive", arg, "claude"),
-    ),
-    vscode.commands.registerCommand(
-      "opencodecommit.generateAdaptiveGemini",
-      (arg) => generateMessage("adaptive", arg, "gemini"),
     ),
     vscode.commands.registerCommand(
       "opencodecommit.generateAdaptiveOneliner",
@@ -708,21 +718,7 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("opencodecommit.createChangelog", (arg) =>
       createChangelog(arg),
     ),
-    vscode.commands.registerCommand("opencodecommit.generatePrCodex", (arg) =>
-      generatePr(arg, "codex"),
-    ),
-    vscode.commands.registerCommand(
-      "opencodecommit.generatePrOpencode",
-      (arg) => generatePr(arg, "opencode"),
-    ),
-    vscode.commands.registerCommand(
-      "opencodecommit.generatePrClaude",
-      (arg) => generatePr(arg, "claude"),
-    ),
-    vscode.commands.registerCommand(
-      "opencodecommit.generatePrGemini",
-      (arg) => generatePr(arg, "gemini"),
-    ),
+    ...oneShotCommands,
     vscode.commands.registerCommand("opencodecommit.generateBranch", async (arg) => {
       const config = await getInlineConfig()
       return generateBranch(config.branchMode, arg)
@@ -865,6 +861,10 @@ export async function activate(context: vscode.ExtensionContext) {
         )
 
         for (const backend of config.backendOrder) {
+          if (!isCliBackend(backend)) {
+            log(`DIAGNOSE: [${backend}] API backend configured`)
+            continue
+          }
           try {
             const configPath = getCliConfigPath(config, backend)
             const cliPath = await detectCli(backend, configPath || undefined)
@@ -875,9 +875,14 @@ export async function activate(context: vscode.ExtensionContext) {
         }
 
         const firstBackend = config.backendOrder[0]
-        const configPath = getCliConfigPath(config, firstBackend)
-        const cliPath = await detectCli(firstBackend, configPath || undefined)
-        log(`DIAGNOSE: Primary CLI resolved to: ${cliPath} (${firstBackend})`)
+        let cliPath: string | undefined
+        if (isCliBackend(firstBackend)) {
+          const configPath = getCliConfigPath(config, firstBackend)
+          cliPath = await detectCli(firstBackend, configPath || undefined)
+          log(`DIAGNOSE: Primary CLI resolved to: ${cliPath} (${firstBackend})`)
+        } else {
+          log(`DIAGNOSE: Primary backend is API-based: ${firstBackend}`)
+        }
 
         const diff = await getDiff(repo, config.diffSource)
         log(`DIAGNOSE: Diff captured: ${diff.length} chars`)
@@ -904,17 +909,19 @@ ${diff.slice(0, 500)}`)
         log(`DIAGNOSE: Prompt preview:
 ${prompt.slice(0, 1000)}`)
 
-        const { invocation, stdin } = buildInvocation(
-          cliPath,
-          prompt,
-          config,
-          firstBackend,
-        )
-        log(
-          `DIAGNOSE: Will run: ${invocation.command} ${invocation.args.map((a) => (a.length > 80 ? `[${a.length} chars]` : a)).join(" ")}`,
-        )
-        if (stdin) log(`DIAGNOSE: Stdin: ${stdin.length} chars`)
-        else log("DIAGNOSE: No stdin (prompt passed as argument)")
+        if (cliPath && isCliBackend(firstBackend)) {
+          const { invocation, stdin } = buildInvocation(
+            cliPath,
+            prompt,
+            config,
+            firstBackend,
+          )
+          log(
+            `DIAGNOSE: Will run: ${invocation.command} ${invocation.args.map((a) => (a.length > 80 ? `[${a.length} chars]` : a)).join(" ")}`,
+          )
+          if (stdin) log(`DIAGNOSE: Stdin: ${stdin.length} chars`)
+          else log("DIAGNOSE: No stdin (prompt passed as argument)")
+        }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err)
         log(`DIAGNOSE ERROR: ${msg}`)
