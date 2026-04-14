@@ -226,16 +226,14 @@ pub fn build_invocation_for(
     backend: CliBackend,
 ) -> Invocation {
     match backend {
-        CliBackend::Opencode => Invocation {
-            command: cli_path.to_owned(),
-            args: vec![
-                "run".to_owned(),
-                "-m".to_owned(),
-                format!("{}/{}", config.provider, config.model),
-                prompt.to_owned(),
-            ],
-            stdin: None,
-        },
+        CliBackend::Opencode => {
+            let model_spec = format!("{}/{}", config.provider, config.model);
+            Invocation {
+                command: cli_path.to_owned(),
+                args: opencode_base_args(&model_spec, prompt),
+                stdin: None,
+            }
+        }
         CliBackend::Claude => Invocation {
             command: cli_path.to_owned(),
             args: vec![
@@ -302,18 +300,47 @@ fn codex_common_args(model: &str) -> Vec<String> {
 }
 
 /// `codex exec` argv for the fast commit-generation path. Adds:
+///   --disable apps                     — skip loading external "apps"
+///                                        integrations we don't use for commit
+///                                        generation (consistently ~0.5–1 s off
+///                                        cold invocations in benchmarking)
 ///   -c model_reasoning_effort="none"   — commits don't need reasoning
 ///   -c web_search="disabled"           — remove the web_search tool
 ///                                        (required for reasoning < low, and
 ///                                        trims tool preamble tokens)
 fn codex_base_args(model: &str) -> Vec<String> {
     let mut args = codex_common_args(model);
-    // Insert reasoning+web_search overrides before -m so argv ordering stays
-    // predictable for tests, without depending on insertion index.
+    args.push("--disable".to_owned());
+    args.push("apps".to_owned());
     args.push("-c".to_owned());
     args.push("model_reasoning_effort=\"none\"".to_owned());
     args.push("-c".to_owned());
     args.push("web_search=\"disabled\"".to_owned());
+    args
+}
+
+/// `opencode run` argv shared by commit and PR paths. The prompt is the last
+/// positional argument because opencode reads it from argv, not stdin.
+fn opencode_common_args(model_spec: &str, prompt: &str) -> Vec<String> {
+    vec![
+        "run".to_owned(),
+        "-m".to_owned(),
+        model_spec.to_owned(),
+        prompt.to_owned(),
+    ]
+}
+
+/// `opencode run` argv for the fast commit-generation path. Adds
+/// `--variant minimal` (provider-specific minimal reasoning effort), which is
+/// the one flag that measurably reduces wall time for short, templated tasks
+/// like commit-message generation. Not applied to the PR path, where
+/// synthesis benefits from the provider's default reasoning budget.
+fn opencode_base_args(model_spec: &str, prompt: &str) -> Vec<String> {
+    let mut args = opencode_common_args(model_spec, prompt);
+    // Insert "--variant minimal" between "run" and "-m" so the prompt stays
+    // as the final positional argument.
+    args.insert(1, "minimal".to_owned());
+    args.insert(1, "--variant".to_owned());
     args
 }
 
@@ -341,14 +368,13 @@ pub fn build_invocation_with_model_for(
     match backend {
         CliBackend::Opencode => {
             let prov = provider.unwrap_or(&config.provider);
+            let model_spec = format!("{prov}/{model}");
+            // PR stages intentionally omit --variant minimal; summary/final
+            // synthesis benefits from the full reasoning budget assigned by
+            // the user's provider defaults.
             Invocation {
                 command: cli_path.to_owned(),
-                args: vec![
-                    "run".to_owned(),
-                    "-m".to_owned(),
-                    format!("{prov}/{model}"),
-                    prompt.to_owned(),
-                ],
+                args: opencode_common_args(&model_spec, prompt),
                 stdin: None,
             }
         }
@@ -501,10 +527,19 @@ mod tests {
             ..Config::default()
         };
         let inv = build_invocation(Path::new("/usr/bin/opencode"), "hello", &config);
+        // Fast-path flags: --variant minimal on the commit path.
         assert_eq!(inv.args[0], "run");
-        assert_eq!(inv.args[1], "-m");
-        assert_eq!(inv.args[2], "openai/gpt-5.4-mini");
-        assert_eq!(inv.args[3], "hello");
+        assert!(inv.args.contains(&"--variant".to_owned()));
+        let variant_idx = inv
+            .args
+            .iter()
+            .position(|a| a == "--variant")
+            .expect("--variant present");
+        assert_eq!(inv.args.get(variant_idx + 1).map(String::as_str), Some("minimal"));
+        assert!(inv.args.contains(&"-m".to_owned()));
+        assert!(inv.args.contains(&"openai/gpt-5.4-mini".to_owned()));
+        // Prompt must be the final positional arg (opencode reads it from argv).
+        assert_eq!(inv.args.last().map(String::as_str), Some("hello"));
         assert!(inv.stdin.is_none());
     }
 
@@ -534,7 +569,7 @@ mod tests {
             ..Config::default()
         };
         let inv = build_invocation(Path::new("/usr/bin/codex"), "hello", &config);
-        // Fast-path flags: no reasoning, no web_search tool, no plugins.
+        // Fast-path flags: no reasoning, no web_search tool, no plugins, no apps.
         assert_eq!(inv.args[0], "exec");
         assert!(inv.args.contains(&"--ephemeral".to_owned()));
         assert!(inv.args.contains(&"--skip-git-repo-check".to_owned()));
@@ -547,8 +582,21 @@ mod tests {
                 .contains(&"model_reasoning_effort=\"none\"".to_owned())
         );
         assert!(inv.args.contains(&"web_search=\"disabled\"".to_owned()));
-        assert!(inv.args.contains(&"--disable".to_owned()));
-        assert!(inv.args.contains(&"plugins".to_owned()));
+        // Each --disable has its feature name as a separate positional argument.
+        let disables: Vec<&str> = inv
+            .args
+            .iter()
+            .enumerate()
+            .filter_map(|(i, a)| {
+                if a == "--disable" {
+                    inv.args.get(i + 1).map(String::as_str)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        assert!(disables.contains(&"plugins"));
+        assert!(disables.contains(&"apps"));
         assert!(inv.args.contains(&"-m".to_owned()));
         assert!(inv.args.contains(&"gpt-5.4-mini".to_owned()));
         assert_eq!(inv.args.last().map(String::as_str), Some("-"));
@@ -617,7 +665,14 @@ mod tests {
             "gpt-5.4",
             Some("anthropic"),
         );
-        assert_eq!(inv.args[2], "anthropic/gpt-5.4");
+        assert_eq!(inv.args[0], "run");
+        assert!(inv.args.contains(&"-m".to_owned()));
+        assert!(inv.args.contains(&"anthropic/gpt-5.4".to_owned()));
+        assert_eq!(inv.args.last().map(String::as_str), Some("hello"));
+        assert!(inv.stdin.is_none());
+        // The PR stage must NOT pass --variant minimal — PR synthesis quality
+        // relies on the provider's default reasoning budget.
+        assert!(!inv.args.contains(&"--variant".to_owned()));
     }
 
     #[test]
