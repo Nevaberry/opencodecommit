@@ -2,7 +2,7 @@
   "name": "opencodecommit",
   "displayName": "OpenCodeCommit",
   "description": "AI commit messages via CLI backends and direct provider APIs for local use and CI/CD",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "publisher": "Nevaberry",
   "license": "MIT",
   "repository": {
