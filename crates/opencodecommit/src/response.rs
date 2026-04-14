@@ -22,7 +22,7 @@ static ANSI_RE: LazyLock<regex::Regex> =
 
 static PREAMBLE_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
     regex::Regex::new(
-        r"(?i)^(?:(?:Here(?:'s| is)|Sure[,.].*?(?:here|is)|I(?:'ll| will).*?:?)\s*(?:your |the |a )?(?:commit )?(?:message|response)?[:\s]*\n+)",
+        r"(?i)^(?:(?:Here(?:'s| is)|Sure[,.].*?(?:here|is)|I(?:'ll| will|'m| am).*?:?)\s*(?:your |the |a )?(?:commit )?(?:message|response)?[:\s]*\n+)",
     )
     .unwrap()
 });
@@ -397,6 +397,32 @@ mod tests {
         assert_eq!(
             sanitize_response("Sure, here is the commit message:\nfeat: add login"),
             "feat: add login"
+        );
+    }
+
+    #[test]
+    fn sanitize_strips_im_preamble() {
+        assert_eq!(
+            sanitize_response(
+                "I'm checking the exact content change so the commit message reflects the real behavior, not just the file name.\nfix: remove stray lorem ipsum from alcohol section copy"
+            ),
+            "fix: remove stray lorem ipsum from alcohol section copy"
+        );
+    }
+
+    #[test]
+    fn sanitize_strips_i_am_preamble() {
+        assert_eq!(
+            sanitize_response("I am about to write the message:\nfeat: add login"),
+            "feat: add login"
+        );
+    }
+
+    #[test]
+    fn sanitize_preserves_single_line_starting_with_im() {
+        assert_eq!(
+            sanitize_response("I'm bumping version to 2.0"),
+            "I'm bumping version to 2.0"
         );
     }
 

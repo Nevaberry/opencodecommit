@@ -231,7 +231,7 @@ export function sanitizeResponse(response: string): string {
   result = result.replace(/\x1b\[[0-9;]*m/g, "")
 
   const preamblePattern =
-    /^(?:(?:Here(?:'s| is)|Sure[,.].*?(?:here|is)|I(?:'ll| will).*?:?)\s*(?:your |the |a )?(?:commit )?(?:message|response)?[:\s]*\n+)/i
+    /^(?:(?:Here(?:'s| is)|Sure[,.].*?(?:here|is)|I(?:'ll| will|'m| am).*?:?)\s*(?:your |the |a )?(?:commit )?(?:message|response)?[:\s]*\n+)/i
   result = result.replace(preamblePattern, "").trim()
 
   result = result.replace(/^```(?:\w*)\n([\s\S]*?)\n```$/g, "$1").trim()

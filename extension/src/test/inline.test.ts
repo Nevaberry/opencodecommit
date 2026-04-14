@@ -463,6 +463,29 @@ describe("sanitizeResponse", () => {
       "feat: add login",
     )
   })
+
+  it("strips \"I'm …\" preamble", () => {
+    assert.strictEqual(
+      sanitizeResponse(
+        "I'm checking the exact content change so the commit message reflects the real behavior, not just the file name.\nfix: remove stray lorem ipsum from alcohol section copy",
+      ),
+      "fix: remove stray lorem ipsum from alcohol section copy",
+    )
+  })
+
+  it("strips 'I am …' preamble", () => {
+    assert.strictEqual(
+      sanitizeResponse("I am about to write the message:\nfeat: add login"),
+      "feat: add login",
+    )
+  })
+
+  it("preserves single-line commit starting with \"I'm\"", () => {
+    assert.strictEqual(
+      sanitizeResponse("I'm bumping version to 2.0"),
+      "I'm bumping version to 2.0",
+    )
+  })
 })
 
 // --- parseResponse ---
