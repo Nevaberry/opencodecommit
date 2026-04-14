@@ -447,7 +447,7 @@ pub struct Config {
 // --- Default value functions ---
 
 fn default_backend() -> Backend {
-    Backend::Opencode
+    Backend::Codex
 }
 
 fn default_backend_order() -> Vec<Backend> {
@@ -1057,7 +1057,7 @@ mod tests {
     #[test]
     fn default_values_match_typescript() {
         let cfg = Config::default();
-        assert_eq!(cfg.backend, Backend::Opencode);
+        assert_eq!(cfg.backend, Backend::Codex);
         assert_eq!(
             cfg.backend_order,
             vec![
@@ -1416,7 +1416,7 @@ endpoint = "http://127.0.0.1:11434"
 
         let cfg = Config::load_or_default(None).unwrap();
 
-        assert_eq!(cfg.backend, Backend::Opencode);
+        assert_eq!(cfg.backend, Backend::Codex);
         assert!(env_path.exists());
         assert!(!default_path.exists());
 
@@ -1465,7 +1465,7 @@ endpoint = "http://127.0.0.1:11434"
         let cfg = Config::load_or_default(None).unwrap();
 
         let serialized = std::fs::read_to_string(&config_path).unwrap();
-        assert_eq!(cfg.backend, Backend::Opencode);
+        assert_eq!(cfg.backend, Backend::Codex);
         assert_eq!(cfg.model, "gpt-5.4-mini");
         assert!(config_path.exists());
         assert!(serialized.contains("backend-order"));
@@ -1501,6 +1501,13 @@ endpoint = "http://127.0.0.1:11434"
     #[test]
     fn backend_pr_and_cheap_models() {
         let mut cfg = Config::default();
+        // Default backend is Codex, so PR/cheap pair comes from codex fields.
+        assert_eq!(cfg.backend_pr_model(), "gpt-5.4");
+        assert_eq!(cfg.backend_cheap_model(), "gpt-5.4-mini");
+        assert_eq!(cfg.backend_pr_provider(), "");
+        assert_eq!(cfg.backend_cheap_provider(), "");
+
+        cfg.backend = Backend::Opencode;
         assert_eq!(cfg.backend_pr_model(), "gpt-5.4");
         assert_eq!(cfg.backend_cheap_model(), "gpt-5.4-mini");
         assert_eq!(cfg.backend_pr_provider(), "openai");

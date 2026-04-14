@@ -498,7 +498,7 @@ export function getManifestDefaults(manifest: {
 
 export function buildDefaultTomlDocument(defaults: MirroredSettings): TomlConfig {
   return {
-    backend: "opencode",
+    backend: "codex",
     "backend-order": defaults.backendOrder,
     "commit-mode": defaults.commitMode,
     "sparkle-mode": defaults.sparkleMode,

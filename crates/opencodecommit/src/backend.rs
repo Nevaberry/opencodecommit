@@ -250,15 +250,7 @@ pub fn build_invocation_for(
             stdin: Some(prompt.to_owned()),
         },
         CliBackend::Codex => {
-            let mut args = vec![
-                "exec".to_owned(),
-                "--ephemeral".to_owned(),
-                "-s".to_owned(),
-                "read-only".to_owned(),
-                "-m".to_owned(),
-                config.codex_model.clone(),
-                "--dangerously-bypass-approvals-and-sandbox".to_owned(),
-            ];
+            let mut args = codex_base_args(&config.codex_model);
             if !config.codex_provider.is_empty() {
                 args.push("-c".to_owned());
                 args.push(format!("model_provider=\"{}\"", config.codex_provider));
@@ -285,6 +277,44 @@ pub fn build_invocation_for(
             }
         }
     }
+}
+
+/// Flags that are always safe and always cheap for `codex exec`, regardless
+/// of whether the task is a commit or a PR synthesis:
+///   --ephemeral                  no session files on disk
+///   --skip-git-repo-check        avoid the repo-detection round trip
+///   -s read-only                 sandbox
+///   --dangerously-bypass-*       skip interactive approvals
+///   --disable plugins            skip loading user-configured codex plugins
+fn codex_common_args(model: &str) -> Vec<String> {
+    vec![
+        "exec".to_owned(),
+        "--ephemeral".to_owned(),
+        "--skip-git-repo-check".to_owned(),
+        "-s".to_owned(),
+        "read-only".to_owned(),
+        "--dangerously-bypass-approvals-and-sandbox".to_owned(),
+        "--disable".to_owned(),
+        "plugins".to_owned(),
+        "-m".to_owned(),
+        model.to_owned(),
+    ]
+}
+
+/// `codex exec` argv for the fast commit-generation path. Adds:
+///   -c model_reasoning_effort="none"   — commits don't need reasoning
+///   -c web_search="disabled"           — remove the web_search tool
+///                                        (required for reasoning < low, and
+///                                        trims tool preamble tokens)
+fn codex_base_args(model: &str) -> Vec<String> {
+    let mut args = codex_common_args(model);
+    // Insert reasoning+web_search overrides before -m so argv ordering stays
+    // predictable for tests, without depending on insertion index.
+    args.push("-c".to_owned());
+    args.push("model_reasoning_effort=\"none\"".to_owned());
+    args.push("-c".to_owned());
+    args.push("web_search=\"disabled\"".to_owned());
+    args
 }
 
 /// Build the command invocation with explicit model and provider overrides.
@@ -336,15 +366,12 @@ pub fn build_invocation_with_model_for(
             stdin: Some(prompt.to_owned()),
         },
         CliBackend::Codex => {
-            let mut args = vec![
-                "exec".to_owned(),
-                "--ephemeral".to_owned(),
-                "-s".to_owned(),
-                "read-only".to_owned(),
-                "-m".to_owned(),
-                model.to_owned(),
-                "--dangerously-bypass-approvals-and-sandbox".to_owned(),
-            ];
+            // PR stages (summary + final) keep whatever reasoning_effort and
+            // web_search the user configured in ~/.codex/config.toml, so PR
+            // quality is preserved. We still apply the cheap flags
+            // (--ephemeral, --skip-git-repo-check, --disable plugins) because
+            // they cost nothing and never affect output quality.
+            let mut args = codex_common_args(model);
             let prov = provider.unwrap_or(if !config.codex_provider.is_empty() {
                 &config.codex_provider
             } else {
@@ -507,14 +534,24 @@ mod tests {
             ..Config::default()
         };
         let inv = build_invocation(Path::new("/usr/bin/codex"), "hello", &config);
+        // Fast-path flags: no reasoning, no web_search tool, no plugins.
         assert_eq!(inv.args[0], "exec");
-        assert_eq!(inv.args[1], "--ephemeral");
-        assert_eq!(inv.args[2], "-s");
-        assert_eq!(inv.args[3], "read-only");
-        assert_eq!(inv.args[4], "-m");
-        assert_eq!(inv.args[5], "gpt-5.4-mini");
-        assert_eq!(inv.args[6], "--dangerously-bypass-approvals-and-sandbox");
-        assert_eq!(inv.args[7], "-");
+        assert!(inv.args.contains(&"--ephemeral".to_owned()));
+        assert!(inv.args.contains(&"--skip-git-repo-check".to_owned()));
+        assert!(
+            inv.args
+                .contains(&"--dangerously-bypass-approvals-and-sandbox".to_owned())
+        );
+        assert!(
+            inv.args
+                .contains(&"model_reasoning_effort=\"none\"".to_owned())
+        );
+        assert!(inv.args.contains(&"web_search=\"disabled\"".to_owned()));
+        assert!(inv.args.contains(&"--disable".to_owned()));
+        assert!(inv.args.contains(&"plugins".to_owned()));
+        assert!(inv.args.contains(&"-m".to_owned()));
+        assert!(inv.args.contains(&"gpt-5.4-mini".to_owned()));
+        assert_eq!(inv.args.last().map(String::as_str), Some("-"));
         assert_eq!(inv.stdin.as_deref(), Some("hello"));
     }
 
@@ -613,11 +650,22 @@ mod tests {
             "gpt-5.4",
             Some("openrouter"),
         );
-        assert_eq!(inv.args[5], "gpt-5.4");
+        assert!(inv.args.contains(&"-m".to_owned()));
+        assert!(inv.args.contains(&"gpt-5.4".to_owned()));
         assert!(
             inv.args
                 .contains(&"model_provider=\"openrouter\"".to_owned())
         );
+        // The PR stage must NOT force reasoning=none — PR quality matters and
+        // the user's ~/.codex/config.toml setting should win here.
+        assert!(
+            !inv.args
+                .contains(&"model_reasoning_effort=\"none\"".to_owned())
+        );
+        // But the cheap-always flags should still be present.
+        assert!(inv.args.contains(&"--skip-git-repo-check".to_owned()));
+        assert!(inv.args.contains(&"--disable".to_owned()));
+        assert!(inv.args.contains(&"plugins".to_owned()));
     }
 
     #[test]
