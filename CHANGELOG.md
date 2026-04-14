@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.6.0
+
+- **Codex backend ~80 % faster via isolated `CODEX_HOME`.** Every `codex exec`
+  invocation now runs against an occ-managed minimal codex home at
+  `$XDG_CACHE_HOME/opencodecommit/codex-home` (fallback
+  `$HOME/.cache/opencodecommit/codex-home`) so codex no longer parses the
+  user's MCP registry, plugin tree, sqlite caches, and session history on
+  every call. Paired bench (10 interleaved pairs, real network, real
+  provider, same commit fixture): installed 1.5.2 median **8560 ms** →
+  candidate 1.6.0 median **1644 ms**, 10/10 pairs favor the new path.
+- Defense in depth: `-c mcp_servers={}` is now always passed to `codex exec`
+  so MCP servers are never spawned, even if the `CODEX_HOME` setup falls
+  back to the user's real home for any reason.
+- No action required to pick up the speedup — it activates on the first
+  `occ commit --backend codex` call after upgrade. If you want a clean
+  1.6.0 baseline for other defaults, run the existing "OpenCodeCommit:
+  Reset Settings" command in the VS Code extension.
+- The auth link is a symlink to `~/.codex/auth.json`, so `codex login`
+  refreshes are seen transparently. Windows users whose environment
+  can't create unprivileged symlinks automatically fall back to the
+  pre-1.6 codex path (no regression).
+
 ## 1.4.0
 
 - **config.toml as single source of truth** for both CLI and VS Code extension

@@ -1,5 +1,6 @@
 pub mod api;
 pub mod backend;
+pub mod codex_home;
 pub mod config;
 pub mod context;
 pub mod dispatch;

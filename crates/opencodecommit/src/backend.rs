@@ -5,6 +5,7 @@ use std::process::{Command, Stdio};
 use std::sync::{LazyLock, Mutex};
 use std::time::Duration;
 
+use crate::codex_home;
 use crate::config::{CliBackend, Config};
 use crate::{Error, Result};
 
@@ -210,6 +211,9 @@ pub struct Invocation {
     pub command: PathBuf,
     pub args: Vec<String>,
     pub stdin: Option<String>,
+    /// Environment variables to set on the child process. Ordered for test
+    /// determinism. Empty for backends that inherit the parent environment.
+    pub env: Vec<(String, String)>,
 }
 
 /// Build the command invocation for a given backend.
@@ -232,6 +236,7 @@ pub fn build_invocation_for(
                 command: cli_path.to_owned(),
                 args: opencode_base_args(&model_spec, prompt),
                 stdin: None,
+                env: vec![],
             }
         }
         CliBackend::Claude => Invocation {
@@ -246,6 +251,7 @@ pub fn build_invocation_for(
                 "1".to_owned(),
             ],
             stdin: Some(prompt.to_owned()),
+            env: vec![],
         },
         CliBackend::Codex => {
             let mut args = codex_base_args(&config.codex_model);
@@ -258,6 +264,7 @@ pub fn build_invocation_for(
                 command: cli_path.to_owned(),
                 args,
                 stdin: Some(prompt.to_owned()),
+                env: codex_env(),
             }
         }
         CliBackend::Gemini => {
@@ -272,8 +279,24 @@ pub fn build_invocation_for(
                 command: cli_path.to_owned(),
                 args,
                 stdin: None,
+                env: vec![],
             }
         }
+    }
+}
+
+/// Build the environment overrides for a `codex exec` invocation. Points
+/// `CODEX_HOME` at an occ-managed minimal directory so codex doesn't parse
+/// the user's accumulated state on every call. Returns empty on any failure;
+/// callers then inherit the parent environment (i.e., the user's real
+/// `~/.codex`), matching pre-1.6 behaviour.
+fn codex_env() -> Vec<(String, String)> {
+    match codex_home::ensure_minimal_codex_home() {
+        Some(path) => vec![(
+            "CODEX_HOME".to_owned(),
+            path.to_string_lossy().into_owned(),
+        )],
+        None => vec![],
     }
 }
 
@@ -284,6 +307,9 @@ pub fn build_invocation_for(
 ///   -s read-only                 sandbox
 ///   --dangerously-bypass-*       skip interactive approvals
 ///   --disable plugins            skip loading user-configured codex plugins
+///   -c mcp_servers={}            belt-and-braces: never spawn MCP servers
+///                                even if CODEX_HOME falls back to the user's
+///                                real home with its own MCP registry
 fn codex_common_args(model: &str) -> Vec<String> {
     vec![
         "exec".to_owned(),
@@ -294,6 +320,8 @@ fn codex_common_args(model: &str) -> Vec<String> {
         "--dangerously-bypass-approvals-and-sandbox".to_owned(),
         "--disable".to_owned(),
         "plugins".to_owned(),
+        "-c".to_owned(),
+        "mcp_servers={}".to_owned(),
         "-m".to_owned(),
         model.to_owned(),
     ]
@@ -376,6 +404,7 @@ pub fn build_invocation_with_model_for(
                 command: cli_path.to_owned(),
                 args: opencode_common_args(&model_spec, prompt),
                 stdin: None,
+                env: vec![],
             }
         }
         CliBackend::Claude => Invocation {
@@ -390,6 +419,7 @@ pub fn build_invocation_with_model_for(
                 "1".to_owned(),
             ],
             stdin: Some(prompt.to_owned()),
+            env: vec![],
         },
         CliBackend::Codex => {
             // PR stages (summary + final) keep whatever reasoning_effort and
@@ -412,6 +442,7 @@ pub fn build_invocation_with_model_for(
                 command: cli_path.to_owned(),
                 args,
                 stdin: Some(prompt.to_owned()),
+                env: codex_env(),
             }
         }
         CliBackend::Gemini => {
@@ -426,6 +457,7 @@ pub fn build_invocation_with_model_for(
                 command: cli_path.to_owned(),
                 args,
                 stdin: None,
+                env: vec![],
             }
         }
     }
@@ -442,6 +474,12 @@ pub fn strip_ansi(text: &str) -> String {
 pub fn exec_cli_with_timeout(invocation: &Invocation, timeout_secs: u64) -> Result<String> {
     let mut cmd = Command::new(&invocation.command);
     cmd.args(&invocation.args);
+    cmd.envs(
+        invocation
+            .env
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str())),
+    );
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
 
@@ -518,6 +556,20 @@ mod tests {
     use super::*;
     use crate::config::Backend;
 
+    /// Codex env is either empty (ensure_minimal_codex_home fell back because
+    /// no ~/.codex/auth.json is available, e.g., on CI) or a single entry
+    /// `("CODEX_HOME", <non-empty path>)` — and nothing else must leak.
+    fn assert_codex_env_shape(env: &[(String, String)]) {
+        match env {
+            [] => {}
+            [(k, v)] => {
+                assert_eq!(k, "CODEX_HOME");
+                assert!(!v.is_empty(), "CODEX_HOME path must not be empty");
+            }
+            other => panic!("unexpected codex env: {other:?}"),
+        }
+    }
+
     #[test]
     fn build_invocation_opencode() {
         let config = Config {
@@ -541,6 +593,7 @@ mod tests {
         // Prompt must be the final positional arg (opencode reads it from argv).
         assert_eq!(inv.args.last().map(String::as_str), Some("hello"));
         assert!(inv.stdin.is_none());
+        assert!(inv.env.is_empty(), "opencode must not leak CODEX_HOME");
     }
 
     #[test]
@@ -559,6 +612,7 @@ mod tests {
         assert_eq!(inv.args[5], "--max-turns");
         assert_eq!(inv.args[6], "1");
         assert_eq!(inv.stdin.as_deref(), Some("hello"));
+        assert!(inv.env.is_empty(), "claude must not leak CODEX_HOME");
     }
 
     #[test]
@@ -582,6 +636,9 @@ mod tests {
                 .contains(&"model_reasoning_effort=\"none\"".to_owned())
         );
         assert!(inv.args.contains(&"web_search=\"disabled\"".to_owned()));
+        // Belt-and-braces: mcp_servers override is present even if CODEX_HOME
+        // setup fell back to the user's real home.
+        assert!(inv.args.contains(&"mcp_servers={}".to_owned()));
         // Each --disable has its feature name as a separate positional argument.
         let disables: Vec<&str> = inv
             .args
@@ -601,6 +658,7 @@ mod tests {
         assert!(inv.args.contains(&"gpt-5.4-mini".to_owned()));
         assert_eq!(inv.args.last().map(String::as_str), Some("-"));
         assert_eq!(inv.stdin.as_deref(), Some("hello"));
+        assert_codex_env_shape(&inv.env);
     }
 
     #[test]
@@ -617,6 +675,8 @@ mod tests {
             inv.args
                 .contains(&"model_provider=\"openrouter\"".to_owned())
         );
+        assert!(inv.args.contains(&"mcp_servers={}".to_owned()));
+        assert_codex_env_shape(&inv.env);
     }
 
     #[test]
@@ -634,6 +694,7 @@ mod tests {
         assert_eq!(inv.args[4], "--output-format");
         assert_eq!(inv.args[5], "text");
         assert_eq!(inv.stdin, None);
+        assert!(inv.env.is_empty(), "gemini must not leak CODEX_HOME");
     }
 
     #[test]
@@ -649,6 +710,7 @@ mod tests {
         assert_eq!(inv.args[2], "--output-format");
         assert_eq!(inv.args[3], "text");
         assert_eq!(inv.stdin, None);
+        assert!(inv.env.is_empty(), "gemini must not leak CODEX_HOME");
     }
 
     #[test]
@@ -673,6 +735,7 @@ mod tests {
         // The PR stage must NOT pass --variant minimal — PR synthesis quality
         // relies on the provider's default reasoning budget.
         assert!(!inv.args.contains(&"--variant".to_owned()));
+        assert!(inv.env.is_empty(), "opencode must not leak CODEX_HOME");
     }
 
     #[test]
@@ -690,6 +753,7 @@ mod tests {
         );
         assert_eq!(inv.args[2], "claude-opus-4-6");
         assert_eq!(inv.stdin.as_deref(), Some("hello"));
+        assert!(inv.env.is_empty(), "claude must not leak CODEX_HOME");
     }
 
     #[test]
@@ -721,6 +785,9 @@ mod tests {
         assert!(inv.args.contains(&"--skip-git-repo-check".to_owned()));
         assert!(inv.args.contains(&"--disable".to_owned()));
         assert!(inv.args.contains(&"plugins".to_owned()));
+        // MCP override must also apply on the PR path.
+        assert!(inv.args.contains(&"mcp_servers={}".to_owned()));
+        assert_codex_env_shape(&inv.env);
     }
 
     #[test]
@@ -741,6 +808,7 @@ mod tests {
         assert_eq!(inv.args[2], "-m");
         assert_eq!(inv.args[3], "gemini-3-flash-preview");
         assert_eq!(inv.stdin, None);
+        assert!(inv.env.is_empty(), "gemini must not leak CODEX_HOME");
     }
 
     #[test]

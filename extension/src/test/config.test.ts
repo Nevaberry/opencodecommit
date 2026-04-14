@@ -71,6 +71,18 @@ describe("config schema", () => {
     const mirrored = readMirroredSettings(parsedDoc, defaults)
     const runtimeConfig = toExtensionConfig(mirrored)
 
+    // Reset-to-defaults must land on Codex CLI as the primary backend on both
+    // the `backend` field and the fallback chain — the 1.6.0 codex fast-path
+    // is only worth shipping if the average user actually lands on it.
+    assert.strictEqual(defaultDoc.backend, "codex")
+    assert.deepStrictEqual(defaultDoc["backend-order"], [
+      "codex",
+      "opencode",
+      "claude",
+      "gemini",
+    ])
+    assert.strictEqual(mirrored.backendOrder[0], "codex")
+
     assert.strictEqual(mirrored.showLanguageSelector, true)
     assert.strictEqual(mirrored.commitBranchTimeoutSeconds, 70)
     assert.strictEqual(mirrored.prTimeoutSeconds, 180)
