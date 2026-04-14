@@ -90,7 +90,12 @@ if ! WORKTREE_PATH=$(occ_resolve_worktree "$WORKTREE_SELECTOR" "$REPO_ROOT"); th
   exit 1
 fi
 
-cd -- "$WORKTREE_PATH"
+# Only cd into the worktree when the user explicitly selected one with -w.
+# Without -w, run from the caller's $PWD so `occ tui` operates on the current
+# directory. cargo run uses --manifest-path, so the build works from anywhere.
+if [[ -n "$WORKTREE_SELECTOR" ]]; then
+  cd -- "$WORKTREE_PATH"
+fi
 
 CARGO_TARGET_DIR="$(occ_git_common_dir "$WORKTREE_PATH")/dev/cargo-target"
 mkdir -p "$CARGO_TARGET_DIR"
