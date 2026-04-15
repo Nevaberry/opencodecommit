@@ -137,7 +137,7 @@ jobs:
         run: bun install
       - name: Build extension
         working-directory: extension
-        run: bunx tsc -p ./
+        run: bun run build:vsix
       - name: Publish to VS Code Marketplace
         working-directory: extension
         run: bunx @vscode/vsce publish --pat "$VSCE_PAT"

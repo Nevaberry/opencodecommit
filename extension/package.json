@@ -2,7 +2,7 @@
   "name": "opencodecommit",
   "displayName": "OpenCodeCommit",
   "description": "AI commit messages via CLI backends and direct provider APIs for local use and CI/CD",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "publisher": "Nevaberry",
   "license": "MIT",
   "repository": {
@@ -1291,6 +1291,7 @@
   "scripts": {
     "prepare": "git config core.hooksPath .githooks",
     "build": "tsc -p extension/",
+    "build:vsix": "tsc -p ./ && bun build src/extension.ts --outdir out --target node --format cjs --external vscode --sourcemap=linked",
     "watch": "tsc -watch -p extension/",
     "lint": "biome check extension/src/",
     "lint:fix": "biome check --write extension/src/",
