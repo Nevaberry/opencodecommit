@@ -1303,7 +1303,11 @@
     "test:extension": "bun test extension/src/test",
     "test:ts": "bun run test:extension",
     "test:rust": "cargo test --package opencodecommit",
-    "test:live-backends": "bash scripts/test-live-backends.sh"
+    "test:live-backends": "bash scripts/test-live-backends.sh",
+    "test:e2e:preflight": "bash scripts/e2e-preflight.sh",
+    "test:e2e:extension": "node extension/out/test/e2e/runTest.js",
+    "test:e2e:dev-local": "bash scripts/test-dev-local-e2e.sh",
+    "test:e2e:staging": "bash scripts/test-staging-full-e2e.sh"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.0",

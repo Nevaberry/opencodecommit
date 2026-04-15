@@ -1,0 +1,82 @@
+backend = "codex"
+backend-order = [
+  "codex",
+  "opencode",
+  "claude",
+  "gemini",
+  "openai-api",
+  "anthropic-api",
+  "gemini-api",
+  "openrouter-api",
+  "opencode-api",
+  "ollama-api",
+  "lm-studio-api",
+  "custom-api",
+]
+commit-mode = "adaptive"
+sparkle-mode = "adaptive"
+branch-mode = "conventional"
+diff-source = "auto"
+pr-base-branch = "main"
+active-language = "English"
+commit-branch-timeout-seconds = 90
+pr-timeout-seconds = 240
+
+[sensitive]
+enforcement = "warn"
+
+[api.openai]
+model = "gpt-5.4-mini"
+endpoint = "https://api.openai.com/v1/chat/completions"
+key-env = "OPENAI_API_KEY"
+pr-model = "gpt-5.4"
+cheap-model = "gpt-5.4-mini"
+
+[api.anthropic]
+model = "claude-sonnet-4-6"
+endpoint = "https://api.anthropic.com/v1/messages"
+key-env = "ANTHROPIC_API_KEY"
+pr-model = "claude-opus-4-6"
+cheap-model = "claude-haiku-4-5"
+
+[api.gemini]
+model = "gemini-2.5-flash"
+endpoint = "https://generativelanguage.googleapis.com/v1beta"
+key-env = "GEMINI_API_KEY"
+pr-model = "gemini-3-flash-preview"
+cheap-model = "gemini-3.1-flash-lite-preview"
+
+[api.openrouter]
+model = "anthropic/claude-sonnet-4"
+endpoint = "https://openrouter.ai/api/v1/chat/completions"
+key-env = "OPENROUTER_API_KEY"
+pr-model = "openai/gpt-5.4"
+cheap-model = "openai/gpt-5.4-mini"
+
+[api.opencode]
+model = "gpt-5.4-mini"
+endpoint = "https://opencode.ai/zen/v1/chat/completions"
+key-env = "OPENCODE_API_KEY"
+pr-model = "gpt-5.4"
+cheap-model = "gpt-5.4-mini"
+
+[api.ollama]
+model = "__OLLAMA_MODEL__"
+endpoint = "__OLLAMA_BASE_URL__"
+key-env = ""
+pr-model = "__OLLAMA_MODEL__"
+cheap-model = "__OLLAMA_MODEL__"
+
+[api.lm-studio]
+model = "__LLAMA_MODEL__"
+endpoint = "__LLAMA_BASE_URL__"
+key-env = ""
+pr-model = "__LLAMA_MODEL__"
+cheap-model = "__LLAMA_MODEL__"
+
+[api.custom]
+model = "__LLAMA_MODEL__"
+endpoint = "__LLAMA_BASE_URL__"
+key-env = ""
+pr-model = "__LLAMA_MODEL__"
+cheap-model = "__LLAMA_MODEL__"

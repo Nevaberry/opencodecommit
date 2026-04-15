@@ -65,6 +65,9 @@ npm/win32-x64/opencodecommit.exe
 # Logs
 *.log
 npm-debug.log*
+.logs/
+.tmp/
+occ-*-run-*/
 
 # Coverage
 coverage/

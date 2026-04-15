@@ -1065,9 +1065,17 @@ fn handle_key_in_viewport(
             }
         }
 
-        // Number keys for bottom bar shortcuts
+        // Number keys for bottom bar shortcuts.
+        // When a backend menu is open, the same digits select menu entries instead.
         KeyCode::Char(ch @ '0'..='7') => {
-            if let Some(btn) = ButtonId::ALL.iter().find(|b| b.number() == ch) {
+            if matches!(
+                app.output,
+                Some(OutputContent::BackendMenu)
+                    | Some(OutputContent::CommitBackendMenu)
+                    | Some(OutputContent::PrBackendMenu)
+            ) {
+                handle_panel_shortcut(app, ch, tx);
+            } else if let Some(btn) = ButtonId::ALL.iter().find(|b| b.number() == ch) {
                 activate_bar_button(app, *btn, tx);
             }
         }

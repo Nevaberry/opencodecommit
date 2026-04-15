@@ -1,0 +1,34 @@
+backend = "custom-api"
+backend-order = ["custom-api", "lm-studio-api"]
+commit-mode = "adaptive"
+sparkle-mode = "adaptive"
+branch-mode = "conventional"
+diff-source = "auto"
+pr-base-branch = "main"
+active-language = "English"
+commit-branch-timeout-seconds = 70
+pr-timeout-seconds = 180
+
+[sensitive]
+enforcement = "warn"
+
+[api.custom]
+model = "__LLAMA_MODEL__"
+endpoint = "__LLAMA_BASE_URL__"
+key-env = ""
+pr-model = "__LLAMA_MODEL__"
+cheap-model = "__LLAMA_MODEL__"
+
+[api.lm-studio]
+model = "__LLAMA_MODEL__"
+endpoint = "__LLAMA_BASE_URL__"
+key-env = ""
+pr-model = "__LLAMA_MODEL__"
+cheap-model = "__LLAMA_MODEL__"
+
+[api.ollama]
+model = "__OLLAMA_MODEL__"
+endpoint = "__OLLAMA_BASE_URL__"
+key-env = ""
+pr-model = "__OLLAMA_MODEL__"
+cheap-model = "__OLLAMA_MODEL__"

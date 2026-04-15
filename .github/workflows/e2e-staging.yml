@@ -1,0 +1,111 @@
+name: Staging E2E
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - staging
+
+jobs:
+  preflight:
+    runs-on: [self-hosted, linux, fedora]
+    timeout-minutes: 20
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+      OCC_E2E_LLAMA_MODEL_REPO: unsloth/Qwen3.5-2B-GGUF
+      OCC_E2E_LLAMA_MODEL_QUANT: Q4_K_M
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bash scripts/e2e-preflight.sh staging
+
+  unit:
+    needs: preflight
+    runs-on: [self-hosted, linux, fedora]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: cargo test --workspace
+      - run: bun test extension/src/test
+
+  cli:
+    needs: preflight
+    runs-on: [self-hosted, linux, fedora]
+    timeout-minutes: 90
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+      OCC_E2E_LLAMA_MODEL_REPO: unsloth/Qwen3.5-2B-GGUF
+      OCC_E2E_LLAMA_MODEL_QUANT: Q4_K_M
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bash scripts/test-staging-full-e2e.sh cli
+
+  extension:
+    needs: preflight
+    runs-on: [self-hosted, linux, fedora]
+    timeout-minutes: 90
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+      OCC_E2E_LLAMA_MODEL_REPO: unsloth/Qwen3.5-2B-GGUF
+      OCC_E2E_LLAMA_MODEL_QUANT: Q4_K_M
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bash scripts/test-staging-full-e2e.sh extension
+
+  tui:
+    needs: preflight
+    runs-on: [self-hosted, linux, fedora]
+    timeout-minutes: 90
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+      OCC_E2E_LLAMA_MODEL_REPO: unsloth/Qwen3.5-2B-GGUF
+      OCC_E2E_LLAMA_MODEL_QUANT: Q4_K_M
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bash scripts/test-staging-full-e2e.sh tui
+
+  release-gate:
+    needs: [preflight, unit, cli, extension, tui]
+    runs-on: [self-hosted, linux, fedora]
+    if: ${{ always() }}
+    steps:
+      - name: Fail if any staging verification job failed
+        run: |
+          if [ "${{ needs.preflight.result }}" != "success" ] || \
+             [ "${{ needs.unit.result }}" != "success" ] || \
+             [ "${{ needs.cli.result }}" != "success" ] || \
+             [ "${{ needs.extension.result }}" != "success" ] || \
+             [ "${{ needs.tui.result }}" != "success" ]; then
+            echo "staging e2e gate failed" >&2
+            exit 1
+          fi
