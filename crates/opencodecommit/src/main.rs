@@ -1,4 +1,5 @@
 mod actions;
+mod e2e_trace;
 mod guard;
 mod tui;
 mod update;
@@ -805,6 +806,8 @@ fn handle_branch(
                 "status": "success",
                 "name": preview.name,
                 "created": false,
+                "provider": preview.provider,
+                "backend_failures": preview.backend_failures,
             });
             println!("{}", serde_json::to_string(&output).unwrap());
         }
@@ -857,6 +860,8 @@ fn handle_pr(config: &Config, text: bool, base: Option<&str>) {
             "status": "success",
             "title": preview.title,
             "body": preview.body,
+            "provider": preview.provider,
+            "backend_failures": preview.backend_failures,
         });
         println!("{}", serde_json::to_string(&output).unwrap());
     }
@@ -882,6 +887,7 @@ fn handle_changelog(config: &Config, text: bool) {
         let output = serde_json::json!({
             "status": "success",
             "entry": preview.entry,
+            "provider": preview.provider,
             "backend_failures": preview.backend_failures,
         });
         println!("{}", serde_json::to_string(&output).unwrap());

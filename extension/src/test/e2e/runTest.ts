@@ -219,7 +219,17 @@ async function main() {
   await runTests({
     extensionDevelopmentPath,
     extensionTestsPath,
-    launchArgs: [workspacePath, "--user-data-dir", userDataDir, "--disable-workspace-trust"],
+    launchArgs: [
+      workspacePath,
+      "--user-data-dir",
+      userDataDir,
+      "--disable-workspace-trust",
+      "--disable-gpu",
+      "--disable-updates",
+      "--skip-welcome",
+      "--skip-release-notes",
+      "--disable-crash-reporter",
+    ],
     extensionTestsEnv: {
       ...process.env,
       OCC_E2E_MODE: mode,

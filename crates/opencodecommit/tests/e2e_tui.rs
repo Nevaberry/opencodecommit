@@ -3,9 +3,9 @@ mod common;
 use std::process::Command;
 use std::time::Duration;
 
-use expectrl::{ControlCode, Eof, Expect, Regex, Session};
-use expectrl::session::OsSession;
 use common::{FixtureRepo, TUI_BACKENDS, load_env, occ_bin};
+use expectrl::session::OsSession;
+use expectrl::{ControlCode, Eof, Expect, Regex, Session};
 
 fn backend_label(backend: &str) -> &'static str {
     match backend {
@@ -96,8 +96,7 @@ fn tui_core_buttons_and_sidebar_work_in_a_real_pty() {
     }
     session.send("j").unwrap();
     session.send(" ").unwrap();
-    session.expect(Regex("(Staged|Unstaged) .*\\."))
-        .unwrap();
+    session.expect(Regex("(Staged|Unstaged) .*\\.")).unwrap();
 
     session.send("1").unwrap();
     session.expect("Generated commit message").unwrap();
@@ -137,7 +136,9 @@ fn tui_core_buttons_and_sidebar_work_in_a_real_pty() {
     session.send("u").unwrap();
     session.expect("[y Yes]").unwrap();
     session.send("y").unwrap();
-    session.expect("uninstalled prepare-commit-msg hook").unwrap();
+    session
+        .expect("uninstalled prepare-commit-msg hook")
+        .unwrap();
 
     session.send("4").unwrap();
     session.expect("SAFETY SETTINGS").unwrap();
@@ -147,7 +148,9 @@ fn tui_core_buttons_and_sidebar_work_in_a_real_pty() {
     session.send("4").unwrap();
     session.expect("SAFETY SETTINGS").unwrap();
     session.send("a").unwrap();
-    session.expect("Applied strict-agent sensitive profile").unwrap();
+    session
+        .expect("Applied strict-agent sensitive profile")
+        .unwrap();
 
     session.send("q").unwrap();
     session.expect(Eof).unwrap();
@@ -216,6 +219,27 @@ fn tui_one_shot_backend_menus_run_every_enabled_backend() {
         session.expect("Generated PR preview").unwrap();
         session.send(ControlCode::ESC).unwrap();
     }
+
+    session.send("q").unwrap();
+    session.expect(Eof).unwrap();
+}
+
+#[test]
+fn artifacts_tui_generation_smoke() {
+    let Some(env) = load_env() else { return };
+    let repo = FixtureRepo::new("e2e-tui-artifacts");
+    let mut session = spawn_tui(&repo, &env.config_path, tui_expect_timeout(&env.mode));
+
+    session.expect("OpenCodeCommit").unwrap();
+
+    session.send("1").unwrap();
+    session.expect("Generated commit message").unwrap();
+
+    session.send("2").unwrap();
+    session.expect("BRANCH NAME PREVIEW").unwrap();
+
+    session.send("3").unwrap();
+    session.expect("PR PREVIEW").unwrap();
 
     session.send("q").unwrap();
     session.expect(Eof).unwrap();

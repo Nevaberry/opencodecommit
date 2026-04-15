@@ -7,6 +7,7 @@ import type { GitExtension, Repository } from "../../inline/types"
 import { getConfig } from "../../inline/config"
 
 const modeValue = process.env.OCC_E2E_MODE ?? "dev-local"
+const suiteValue = process.env.OCC_E2E_SUITE ?? "full"
 const workspacePathValue = process.env.OCC_E2E_WORKSPACE
 const configPathValue = process.env.OPENCODECOMMIT_CONFIG
 const includeBackends = (process.env.OCC_E2E_ACTIVE_BACKENDS ?? "")
@@ -22,6 +23,7 @@ function requireEnv(name: string, value: string | undefined): string {
 }
 
 export const mode = modeValue
+export const suite = suiteValue
 export const workspacePath = requireEnv("OCC_E2E_WORKSPACE", workspacePathValue)
 export const configPath = requireEnv("OPENCODECOMMIT_CONFIG", configPathValue)
 export const activeBackends = includeBackends
@@ -43,7 +45,7 @@ export function contributedCommands(): string[] {
 export async function waitFor<T>(
   label: string,
   fn: () => Promise<T | undefined>,
-  timeoutMs = mode === "staging" ? 10 * 60_000 : 90_000,
+  timeoutMs = suite === "artifacts" || mode === "staging" ? 10 * 60_000 : 90_000,
 ): Promise<T> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
@@ -92,6 +94,30 @@ export async function restoreInitialConfig(): Promise<void> {
 export async function clearWorkspaceArtifacts(): Promise<void> {
   const changelogPath = path.join(workspacePath, "CHANGELOG.md")
   await fs.rm(changelogPath, { force: true })
+}
+
+export async function appendResponseLog(entry: {
+  platform: string
+  test: string
+  operation: string
+  backend: string
+  response: string
+}): Promise<void> {
+  const responseLogPath = process.env.OCC_E2E_RESPONSE_LOG?.trim()
+  if (!responseLogPath) return
+
+  await fs.mkdir(path.dirname(responseLogPath), { recursive: true })
+  const block = [
+    "=== AI Response ===",
+    `platform: ${entry.platform}`,
+    `test: ${entry.test}`,
+    `operation: ${entry.operation}`,
+    `backend: ${entry.backend}`,
+    "response:",
+    entry.response.trim(),
+    "",
+  ].join("\n")
+  await fs.appendFile(responseLogPath, block, "utf8")
 }
 
 export async function resetEditorState(): Promise<void> {

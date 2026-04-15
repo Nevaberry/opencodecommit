@@ -21,6 +21,7 @@ use crate::actions::{
     self, ActionError, BackendProgress, BranchPreview, CommitPreview, CommitRequest, HookOperation,
     PrContext, PrPreview, RepoSummary,
 };
+use crate::e2e_trace;
 
 type TuiTerminal = Terminal<CrosstermBackend<io::Stdout>>;
 
@@ -1603,6 +1604,12 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
             app.backend_log.clear();
             match result {
                 Ok(preview) => {
+                    e2e_trace::log_response(
+                        "occ tui",
+                        "commit",
+                        &preview.provider,
+                        &preview.message,
+                    );
                     app.commit_preview_origin = Some(origin);
                     let notice = format_success_notice(
                         "Generated commit message",
@@ -1663,6 +1670,7 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
             app.backend_log.clear();
             match result {
                 Ok(preview) => {
+                    e2e_trace::log_response("occ tui", "branch", &preview.provider, &preview.name);
                     let failed: Vec<&str> = preview
                         .backend_failures
                         .iter()
@@ -1695,6 +1703,12 @@ fn apply_worker_message(app: &mut App, message: WorkerMessage) {
             app.backend_log.clear();
             match result {
                 Ok(preview) => {
+                    e2e_trace::log_response(
+                        "occ tui",
+                        "pr",
+                        &preview.provider,
+                        &format!("{}\n\n{}", preview.title, preview.body),
+                    );
                     app.pr_preview_origin = Some(origin);
                     if let Some(ctx) = &pr_ctx {
                         app.apply_pr_context(ctx);
@@ -2717,6 +2731,7 @@ mod tests {
         PrPreview {
             title: "Improve TUI scrolling".to_owned(),
             body,
+            provider: "codex".to_owned(),
             backend_failures: vec![],
         }
     }
@@ -2913,6 +2928,7 @@ mod tests {
         app.set_output(OutputContent::BranchPreview {
             preview: BranchPreview {
                 name: "feat/test".to_owned(),
+                provider: "codex".to_owned(),
                 backend_failures: vec![],
             },
         });
@@ -3026,6 +3042,7 @@ mod tests {
         app.set_output(OutputContent::BranchPreview {
             preview: BranchPreview {
                 name: "feat/test".to_owned(),
+                provider: "codex".to_owned(),
                 backend_failures: vec![],
             },
         });
@@ -3152,6 +3169,7 @@ mod tests {
         app.set_output(OutputContent::BranchPreview {
             preview: BranchPreview {
                 name: "feat/compact-buttons".to_owned(),
+                provider: "codex".to_owned(),
                 backend_failures: vec![],
             },
         });

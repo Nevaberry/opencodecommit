@@ -7,11 +7,14 @@ import {
   configPath,
   mode,
   readConfigFile,
+  suite,
   restoreInitialConfig,
   waitFor,
 } from "./shared"
 
-describe("Extension Config Lifecycle E2E", function () {
+const configLifecycleDescribe = suite === "artifacts" ? describe.skip : describe
+
+configLifecycleDescribe("Extension Config Lifecycle E2E", function () {
   this.timeout(mode === "staging" ? 10 * 60_000 : 2 * 60_000)
 
   before(async () => {

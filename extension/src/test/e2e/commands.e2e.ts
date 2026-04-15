@@ -6,6 +6,7 @@ import * as sinon from "sinon"
 
 import {
   activeBackends,
+  appendResponseLog,
   captureInitialConfig,
   configPath,
   contributedCommands,
@@ -16,6 +17,7 @@ import {
   resetEditorState,
   restoreInitialConfig,
   stubExecuteCommand,
+  suite,
   waitFor,
   workspacePath,
 } from "./shared"
@@ -52,6 +54,50 @@ const backendSuffixes = new Map<string, string>([
 const activeSuffixes = activeBackends
   .map((backend) => backendSuffixes.get(backend))
   .filter((value): value is string => Boolean(value))
+
+const artifactCommands = new Set([
+  "opencodecommit.generateAdaptive",
+  "opencodecommit.generateBranch",
+  "opencodecommit.generatePr",
+  "opencodecommit.createChangelog",
+])
+
+function backendForCommand(command: string): string {
+  for (const [backend, suffix] of backendSuffixes.entries()) {
+    if (command.endsWith(suffix)) return backend
+  }
+
+  if (activeBackends.length === 1) {
+    return activeBackends[0]
+  }
+
+  return activeBackends[0] ?? "unknown"
+}
+
+function extractPrResponse(document: string): string {
+  const normalized = document.replace(/\r\n/g, "\n")
+  const titleMatch = normalized.match(/^Title:\s*(.+)$/m)
+  const title = titleMatch?.[1]?.trim() ?? ""
+  const bodyStart = titleMatch ? normalized.indexOf(titleMatch[0]) + titleMatch[0].length : 0
+  const afterTitle = normalized.slice(bodyStart).replace(/^\n+/, "")
+  const body = afterTitle.split("\n\n---\n", 1)[0]?.trim() ?? ""
+  return [title, body].filter(Boolean).join("\n\n")
+}
+
+function extractBranchName(terminalCommand: string): string {
+  const quoted = terminalCommand.match(/git checkout -b "([^"]+)"/)
+  if (quoted) return quoted[1]
+
+  const plain = terminalCommand.match(/git checkout -b ([^\s]+)/)
+  return plain?.[1] ?? terminalCommand
+}
+
+function extractChangelogEntry(content: string, version: string): string {
+  const normalized = content.replace(/\r\n/g, "\n")
+  const pattern = new RegExp(`## ${version}\\n\\n([\\s\\S]*?)(?:\\n\\n---\\n|\\n## |$)`)
+  const match = normalized.match(pattern)
+  return match?.[1]?.trim() ?? normalized
+}
 
 function classify(command: string): Scenario {
   if (
@@ -105,6 +151,7 @@ function classify(command: string): Scenario {
 }
 
 function shouldRun(command: string): boolean {
+  if (suite === "artifacts") return artifactCommands.has(command)
   if (mode === "staging") return true
   if (
     command === "opencodecommit.generateAdaptive" ||
@@ -137,8 +184,28 @@ function assertConventionalCommit(value: string) {
   )
 }
 
+function launchCommand(
+  execute: typeof vscode.commands.executeCommand,
+  command: string,
+): { check: () => Promise<void> } {
+  let failure: unknown
+  const completion = Promise.resolve(execute(command)).catch((error) => {
+    failure = error
+  })
+
+  return {
+    async check() {
+      await Promise.race([
+        completion,
+        new Promise((resolve) => setTimeout(resolve, 0)),
+      ])
+      if (failure) throw failure
+    },
+  }
+}
+
 describe("Extension Commands E2E", function () {
-  this.timeout(mode === "staging" ? 20 * 60_000 : 5 * 60_000)
+  this.timeout(suite === "artifacts" ? 15 * 60_000 : mode === "staging" ? 20 * 60_000 : 5 * 60_000)
 
   before(async () => {
     await getRepository()
@@ -172,14 +239,23 @@ describe("Extension Commands E2E", function () {
         switch (scenario.kind) {
           case "commit": {
             const repo = await getRepository()
-            await originalExecuteCommand(command)
+            const invocation = launchCommand(originalExecuteCommand, command)
+            await invocation.check()
             const value = await waitFor("generated commit message", async () => {
               const current = repo.inputBox.value.trim()
               return current.length > 0 ? current : undefined
             })
+            await invocation.check()
             if (scenario.conventional) {
               assertConventionalCommit(value)
             }
+            await appendResponseLog({
+              platform: "extension",
+              test: command,
+              operation: "commit",
+              backend: backendForCommand(command),
+              response: value,
+            })
             break
           }
 
@@ -189,26 +265,37 @@ describe("Extension Commands E2E", function () {
             sandbox.stub(vscode.window, "showInputBox").resolves(
               "make it shorter and mention subtraction",
             )
-            await originalExecuteCommand(command)
+            const invocation = launchCommand(originalExecuteCommand, command)
+            await invocation.check()
             const value = await waitFor("refined commit message", async () => {
               const current = repo.inputBox.value.trim()
               return current && current !== "feat: improve helper"
                 ? current
                 : undefined
             })
+            await invocation.check()
             assert.notEqual(value, "feat: improve helper")
             break
           }
 
           case "pr": {
-            await originalExecuteCommand(command)
+            const invocation = launchCommand(originalExecuteCommand, command)
+            await invocation.check()
             const text = await waitFor("PR draft document", async () => {
               const editor = vscode.window.activeTextEditor
               const content = editor?.document.getText() ?? ""
               return content.startsWith("# PR Draft") ? content : undefined
             })
+            await invocation.check()
             assert.match(text, /^# PR Draft/m)
             assert.match(text, /^Title: /m)
+            await appendResponseLog({
+              platform: "extension",
+              test: command,
+              operation: "pr",
+              backend: backendForCommand(command),
+              response: extractPrResponse(text),
+            })
             break
           }
 
@@ -224,18 +311,28 @@ describe("Extension Commands E2E", function () {
               }
               return undefined
             })
-            await originalExecuteCommand(command)
+            const invocation = launchCommand(originalExecuteCommand, command)
+            await invocation.check()
             const terminalCommand = await waitFor("branch terminal command", async () =>
               sent[0] ? sent[0] : undefined,
             )
+            await invocation.check()
             assert.match(terminalCommand, /git checkout -b/)
+            await appendResponseLog({
+              platform: "extension",
+              test: command,
+              operation: "branch",
+              backend: backendForCommand(command),
+              response: extractBranchName(terminalCommand),
+            })
             break
           }
 
           case "changelog": {
             const version = `9.9.${Math.floor(Math.random() * 1000)}`
             sandbox.stub(vscode.window, "showInputBox").resolves(version)
-            await originalExecuteCommand(command)
+            const invocation = launchCommand(originalExecuteCommand, command)
+            await invocation.check()
             const content = await waitFor("CHANGELOG.md", async () => {
               try {
                 const file = await fs.readFile(
@@ -247,7 +344,15 @@ describe("Extension Commands E2E", function () {
                 return undefined
               }
             })
+            await invocation.check()
             assert.match(content, new RegExp(`## ${version}`))
+            await appendResponseLog({
+              platform: "extension",
+              test: command,
+              operation: "changelog",
+              backend: backendForCommand(command),
+              response: extractChangelogEntry(content, version),
+            })
             break
           }
 

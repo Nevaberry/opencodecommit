@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 use std::env;
-use std::fs;
+use std::fs::{self, OpenOptions};
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -97,8 +98,7 @@ impl FixtureRepo {
             "export function add(left: number, right: number): number {\n  return left + right\n}\n",
         )
         .expect("seed app.ts");
-        fs::write(path.join("README.md"), "# OpenCodeCommit E2E Fixture\n")
-            .expect("seed README");
+        fs::write(path.join("README.md"), "# OpenCodeCommit E2E Fixture\n").expect("seed README");
 
         run_git(&path, &["add", "README.md", "src/app.ts"]);
         run_git(&path, &["commit", "-q", "-m", "chore: seed e2e fixture"]);
@@ -177,6 +177,37 @@ pub fn stderr(output: &Output) -> String {
     String::from_utf8_lossy(&output.stderr).trim().to_owned()
 }
 
+pub fn append_response_log(
+    platform: &str,
+    test_case: &str,
+    operation: &str,
+    backend: &str,
+    response: &str,
+) {
+    let Some(path) = env::var_os("OCC_E2E_RESPONSE_LOG").map(PathBuf::from) else {
+        return;
+    };
+
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).expect("create e2e response log dir");
+    }
+
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .expect("open e2e response log");
+
+    writeln!(file, "=== AI Response ===").expect("write response log header");
+    writeln!(file, "platform: {platform}").expect("write response log platform");
+    writeln!(file, "test: {test_case}").expect("write response log test");
+    writeln!(file, "operation: {operation}").expect("write response log operation");
+    writeln!(file, "backend: {backend}").expect("write response log backend");
+    writeln!(file, "response:").expect("write response log label");
+    writeln!(file, "{}", response.trim()).expect("write response log body");
+    writeln!(file).expect("write response log separator");
+}
+
 pub fn assert_commit_shape(message: &str, conventional: bool) {
     let trimmed = message.trim();
     assert!(!trimmed.is_empty(), "commit output was empty");
@@ -191,7 +222,10 @@ pub fn assert_commit_shape(message: &str, conventional: bool) {
             r"^(feat|fix|docs|style|refactor|test|chore|perf|security|revert)(\([^)]+\))?!?: .+",
         )
         .unwrap();
-        assert!(re.is_match(first_line), "invalid conventional commit: {first_line}");
+        assert!(
+            re.is_match(first_line),
+            "invalid conventional commit: {first_line}"
+        );
     }
 }
 
@@ -207,12 +241,18 @@ pub fn assert_pr_shape(output: &str) {
     assert!(!title.is_empty(), "PR title was empty");
     assert!(title.len() <= 80, "PR title too long: {title}");
     assert!(body.len() >= 20, "PR body too short: {body}");
-    assert!(body.contains("## "), "PR body missing markdown heading: {body}");
+    assert!(
+        body.contains("## "),
+        "PR body missing markdown heading: {body}"
+    );
 }
 
 pub fn assert_changelog_shape(output: &str) {
-    let re = Regex::new(r"(?m)^(?:##\s+)?(Added|Changed|Fixed|Removed)\b").unwrap();
-    assert!(re.is_match(output.trim()), "changelog missing section heading: {output}");
+    let re = Regex::new(r"(?m)^(?:(?:##|###)\s+)?(Added|Changed|Fixed|Removed)\b").unwrap();
+    assert!(
+        re.is_match(output.trim()),
+        "changelog missing section heading: {output}"
+    );
 }
 
 pub const TUI_BACKENDS: [(&str, char); 12] = [

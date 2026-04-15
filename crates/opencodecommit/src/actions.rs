@@ -107,6 +107,7 @@ pub struct CommitResult {
 #[derive(Debug, Clone)]
 pub struct BranchPreview {
     pub name: String,
+    pub provider: String,
     pub backend_failures: Vec<BackendFailure>,
 }
 
@@ -119,6 +120,7 @@ pub struct BranchResult {
 pub struct PrPreview {
     pub title: String,
     pub body: String,
+    pub provider: String,
     pub backend_failures: Vec<BackendFailure>,
 }
 
@@ -137,6 +139,7 @@ pub struct PrContext {
 #[derive(Debug, Clone)]
 pub struct ChangelogPreview {
     pub entry: String,
+    pub provider: String,
     pub backend_failures: Vec<BackendFailure>,
 }
 
@@ -424,6 +427,7 @@ fn generate_pr_preview_internal(
         return Ok(PrPreview {
             title: parsed.title,
             body: parsed.body,
+            provider: config.backend.to_string(),
             backend_failures: vec![],
         });
     }
@@ -451,6 +455,7 @@ fn generate_pr_preview_internal(
     Ok(PrPreview {
         title: parsed.title,
         body: parsed.body,
+        provider: config.backend.to_string(),
         backend_failures: vec![],
     })
 }
@@ -523,7 +528,7 @@ pub fn generate_branch_preview_with_fallback(
         &existing_branches,
     );
 
-    let (response, _backend, failures) = exec_with_fallback(
+    let (response, backend, failures) = exec_with_fallback(
         config,
         &prompt,
         DispatchTask::Branch,
@@ -532,6 +537,7 @@ pub fn generate_branch_preview_with_fallback(
     )?;
     Ok(BranchPreview {
         name: format_branch_name(&response),
+        provider: backend.to_string(),
         backend_failures: failures,
     })
 }
@@ -589,7 +595,7 @@ pub fn generate_changelog_preview_with_fallback(
 ) -> Result<ChangelogPreview> {
     let context = build_context_preview(config)?;
     let prompt = build_changelog_prompt(&context, config);
-    let (response, _backend, failures) = exec_with_fallback(
+    let (response, backend, failures) = exec_with_fallback(
         config,
         &prompt,
         DispatchTask::Changelog,
@@ -598,6 +604,7 @@ pub fn generate_changelog_preview_with_fallback(
     )?;
     Ok(ChangelogPreview {
         entry: response::sanitize_response(&response),
+        provider: backend.to_string(),
         backend_failures: failures,
     })
 }

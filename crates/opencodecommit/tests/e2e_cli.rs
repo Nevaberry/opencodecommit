@@ -3,8 +3,8 @@ mod common;
 use std::path::PathBuf;
 
 use common::{
-    FixtureRepo, assert_branch_shape, assert_changelog_shape, assert_commit_shape,
-    assert_pr_shape, load_env, run_occ, stderr, stdout,
+    FixtureRepo, append_response_log, assert_branch_shape, assert_changelog_shape,
+    assert_commit_shape, assert_pr_shape, load_env, run_occ, stderr, stdout,
 };
 
 fn config_arg(config_path: &PathBuf) -> [&str; 2] {
@@ -12,7 +12,7 @@ fn config_arg(config_path: &PathBuf) -> [&str; 2] {
 }
 
 #[test]
-fn commit_dry_run_generates_valid_output_across_backends() {
+fn artifacts_commit_dry_run_generates_valid_output_across_backends() {
     let Some(env) = load_env() else { return };
     let repo = FixtureRepo::new("e2e-cli-commit");
     let diff = repo.staged_diff();
@@ -41,7 +41,15 @@ fn commit_dry_run_generates_valid_output_across_backends() {
                 "commit failed for backend={backend} mode={mode}: {}",
                 stderr(&output)
             );
-            assert_commit_shape(&stdout(&output), mode == "conventional");
+            let message = stdout(&output);
+            assert_commit_shape(&message, mode == "conventional");
+            append_response_log(
+                "occ",
+                &format!("artifacts_commit_{mode}"),
+                "commit",
+                backend,
+                &message,
+            );
         }
     }
 }
@@ -87,7 +95,7 @@ fn refine_generates_valid_conventional_output_across_backends() {
 }
 
 #[test]
-fn branch_dry_run_generates_slug_across_backends() {
+fn artifacts_branch_dry_run_generates_slug_across_backends() {
     let Some(env) = load_env() else { return };
     let repo = FixtureRepo::new("e2e-cli-branch");
     let config = config_arg(&env.config_path);
@@ -113,12 +121,14 @@ fn branch_dry_run_generates_slug_across_backends() {
             "branch failed for backend={backend}: {}",
             stderr(&output)
         );
-        assert_branch_shape(&stdout(&output));
+        let branch_name = stdout(&output);
+        assert_branch_shape(&branch_name);
+        append_response_log("occ", "artifacts_branch", "branch", backend, &branch_name);
     }
 }
 
 #[test]
-fn pr_generation_produces_structured_title_and_body_across_backends() {
+fn artifacts_pr_generation_produces_structured_title_and_body_across_backends() {
     let Some(env) = load_env() else { return };
     let repo = FixtureRepo::new("e2e-cli-pr");
     let config = config_arg(&env.config_path);
@@ -126,14 +136,7 @@ fn pr_generation_produces_structured_title_and_body_across_backends() {
     for backend in &env.active_backends {
         let output = run_occ(
             &repo.path,
-            &[
-                "pr",
-                "--text",
-                "--backend",
-                backend,
-                config[0],
-                config[1],
-            ],
+            &["pr", "--text", "--backend", backend, config[0], config[1]],
             None,
         );
         assert!(
@@ -141,12 +144,14 @@ fn pr_generation_produces_structured_title_and_body_across_backends() {
             "pr failed for backend={backend}: {}",
             stderr(&output)
         );
-        assert_pr_shape(&stdout(&output));
+        let draft = stdout(&output);
+        assert_pr_shape(&draft);
+        append_response_log("occ", "artifacts_pr", "pr", backend, &draft);
     }
 }
 
 #[test]
-fn changelog_generation_produces_sections_across_backends() {
+fn artifacts_changelog_generation_produces_sections_across_backends() {
     let Some(env) = load_env() else { return };
     let repo = FixtureRepo::new("e2e-cli-changelog");
     let config = config_arg(&env.config_path);
@@ -169,7 +174,9 @@ fn changelog_generation_produces_sections_across_backends() {
             "changelog failed for backend={backend}: {}",
             stderr(&output)
         );
-        assert_changelog_shape(&stdout(&output));
+        let entry = stdout(&output);
+        assert_changelog_shape(&entry);
+        append_response_log("occ", "artifacts_changelog", "changelog", backend, &entry);
     }
 }
 
@@ -179,7 +186,11 @@ fn hook_install_and_uninstall_touch_the_repo_hook() {
     let repo = FixtureRepo::new("e2e-cli-hook");
 
     let install = run_occ(&repo.path, &["hook", "install"], None);
-    assert!(install.status.success(), "hook install failed: {}", stderr(&install));
+    assert!(
+        install.status.success(),
+        "hook install failed: {}",
+        stderr(&install)
+    );
     assert!(repo.hook_path().exists(), "hook should exist after install");
 
     let uninstall = run_occ(&repo.path, &["hook", "uninstall"], None);
@@ -188,7 +199,10 @@ fn hook_install_and_uninstall_touch_the_repo_hook() {
         "hook uninstall failed: {}",
         stderr(&uninstall)
     );
-    assert!(!repo.hook_path().exists(), "hook should be removed after uninstall");
+    assert!(
+        !repo.hook_path().exists(),
+        "hook should be removed after uninstall"
+    );
 }
 
 #[test]
@@ -199,17 +213,32 @@ fn scan_detects_blocking_secret_from_stdin() {
 
     let output = run_occ(
         &repo.path,
-        &["scan", "--stdin", "--format", "text", "--enforcement", "block-high"],
+        &[
+            "scan",
+            "--stdin",
+            "--format",
+            "text",
+            "--enforcement",
+            "block-high",
+        ],
         Some(diff),
     );
-    assert_eq!(output.status.code(), Some(2), "scan should block the secret");
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "scan should block the secret"
+    );
     assert!(stdout(&output).contains("AKIAIOSFODNN7EXAMPLE"));
 }
 
 #[test]
 fn unreachable_custom_endpoint_fails_cleanly() {
     let Some(env) = load_env() else { return };
-    if !env.active_backends.iter().any(|backend| backend == "custom-api") {
+    if !env
+        .active_backends
+        .iter()
+        .any(|backend| backend == "custom-api")
+    {
         return;
     }
 
