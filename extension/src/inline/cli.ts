@@ -2,12 +2,14 @@ import { type SpawnOptionsWithStdioTuple, spawn } from "node:child_process"
 import * as fs from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
+import { ensureMinimalCodexHome } from "./codex-home"
 import type { CliBackend, ExtensionConfig } from "./types"
 
 export interface CliInvocation {
   command: string
   args: string[]
   timeout: number
+  env?: Record<string, string>
 }
 
 export type InvocationOperation = "commit" | "branch" | "pr" | "changelog"
@@ -281,21 +283,30 @@ export function buildInvocation(
       const codexArgs = [
         "exec",
         "--ephemeral",
+        "--skip-git-repo-check",
         "-s",
         "read-only",
+        "--dangerously-bypass-approvals-and-sandbox",
+        "--disable",
+        "plugins",
+        "-c",
+        "mcp_servers={}",
         "-m",
         config.codexModel,
-        "--dangerously-bypass-approvals-and-sandbox",
       ]
       if (config.codexProvider) {
         codexArgs.push("-c", `model_provider="${config.codexProvider}"`)
       }
       codexArgs.push("-")
+      const env: Record<string, string> = {}
+      const minimalHome = ensureMinimalCodexHome()
+      if (minimalHome) env.CODEX_HOME = minimalHome
       return {
         invocation: {
           command: cliPath,
           args: codexArgs,
           timeout,
+          env,
         },
         stdin: prompt,
       }
@@ -360,12 +371,21 @@ export function execCli(
     let command = invocation.command
     let args = invocation.args
     if (isFlatpak()) {
-      args = ["--host", command, ...args]
+      const envFlags: string[] = []
+      if (invocation.env) {
+        for (const [key, value] of Object.entries(invocation.env)) {
+          envFlags.push(`--env=${key}=${value}`)
+        }
+      }
+      args = ["--host", ...envFlags, command, ...args]
       command = "flatpak-spawn"
     }
 
     const child = spawn(command, args, {
       stdio: [stdin ? "pipe" : "ignore", "pipe", "pipe"],
+      env: invocation.env
+        ? { ...process.env, ...invocation.env }
+        : process.env,
     })
 
     const MAX_OUTPUT = 1024 * 1024 // 1MB
