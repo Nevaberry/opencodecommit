@@ -5,5 +5,10 @@ out/test/
 out/**/*.d.ts
 node_modules/
 tsconfig.json
+tsconfig.wdio.json
+wdio.conf.ts
+wdio.conf.js
+wdio.conf.js.map
 bun.lock
 *.vsix
+opencodecommit-ui-e2e-extracted/

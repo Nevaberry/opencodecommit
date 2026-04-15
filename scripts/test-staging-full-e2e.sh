@@ -21,12 +21,19 @@ export OCC_E2E_CONFIG_PATH="$TMP_DIR/config.toml"
 export OPENCODECOMMIT_CONFIG="$OCC_E2E_CONFIG_PATH"
 occ_e2e_render_config staging "$OCC_E2E_CONFIG_PATH"
 
+run_extension_ui_suite() {
+  if [ "${OCC_E2E_EXTENSION_UI:-0}" = "1" ]; then
+    xvfb-run -a bash -c "cd extension && bun run test:e2e:extension:ui"
+  fi
+}
+
 case "$TARGET" in
   all)
     bun run build
     cargo test --test e2e_cli -- --nocapture
     cargo test --test e2e_tui -- --nocapture
     xvfb-run -a bun run test:e2e:extension
+    run_extension_ui_suite
     ;;
   cli)
     cargo test --test e2e_cli -- --nocapture
@@ -37,6 +44,7 @@ case "$TARGET" in
   extension)
     bun run build
     xvfb-run -a bun run test:e2e:extension
+    run_extension_ui_suite
     ;;
   *)
     echo "unknown target: $TARGET" >&2

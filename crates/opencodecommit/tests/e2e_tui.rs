@@ -1,11 +1,31 @@
 mod common;
 
+use std::io::Write;
 use std::process::Command;
 use std::time::Duration;
 
 use common::{FixtureRepo, TUI_BACKENDS, load_env, occ_bin};
 use expectrl::session::OsSession;
 use expectrl::{ControlCode, Eof, Expect, Regex, Session};
+
+fn watch_enabled() -> bool {
+    std::env::var_os("OCC_TUI_E2E_WATCH").is_some()
+}
+
+fn watch_step(label: &str) {
+    if !watch_enabled() {
+        return;
+    }
+    let stdout = std::io::stdout();
+    let mut handle = stdout.lock();
+    let _ = writeln!(handle);
+    let _ = writeln!(
+        handle,
+        "================ OCC_TUI_E2E_WATCH: {label} ================"
+    );
+    let _ = handle.flush();
+    std::thread::sleep(Duration::from_millis(300));
+}
 
 fn backend_label(backend: &str) -> &'static str {
     match backend {
@@ -87,10 +107,12 @@ fn tui_core_buttons_and_sidebar_work_in_a_real_pty() {
     let mut session = spawn_tui(&repo, &env.config_path, tui_expect_timeout(&env.mode));
     let single_backend = targeted_single_backend(&env.mode, &env.active_backends);
 
+    watch_step("launch TUI and wait for main screen");
     session.expect("OpenCodeCommit").unwrap();
     session.expect("1 Commit").unwrap();
     session.expect("7 PR").unwrap();
 
+    watch_step("sidebar: tab to files, select unstaged entry");
     for _ in 0..8 {
         session.send(ControlCode::HT).unwrap();
     }
@@ -98,32 +120,40 @@ fn tui_core_buttons_and_sidebar_work_in_a_real_pty() {
     session.send(" ").unwrap();
     session.expect(Regex("(Staged|Unstaged) .*\\.")).unwrap();
 
+    watch_step("commit: generate adaptive message");
     session.send("1").unwrap();
     session.expect("Generated commit message").unwrap();
     if !single_backend {
+        watch_step("commit: shorten message");
         session.send("s").unwrap();
         session.expect("Shortened commit message").unwrap();
     }
+    watch_step("commit: confirm commit");
     session.send("c").unwrap();
     session.expect("Committed:").unwrap();
 
+    watch_step("branch: generate and switch");
     session.send("2").unwrap();
     session.expect("BRANCH NAME PREVIEW").unwrap();
     session.send("c").unwrap();
     session.expect("Switched to new branch").unwrap();
 
+    watch_step("pr: generate preview");
     session.send("3").unwrap();
     session.expect("Generated PR preview").unwrap();
     if !single_backend {
+        watch_step("pr: copy to clipboard");
         session.send("p").unwrap();
         session
             .expect(Regex("PR copied to clipboard\\.|Clipboard copy failed"))
             .unwrap();
+        watch_step("pr: regenerate");
         session.send("r").unwrap();
         session.expect("Generated PR preview").unwrap();
     }
     session.send(ControlCode::ESC).unwrap();
 
+    watch_step("safety: install prepare-commit-msg hook");
     session.send("4").unwrap();
     session.expect("SAFETY SETTINGS").unwrap();
     session.send("i").unwrap();
@@ -131,6 +161,7 @@ fn tui_core_buttons_and_sidebar_work_in_a_real_pty() {
     session.send("y").unwrap();
     session.expect("installed prepare-commit-msg hook").unwrap();
 
+    watch_step("safety: uninstall hook");
     session.send("4").unwrap();
     session.expect("SAFETY SETTINGS").unwrap();
     session.send("u").unwrap();
@@ -140,11 +171,13 @@ fn tui_core_buttons_and_sidebar_work_in_a_real_pty() {
         .expect("uninstalled prepare-commit-msg hook")
         .unwrap();
 
+    watch_step("safety: apply human sensitive profile");
     session.send("4").unwrap();
     session.expect("SAFETY SETTINGS").unwrap();
     session.send("h").unwrap();
     session.expect("Applied human sensitive profile").unwrap();
 
+    watch_step("safety: apply strict-agent profile");
     session.send("4").unwrap();
     session.expect("SAFETY SETTINGS").unwrap();
     session.send("a").unwrap();
@@ -152,6 +185,7 @@ fn tui_core_buttons_and_sidebar_work_in_a_real_pty() {
         .expect("Applied strict-agent sensitive profile")
         .unwrap();
 
+    watch_step("quit");
     session.send("q").unwrap();
     session.expect(Eof).unwrap();
 }

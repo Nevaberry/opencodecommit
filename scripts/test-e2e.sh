@@ -128,6 +128,7 @@ prepare_target_requirements() {
     extension)
       occ_e2e_require_cmd bun
       occ_e2e_require_cmd node
+      occ_e2e_require_cmd unzip
       prepare_vscodium_wrapper
       ;;
     cli|tui)
@@ -137,6 +138,7 @@ prepare_target_requirements() {
       occ_e2e_require_cmd cargo
       occ_e2e_require_cmd bun
       occ_e2e_require_cmd node
+      occ_e2e_require_cmd unzip
       prepare_vscodium_wrapper
       ;;
   esac
@@ -292,11 +294,17 @@ run_extension_suite() {
   export OCC_E2E_WORK_ROOT=$RUN_ROOT/extension-host
   export OPENCODECOMMIT_CONFIG=$config_path
   occ_e2e_render_config_for_backends "$BACKENDS" "$config_path"
+  if [ "$MODE" = "staging" ]; then
+    export OCC_E2E_USE_PACKAGED_VSIX=1
+  fi
   run_step "build extension test bundle" bun run build
   if [ "$SUITE" = "artifacts" ]; then
     run_step "run extension artifact e2e via VSCodium" node extension/out/test/e2e/runTest.js
   else
     run_step "run extension e2e via VSCodium" node extension/out/test/e2e/runTest.js
+  fi
+  if [ "${OCC_E2E_EXTENSION_UI:-0}" = "1" ]; then
+    run_step "run extension ui e2e via WebdriverIO" bash -c "cd extension && bun run test:e2e:extension:ui"
   fi
 }
 

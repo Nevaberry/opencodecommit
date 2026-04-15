@@ -11,5 +11,5 @@
     "resolveJsonModule": true,
     "skipLibCheck": true
   },
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "wdio.conf.ts", "src/test/e2e/wdio/**/*"]
 }

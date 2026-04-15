@@ -41,6 +41,35 @@ function git(cwd: string, args: string[]) {
   })
 }
 
+interface PackagedVsix {
+  vsixPath: string
+  extractDir: string
+  extensionPath: string
+}
+
+async function buildAndExtractVsix(runRoot: string): Promise<PackagedVsix> {
+  const extensionDir = path.resolve(__dirname, "../../..")
+  const vsixPath = path.join(runRoot, "opencodecommit.vsix")
+  const extractDir = path.join(runRoot, "vsix-extracted")
+
+  await fs.mkdir(extractDir, { recursive: true })
+
+  execFileSync("bun", ["run", "build:vsix"], {
+    cwd: extensionDir,
+    stdio: "inherit",
+  })
+  execFileSync("bunx", ["@vscode/vsce", "package", "--out", vsixPath], {
+    cwd: extensionDir,
+    stdio: "inherit",
+  })
+  execFileSync("unzip", ["-q", "-o", vsixPath, "-d", extractDir], {
+    stdio: "inherit",
+  })
+
+  const extensionPath = path.join(extractDir, "extension")
+  return { vsixPath, extractDir, extensionPath }
+}
+
 function activeBackendsFor(mode: string): string[] {
   const configured = (process.env.OCC_E2E_ACTIVE_BACKENDS ?? "")
     .split(",")
@@ -213,7 +242,16 @@ async function main() {
     "utf8",
   )
 
-  const extensionDevelopmentPath = path.resolve(__dirname, "../../..")
+  const usePackagedVsix =
+    process.env.OCC_E2E_USE_PACKAGED_VSIX === "1" || mode === "staging"
+
+  let extensionDevelopmentPath = path.resolve(__dirname, "../../..")
+  let packaged: PackagedVsix | undefined
+  if (usePackagedVsix) {
+    packaged = await buildAndExtractVsix(root)
+    extensionDevelopmentPath = packaged.extensionPath
+  }
+
   const extensionTestsPath = path.resolve(__dirname, "./index.js")
 
   await runTests({
@@ -237,6 +275,12 @@ async function main() {
       OCC_E2E_WORKSPACE: workspacePath,
       OCC_E2E_CONFIG_PATH: configPath,
       OPENCODECOMMIT_CONFIG: configPath,
+      ...(packaged
+        ? {
+            OCC_E2E_VSIX_PATH: packaged.vsixPath,
+            OCC_E2E_VSIX_EXTRACT_DIR: packaged.extractDir,
+          }
+        : {}),
     },
     ...(vscodeExecutablePath ? { vscodeExecutablePath } : {}),
   })

@@ -12,6 +12,7 @@ occ_e2e_require_cmd cargo
 occ_e2e_require_cmd bun
 occ_e2e_require_cmd node
 occ_e2e_require_cmd curl
+occ_e2e_require_cmd unzip
 
 if [ "$PROFILE" = "dev-local" ]; then
   occ_e2e_require_cmd "${OCC_E2E_LLAMA_BIN:-llama-server}"

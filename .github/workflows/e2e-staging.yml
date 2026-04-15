@@ -68,6 +68,8 @@ jobs:
       OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
       OCC_E2E_LLAMA_MODEL_REPO: unsloth/Qwen3.5-2B-GGUF
       OCC_E2E_LLAMA_MODEL_QUANT: Q4_K_M
+      OCC_E2E_USE_PACKAGED_VSIX: "1"
+      OCC_E2E_EXTENSION_UI: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable

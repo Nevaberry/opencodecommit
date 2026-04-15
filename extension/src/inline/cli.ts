@@ -381,6 +381,24 @@ export function execCli(
       command = "flatpak-spawn"
     }
 
+    const spawnEnvPath = process.env.OCC_E2E_LAST_SPAWN_ENV_PATH
+    if (spawnEnvPath) {
+      try {
+        fs.writeFileSync(
+          spawnEnvPath,
+          JSON.stringify({
+            command,
+            args,
+            env: invocation.env ?? {},
+            originalCommand: invocation.command,
+            originalArgs: invocation.args,
+          }),
+        )
+      } catch {
+        // best-effort capture — never break production flow
+      }
+    }
+
     const child = spawn(command, args, {
       stdio: [stdin ? "pipe" : "ignore", "pipe", "pipe"],
       env: invocation.env
