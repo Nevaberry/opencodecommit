@@ -41,6 +41,7 @@ interface ConfigState {
   unwatch?: () => void
   initialized: boolean
   cachedConfig?: ExtensionConfig
+  extensionPath?: string
 }
 
 const CONFIG_ENV = "OPENCODECOMMIT_CONFIG"
@@ -59,6 +60,9 @@ function getSandboxKind(): ConfigDetails["sandbox"] {
 }
 
 function manifestPath(): string {
+  if (state.extensionPath) {
+    return path.join(state.extensionPath, "package.json")
+  }
   return path.resolve(__dirname, "../../package.json")
 }
 
@@ -495,6 +499,7 @@ export async function initializeConfig(
   if (state.initialized) return
 
   state.log = logger ?? (() => {})
+  state.extensionPath = context.extensionPath
 
   try {
     await loadConfigFromToml(true)

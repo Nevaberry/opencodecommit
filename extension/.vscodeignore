@@ -1,7 +1,9 @@
 .vscode/
 src/
-out/**/*.map
+out/inline/
+out/test/
 out/**/*.d.ts
 node_modules/
 tsconfig.json
+bun.lock
 *.vsix

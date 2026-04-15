@@ -113,6 +113,12 @@ if [[ "$LAUNCH_ONLY" != true ]]; then
     cd -- "${WORKTREE_PATH}/extension"
     bun install
     bunx tsc -p ./
+    bun build src/extension.ts \
+      --outdir out \
+      --target node \
+      --format cjs \
+      --external vscode \
+      --sourcemap=linked
     bunx @vscode/vsce package
   )
 
