@@ -2,90 +2,57 @@
 
 ## What is this
 
-OpenCodeCommit (`occ`) is an AI-powered git commit message, branch name, PR, and changelog generator. It ships as three interfaces: a Rust CLI/TUI and a VS Code extension (TypeScript). All three share a unified config (`~/.config/opencodecommit/config.toml`) and security scanner.
+OpenCodeCommit (`occ`) -- AI-powered git commit, branch, PR, and changelog generator. Ships as a **Rust CLI/TUI** and a **VS Code extension (TypeScript)**.
 
-## Build & Test Commands
+## CRITICAL: Dual implementation -- keep Rust and TypeScript in sync
 
-### Rust
+The extension (`extension/src/inline/`) mirrors the Rust library. **Every change to prompts, config schema, security patterns, language templates, or core logic must be applied to both Rust and TypeScript.** Also update both `package.json` files (root and `extension/`). Forgetting one side is the #1 source of bugs in this repo.
 
-```sh
-cargo build                          # debug build
-cargo test --workspace               # all Rust tests (unit + integration)
-cargo test -p opencodecommit <name>  # single test by name
-cargo fmt && cargo clippy            # format + lint
-cargo run --bin occ -- tui           # run TUI from source
-cargo run --bin occ -- commit --dry-run --text  # test CLI without committing
-```
+Mapping: `languages.rs` <-> `package.json` language defaults, `config.rs` <-> `config-schema.ts`, `sensitive.rs` <-> `sensitive.ts`, `prompt.rs` <-> `generator.ts`, `context.rs` <-> `context.ts`, `backend.rs` <-> `backends.ts`, `api/` <-> `api.ts`.
 
-Rust edition 2024, MSRV 1.94.
-
-### TypeScript (extension)
+## Build & test
 
 ```sh
-bun install && cd extension && bun install  # first-time setup
-bun run build                               # compile extension
-bun run watch                               # watch mode
-bunx tsc -p extension/tsconfig.json --noEmit  # type check only
-bun test extension/src/test/                 # unit tests
-bun run lint                                 # biome check
-bun run lint:fix                             # biome autofix
-```
+# Rust
+cargo build && cargo test --workspace        # build + all tests
+cargo fmt && cargo clippy                     # format + lint
+cargo run --bin occ -- tui                    # run TUI
+cargo run --bin occ -- commit --dry-run --text
 
-### Full CI equivalent
+# TypeScript (extension)
+bun install && cd extension && bun install    # first-time
+bun run build                                 # compile
+bunx tsc -p extension/tsconfig.json --noEmit  # type check
+bun test extension/src/test/                  # unit tests
+bun run lint                                  # biome check
 
-```sh
+# E2E
+scripts/test-e2e.sh --target cli|tui|extension
+
+# CI equivalent
 cargo test --workspace
 bunx tsc -p extension/tsconfig.json --noEmit
 bun test extension/src/test/inline.test.ts extension/src/test/config.test.ts extension/src/test/api.test.ts
 ```
 
-### E2E
-
-```sh
-scripts/test-e2e.sh --target cli      # CLI E2E (uses expectrl)
-scripts/test-e2e.sh --target tui      # TUI E2E
-scripts/test-e2e.sh --target extension # extension E2E (WebdriverIO)
-scripts/dev-cli.sh tui                 # run TUI from worktree
-scripts/dev-cli.sh -w dev commit --dry-run --text  # run CLI from specific worktree
-```
-
-### Version & Publish
-
-```sh
-scripts/sync-version.sh 1.7.0   # set version across all manifests
-scripts/publish.sh --all         # extension + npm + crates.io
-```
 
 ## Architecture
 
 ```
-Entry points: CLI (main.rs) | TUI (tui.rs) | VS Code Extension (extension.ts)
-                              ↓
-              Core library (crates/opencodecommit/src/lib.rs)
-              ├── context.rs    — gather diff + commits + branch + file list
-              ├── sensitive.rs  — 60+ regex security patterns, runs before any diff leaves the machine
-              ├── prompt.rs     — build AI prompts from context
-              ├── dispatch.rs   — route to chosen backend
-              ├── backend.rs    — detect & invoke CLI backends (opencode, claude, codex, gemini)
-              ├── api/          — direct API calls (OpenAI, Anthropic, Google, Ollama, OpenRouter, custom)
-              ├── response.rs   — parse AI output into structured commit/branch/PR
-              ├── config.rs     — config.toml loading, defaults, schema
-              ├── languages.rs  — 11 language prompt templates
-              ├── git.rs        — git operations (diff, log, commit, branch)
-              └── scan.rs       — standalone `occ scan` for CI
+Rust — crates/opencodecommit/src/
+  main.rs (CLI), tui.rs (TUI), lib.rs
+  core: config, languages, prompt, context, sensitive, scan,
+        dispatch, backend, api/, response, git, actions,
+        guard, update, codex_home
+
+TypeScript — extension/src/
+  extension.ts (VS Code entry)
+  inline/  mirrors Rust core (see mapping above)
+  other:   cli.ts, pr.ts, changelog.ts, host-io.ts, types.ts
 ```
 
-The extension (`extension/src/inline/`) mirrors the Rust library modules: `config.ts`, `sensitive.ts`, `context.ts`, `generator.ts`, `cli.ts`, `api.ts`, `backends.ts`. Changes to core logic (prompts, security patterns, config schema) typically need updates in both Rust and TypeScript.
+## Key rules
 
-## Key Design Decisions
-
-- **Security scanning always runs before sending diffs to AI.** The `sensitive.rs` / `sensitive.ts` modules contain 60+ regex patterns for secrets. Enforcement is configurable (warn/block/strict) but the scan itself is not skippable in normal flows.
-- **Backend fallback chains.** Users configure `backend-order` in config.toml; if the first backend fails, the next is tried. Both CLI backends (spawning `opencode`, `claude`, etc.) and API backends (direct HTTP) are supported.
-- **Dual implementation.** The extension runs its own TypeScript implementation for inline mode (direct API calls) but can also shell out to the Rust CLI. Keep both implementations in sync.
-- **Config is bidirectionally synced** between `config.toml` and VS Code `settings.json` under the `opencodecommit.*` namespace.
-
-## Style
-
-- **Rust:** standard `cargo fmt` style
-- **TypeScript:** Biome — 2-space indent, no semicolons, organized imports
-- Commit messages follow Conventional Commits (`feat(scope)`, `fix(scope)`, `refactor(scope)`, etc.)
+- Security scanning always runs before sending diffs to AI (sensitive.rs / sensitive.ts, 60+ regex patterns, not skippable)
+- Backend fallback chains: `backend-order` in config.toml, CLI backends + direct API backends
+- Config bidirectionally synced between `config.toml` and VS Code `settings.json` (`opencodecommit.*` namespace)
