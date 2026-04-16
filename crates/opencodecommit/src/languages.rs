@@ -224,7 +224,8 @@ Choose the type that best matches the actual changes:
 - security: security fixes, vulnerability patches, auth hardening
 - revert: reverting previous changes
 - chore: build process, dependencies, tooling (only if nothing else fits)
-Scope: derive from the primary area affected (optional, omit if unclear).
+Scope: always include. Derive from the primary area affected (module, component, directory, or subsystem).
+Examples: feat(auth): add OAuth2 login flow | fix(parser): handle empty input gracefully | docs(api): update endpoint examples
 Use imperative mood. No period at end. Lowercase after colon.";
 
 const EN_MULTILINE_LENGTH: &str = "\
@@ -284,7 +285,8 @@ Valitse tyyppi, joka parhaiten vastaa varsinaisia muutoksia:
 - security: tietoturvakorjaukset, haavoittuvuuspaikkaukset, autentikoinnin vahvistaminen
 - revert: aiempien muutosten peruuttaminen
 - chore: rakennusprosessi, riippuvuudet, työkalut (vain jos mikään muu ei sovi)
-Laajuus: johda ensisijaisesta vaikutusalueesta (valinnainen, jätä pois jos epäselvä).
+Laajuus: sisällytä aina. Johda ensisijaisesta vaikutusalueesta (moduuli, komponentti, hakemisto tai alijärjestelmä).
+Esimerkit: feat(auth): lisää OAuth2-kirjautuminen | fix(parser): käsittele tyhjä syöte oikein | docs(api): päivitä rajapintaesimerkit
 Käytä imperatiivimuotoa. Ei pistettä loppuun. Pieni alkukirjain kaksoispisteen jälkeen.";
 
 const FI_MULTILINE_LENGTH: &str = "\
@@ -342,7 +344,8 @@ conventional commit 形式を使ってください: type(scope): description
 - security: セキュリティ修正、脆弱性対応、認証強化
 - revert: 以前の変更の取り消し
 - chore: ビルド、依存関係、ツール関連（ほかに合う type がない場合のみ）
-scope: 主に影響する領域から導出してください（任意。不明なら省略）。
+scope: 必ず含めてください。主に影響する領域（モジュール、コンポーネント、ディレクトリ、サブシステム）から導出してください。
+例: feat(auth): OAuth2ログインフローを追加 | fix(parser): 空入力を適切に処理 | docs(api): エンドポイント例を更新
 命令形を使ってください。文末に句点は付けないでください。コロンの後を英字で始める場合は小文字にしてください。";
 
 const JA_MULTILINE_LENGTH: &str = "\
@@ -400,7 +403,8 @@ const ZH_CONVENTIONAL_FORMAT: &str = "\
 - security: 安全修复、漏洞补丁、认证加固
 - revert: 回退之前的改动
 - chore: 构建流程、依赖、工具相关（仅在其他 type 都不合适时使用）
-scope：从主要受影响的区域推导（可选，不明确时可省略）。
+scope：必须包含。从主要受影响的区域推导（模块、组件、目录或子系统）。
+示例：feat(auth): 添加 OAuth2 登录流程 | fix(parser): 正确处理空输入 | docs(api): 更新接口示例
 使用祈使语气。结尾不要加句号。如果冒号后以英文开头，请使用小写。";
 
 const ZH_MULTILINE_LENGTH: &str = "\
@@ -458,7 +462,8 @@ Elige el tipo que mejor encaje con los cambios reales:
 - security: correcciones de seguridad, parches de vulnerabilidades, refuerzo de autenticación
 - revert: revertir cambios anteriores
 - chore: build, dependencias, herramientas (solo si nada más encaja)
-Scope: dedúcelo a partir del área principal afectada (opcional, omítelo si no está claro).
+Scope: inclúyelo siempre. Dedúcelo del área principal afectada (módulo, componente, directorio o subsistema).
+Ejemplos: feat(auth): añadir flujo de inicio de sesión OAuth2 | fix(parser): manejar entrada vacía correctamente | docs(api): actualizar ejemplos de endpoints
 Usa modo imperativo. Sin punto final. Si empiezas en inglés después de los dos puntos, usa minúscula.";
 
 const ES_MULTILINE_LENGTH: &str = "\
@@ -516,7 +521,8 @@ Escolha o tipo que melhor corresponde às mudanças reais:
 - security: correções de segurança, patches de vulnerabilidades, reforço de autenticação
 - revert: reverter alterações anteriores
 - chore: build, dependências, ferramentas (somente se nada mais se encaixar)
-Scope: derive da principal área afetada (opcional, omita se não estiver claro).
+Scope: inclua sempre. Derive da principal área afetada (módulo, componente, diretório ou subsistema).
+Exemplos: feat(auth): adicionar fluxo de login OAuth2 | fix(parser): tratar entrada vazia corretamente | docs(api): atualizar exemplos de endpoints
 Use o modo imperativo. Sem ponto final. Se começar em inglês após os dois-pontos, use minúscula.";
 
 const PT_MULTILINE_LENGTH: &str = "\
@@ -574,7 +580,8 @@ Choisis le type qui correspond le mieux aux changements réels :
 - security: correctifs de sécurité, patchs de vulnérabilités, renforcement de l’authentification
 - revert: annulation de changements précédents
 - chore: build, dépendances, outillage (uniquement si rien d’autre ne convient)
-Scope: déduis-le de la zone principale touchée (optionnel, omets-le si ce n’est pas clair).
+Scope: inclus-le toujours. Déduis-le de la zone principale touchée (module, composant, répertoire ou sous-système).
+Exemples : feat(auth): ajouter le flux de connexion OAuth2 | fix(parser): gérer correctement une entrée vide | docs(api): mettre à jour les exemples d’endpoints
 Utilise l’impératif. Pas de point final. Si tu commences en anglais après les deux-points, mets en minuscule.";
 
 const FR_MULTILINE_LENGTH: &str = "\
@@ -632,7 +639,8 @@ conventional commit 형식을 사용하세요: type(scope): description
 - security: 보안 수정, 취약점 패치, 인증 강화
 - revert: 이전 변경 되돌리기
 - chore: 빌드, 의존성, 도구 작업(다른 type이 맞지 않을 때만)
-Scope: 주로 영향을 받는 영역에서 도출하세요(선택 사항, 불명확하면 생략).
+Scope: 항상 포함하세요. 주로 영향을 받는 영역(모듈, 컴포넌트, 디렉터리, 서브시스템)에서 도출하세요.
+예시: feat(auth): OAuth2 로그인 흐름 추가 | fix(parser): 빈 입력 올바르게 처리 | docs(api): 엔드포인트 예시 업데이트
 명령형을 사용하세요. 끝에 마침표를 붙이지 마세요. 콜론 뒤를 영어로 시작하면 소문자를 사용하세요.";
 
 const KO_MULTILINE_LENGTH: &str = "\
@@ -690,7 +698,8 @@ const RU_CONVENTIONAL_FORMAT: &str = "\
 - security: исправления безопасности, патчи уязвимостей, усиление аутентификации
 - revert: откат предыдущих изменений
 - chore: сборка, зависимости, инструменты (только если ничего другого не подходит)
-Scope: выведи из основной затронутой области (необязательно, пропусти, если неясно).
+Scope: указывай всегда. Выведи из основной затронутой области (модуль, компонент, каталог или подсистема).
+Примеры: feat(auth): добавить поток входа через OAuth2 | fix(parser): корректно обработать пустой ввод | docs(api): обновить примеры эндпоинтов
 Используй повелительное наклонение. Без точки в конце. Если после двоеточия начинаешь по-английски, используй строчную букву.";
 
 const RU_MULTILINE_LENGTH: &str = "\
@@ -748,7 +757,8 @@ Chọn type phù hợp nhất với thay đổi thực tế:
 - security: sửa lỗi bảo mật, vá lỗ hổng, tăng cường xác thực
 - revert: hoàn tác thay đổi trước đó
 - chore: build, dependency, công cụ (chỉ dùng khi không type nào khác phù hợp)
-Scope: suy ra từ khu vực chính bị ảnh hưởng (không bắt buộc, bỏ qua nếu không rõ).
+Scope: luôn bao gồm. Suy ra từ khu vực chính bị ảnh hưởng (module, component, thư mục hoặc hệ thống con).
+Ví dụ: feat(auth): thêm luồng đăng nhập OAuth2 | fix(parser): xử lý đầu vào rỗng đúng cách | docs(api): cập nhật ví dụ endpoint
 Dùng câu mệnh lệnh. Không chấm câu ở cuối. Nếu bắt đầu bằng tiếng Anh sau dấu hai chấm, hãy dùng chữ thường.";
 
 const VI_MULTILINE_LENGTH: &str = "\
@@ -806,7 +816,8 @@ Wähle den Typ, der am besten zu den tatsächlichen Änderungen passt:
 - security: Sicherheitsfixes, Patches für Schwachstellen, härtere Authentifizierung
 - revert: frühere Änderungen zurücknehmen
 - chore: Build-Prozess, Abhängigkeiten, Tooling (nur wenn nichts anderes passt)
-Scope: leite ihn aus dem primär betroffenen Bereich ab (optional, weglassen wenn unklar).
+Scope: immer angeben. Leite ihn aus dem primär betroffenen Bereich ab (Modul, Komponente, Verzeichnis oder Subsystem).
+Beispiele: feat(auth): OAuth2-Login-Flow hinzufügen | fix(parser): leere Eingabe korrekt behandeln | docs(api): Endpoint-Beispiele aktualisieren
 Verwende den Imperativ. Kein Punkt am Ende. Wenn du nach dem Doppelpunkt mit Englisch beginnst, verwende Kleinschreibung.";
 
 const DE_MULTILINE_LENGTH: &str = "\
