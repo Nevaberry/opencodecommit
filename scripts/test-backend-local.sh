@@ -8,9 +8,10 @@ usage() {
 Usage: scripts/test-backend-local.sh [-b BACKEND] [-a] [-l LOG_FILE]
 
 Run the OpenCodeCommit e2e suite against a CLI backend on this laptop,
-using your locally authenticated CLI (e.g. Codex CLI OAuth). Wraps
-scripts/test-e2e.sh and turns on the packaged-VSIX mocha path plus the
-new visible WebdriverIO UI suite so both extension paths are covered.
+using your locally authenticated CLI (e.g. Codex CLI OAuth). Thin wrapper
+around scripts/test-e2e.sh — loads the extension from source so the full
+mocha suite (including sinon-stubbed command flows) runs as it does in
+normal dev.
 
 Options:
   -b BACKEND   Backend name (default: codex)
@@ -51,9 +52,6 @@ while [ $# -gt 0 ]; do
       ;;
   esac
 done
-
-export OCC_E2E_USE_PACKAGED_VSIX=1
-export OCC_E2E_EXTENSION_UI=1
 
 args=(-b "$BACKEND" -t "$TARGET")
 if [ -n "$LOG_FILE" ]; then
