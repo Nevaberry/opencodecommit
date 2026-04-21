@@ -2,7 +2,7 @@
   "name": "opencodecommit",
   "displayName": "OpenCodeCommit",
   "description": "AI commit messages via CLI backends and direct provider APIs for local use and CI/CD",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "publisher": "Nevaberry",
   "license": "MIT",
   "repository": {
@@ -1330,6 +1330,9 @@
     "typescript": "^5.9.0",
     "wdio-vscode-service": "^6.0.0",
     "webdriverio": "^9.0.0"
+  },
+  "overrides": {
+    "bare-url": "2.4.0"
   },
   "dependencies": {
     "@iarna/toml": "^2.2.5"

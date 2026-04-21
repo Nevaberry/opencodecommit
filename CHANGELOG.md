@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.6.2
+
+- Conventional commit prompts now require `type(scope): description` across
+  all built-in languages, so generated messages stay scoped and consistent.
+- Staging validation now runs the extension E2E suite against a packaged VSIX,
+  which catches packaging regressions before publish.
+- Added local QA helpers for backend-local E2E and visible TUI walkthroughs to
+  tighten the final release gate before publishing.
+
 ## 1.6.0
 
 - **Codex backend ~80 % faster via isolated `CODEX_HOME`.** Every `codex exec`
