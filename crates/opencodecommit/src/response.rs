@@ -343,10 +343,47 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
 
+    #[derive(Debug, serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct CommitFormattingScenario {
+        name: String,
+        response: String,
+        config: Option<CommitFormattingConfig>,
+        expected_parsed: Option<ExpectedParsedCommit>,
+        expected: String,
+    }
+
+    #[derive(Debug, Default, serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct CommitFormattingConfig {
+        commit_template: Option<String>,
+        use_lower_case: Option<bool>,
+        use_emojis: Option<bool>,
+        emojis: Option<HashMap<String, String>>,
+    }
+
+    #[derive(Debug, serde::Deserialize)]
+    struct ExpectedParsedCommit {
+        #[serde(rename = "type")]
+        type_name: String,
+        scope: Option<String>,
+        message: String,
+        description: Option<String>,
+    }
+
     fn make_config(overrides: impl FnOnce(&mut Config)) -> Config {
         let mut cfg = Config::default();
         overrides(&mut cfg);
         cfg
+    }
+
+    fn load_shared_commit_formatting_scenarios() -> Vec<CommitFormattingScenario> {
+        let path = format!(
+            "{}/../../test-fixtures/commit-formatting.json",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let content = std::fs::read_to_string(path).unwrap();
+        serde_json::from_str(&content).unwrap()
     }
 
     // --- sanitizeResponse tests (ported from TS) ---
@@ -538,6 +575,43 @@ mod tests {
     }
 
     // --- formatCommitMessage tests (ported from TS) ---
+
+    #[test]
+    fn shared_commit_formatting_scenarios_match_rust() {
+        for scenario in load_shared_commit_formatting_scenarios() {
+            let parsed = parse_response(&scenario.response);
+
+            if let Some(expected) = scenario.expected_parsed {
+                assert_eq!(parsed.type_name, expected.type_name, "{}", scenario.name);
+                assert_eq!(parsed.scope, expected.scope, "{}", scenario.name);
+                assert_eq!(parsed.message, expected.message, "{}", scenario.name);
+                assert_eq!(
+                    parsed.description, expected.description,
+                    "{}",
+                    scenario.name
+                );
+            }
+
+            let config = make_config(|cfg| {
+                if let Some(fixture_config) = scenario.config {
+                    if let Some(template) = fixture_config.commit_template {
+                        cfg.commit_template = template;
+                    }
+                    if let Some(use_lower_case) = fixture_config.use_lower_case {
+                        cfg.use_lower_case = use_lower_case;
+                    }
+                    if let Some(use_emojis) = fixture_config.use_emojis {
+                        cfg.use_emojis = use_emojis;
+                    }
+                    if let Some(emojis) = fixture_config.emojis {
+                        cfg.custom.emojis = emojis;
+                    }
+                }
+            });
+            let result = format_commit_message(&parsed, &config);
+            assert_eq!(result, scenario.expected, "{}", scenario.name);
+        }
+    }
 
     #[test]
     fn format_default_template() {

@@ -1,0 +1,131 @@
+[
+  {
+    "name": "formats unscoped conventional response with scoped default template",
+    "response": "feat: Add login flow",
+    "config": {
+      "commitTemplate": "{{type}}({{scope}}): {{message}}",
+      "useLowerCase": true,
+      "useEmojis": false,
+      "emojis": {}
+    },
+    "expectedParsed": {
+      "type": "feat",
+      "message": "Add login flow"
+    },
+    "expected": "feat: add login flow"
+  },
+  {
+    "name": "preserves scope in conventional response",
+    "response": "fix(extension): Handle missing repository path",
+    "config": {
+      "commitTemplate": "{{type}}({{scope}}): {{message}}",
+      "useLowerCase": true,
+      "useEmojis": false,
+      "emojis": {}
+    },
+    "expectedParsed": {
+      "type": "fix",
+      "scope": "extension",
+      "message": "Handle missing repository path"
+    },
+    "expected": "fix(extension): handle missing repository path"
+  },
+  {
+    "name": "preserves model scope with legacy template",
+    "response": "fix(auth): handle expired token",
+    "config": {
+      "commitTemplate": "{{type}}: {{message}}",
+      "useLowerCase": true,
+      "useEmojis": false,
+      "emojis": {}
+    },
+    "expectedParsed": {
+      "type": "fix",
+      "scope": "auth",
+      "message": "handle expired token"
+    },
+    "expected": "fix(auth): handle expired token"
+  },
+  {
+    "name": "preserves case when lowercase is disabled",
+    "response": "feat(cli): Add dry run output",
+    "config": {
+      "commitTemplate": "{{type}}({{scope}}): {{message}}",
+      "useLowerCase": false,
+      "useEmojis": false,
+      "emojis": {}
+    },
+    "expectedParsed": {
+      "type": "feat",
+      "scope": "cli",
+      "message": "Add dry run output"
+    },
+    "expected": "feat(cli): Add dry run output"
+  },
+  {
+    "name": "appends multiline description",
+    "response": "feat(cli): Update output\n\n- add text mode\n- remove duplicate status line",
+    "config": {
+      "commitTemplate": "{{type}}({{scope}}): {{message}}",
+      "useLowerCase": true,
+      "useEmojis": false,
+      "emojis": {}
+    },
+    "expectedParsed": {
+      "type": "feat",
+      "scope": "cli",
+      "message": "Update output",
+      "description": "- add text mode\n- remove duplicate status line"
+    },
+    "expected": "feat(cli): update output\n\n- add text mode\n- remove duplicate status line"
+  },
+  {
+    "name": "uses custom emoji placeholder with scope",
+    "response": "feat(api): add endpoint",
+    "config": {
+      "commitTemplate": "{{emoji}} {{type}}({{scope}}): {{message}}",
+      "useLowerCase": true,
+      "useEmojis": true,
+      "emojis": {
+        "feat": "!"
+      }
+    },
+    "expectedParsed": {
+      "type": "feat",
+      "scope": "api",
+      "message": "add endpoint"
+    },
+    "expected": "! feat(api): add endpoint"
+  },
+  {
+    "name": "parses security type with scope",
+    "response": "security(auth): rotate leaked token",
+    "config": {
+      "commitTemplate": "{{type}}({{scope}}): {{message}}",
+      "useLowerCase": true,
+      "useEmojis": false,
+      "emojis": {}
+    },
+    "expectedParsed": {
+      "type": "security",
+      "scope": "auth",
+      "message": "rotate leaked token"
+    },
+    "expected": "security(auth): rotate leaked token"
+  },
+  {
+    "name": "infers docs type for unstructured response",
+    "response": "update README with config examples",
+    "config": {
+      "commitTemplate": "{{type}}({{scope}}): {{message}}",
+      "useLowerCase": true,
+      "useEmojis": false,
+      "emojis": {}
+    },
+    "expectedParsed": {
+      "type": "docs",
+      "message": "update README with config examples"
+    },
+    "expected": "docs: update README with config examples"
+  }
+]

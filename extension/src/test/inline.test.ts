@@ -48,6 +48,24 @@ interface SharedScenario {
   expectedFindings: SharedScenarioFinding[]
 }
 
+interface SharedCommitFormattingScenario {
+  name: string
+  response: string
+  config?: {
+    commitTemplate?: string
+    useLowerCase?: boolean
+    useEmojis?: boolean
+    emojis?: Record<string, string>
+  }
+  expectedParsed?: {
+    type: string
+    scope?: string
+    message: string
+    description?: string
+  }
+  expected: string
+}
+
 function makeSensitiveReport(
   findings: SensitiveFinding[] = [],
   overrides: Partial<SensitiveReport> = {},
@@ -73,6 +91,16 @@ function loadSharedScenarios(): SharedScenario[] {
   return JSON.parse(
     fs.readFileSync(fixturePath, "utf8"),
   ) as SharedScenario[]
+}
+
+function loadSharedCommitFormattingScenarios(): SharedCommitFormattingScenario[] {
+  const fixturePath = path.resolve(
+    __dirname,
+    "../../../test-fixtures/commit-formatting.json",
+  )
+  return JSON.parse(
+    fs.readFileSync(fixturePath, "utf8"),
+  ) as SharedCommitFormattingScenario[]
 }
 
 function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
@@ -557,6 +585,44 @@ describe("parseResponse", () => {
 // --- formatCommitMessage ---
 
 describe("formatCommitMessage", () => {
+  it("matches the shared commit formatting scenarios", () => {
+    for (const scenario of loadSharedCommitFormattingScenarios()) {
+      const parsed = parseResponse(scenario.response)
+
+      if (scenario.expectedParsed) {
+        const actualParsed = {
+          type: parsed.type,
+          ...(parsed.scope !== undefined ? { scope: parsed.scope } : {}),
+          message: parsed.message,
+          ...(parsed.description !== undefined
+            ? { description: parsed.description }
+            : {}),
+        }
+        assert.deepStrictEqual(
+          actualParsed,
+          scenario.expectedParsed,
+          scenario.name,
+        )
+      }
+
+      const config = makeConfig()
+      if (scenario.config?.commitTemplate !== undefined) {
+        config.commitTemplate = scenario.config.commitTemplate
+      }
+      if (scenario.config?.useLowerCase !== undefined) {
+        config.useLowerCase = scenario.config.useLowerCase
+      }
+      if (scenario.config?.useEmojis !== undefined) {
+        config.useEmojis = scenario.config.useEmojis
+      }
+      if (scenario.config?.emojis !== undefined) {
+        config.custom.emojis = scenario.config.emojis
+      }
+      const result = formatCommitMessage(parsed, config)
+      assert.strictEqual(result, scenario.expected, scenario.name)
+    }
+  })
+
   it("applies default template", () => {
     const config = makeConfig()
     const result = formatCommitMessage(

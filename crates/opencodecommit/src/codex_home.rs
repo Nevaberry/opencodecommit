@@ -60,7 +60,11 @@ fn resolve_cache_dir(home: &Path) -> Option<PathBuf> {
             return Some(xdg.join("opencodecommit").join("codex-home"));
         }
     }
-    Some(home.join(".cache").join("opencodecommit").join("codex-home"))
+    Some(
+        home.join(".cache")
+            .join("opencodecommit")
+            .join("codex-home"),
+    )
 }
 
 /// Testable inner: set up a minimal codex home under `target_root` using
@@ -188,7 +192,10 @@ mod tests {
 
         let link = dirs.target().join("auth.json");
         let metadata = std::fs::symlink_metadata(&link).expect("link exists");
-        assert!(metadata.file_type().is_symlink(), "auth.json must be a symlink");
+        assert!(
+            metadata.file_type().is_symlink(),
+            "auth.json must be a symlink"
+        );
         let resolved = std::fs::read_link(&link).expect("readlink");
         assert_eq!(resolved, dirs.home().join(".codex").join("auth.json"));
 
@@ -235,7 +242,9 @@ mod tests {
         let home = PathBuf::from("/home/testuser");
         assert_eq!(
             resolve_cache_dir(&home),
-            Some(PathBuf::from("/explicit/xdg/cache/opencodecommit/codex-home"))
+            Some(PathBuf::from(
+                "/explicit/xdg/cache/opencodecommit/codex-home"
+            ))
         );
 
         unsafe {
@@ -255,7 +264,9 @@ mod tests {
         let home = PathBuf::from("/home/testuser");
         assert_eq!(
             resolve_cache_dir(&home),
-            Some(PathBuf::from("/home/testuser/.cache/opencodecommit/codex-home"))
+            Some(PathBuf::from(
+                "/home/testuser/.cache/opencodecommit/codex-home"
+            ))
         );
         unsafe {
             if let Some(val) = prev {

@@ -292,10 +292,7 @@ pub fn build_invocation_for(
 /// `~/.codex`), matching pre-1.6 behaviour.
 fn codex_env() -> Vec<(String, String)> {
     match codex_home::ensure_minimal_codex_home() {
-        Some(path) => vec![(
-            "CODEX_HOME".to_owned(),
-            path.to_string_lossy().into_owned(),
-        )],
+        Some(path) => vec![("CODEX_HOME".to_owned(), path.to_string_lossy().into_owned())],
         None => vec![],
     }
 }
@@ -474,12 +471,7 @@ pub fn strip_ansi(text: &str) -> String {
 pub fn exec_cli_with_timeout(invocation: &Invocation, timeout_secs: u64) -> Result<String> {
     let mut cmd = Command::new(&invocation.command);
     cmd.args(&invocation.args);
-    cmd.envs(
-        invocation
-            .env
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str())),
-    );
+    cmd.envs(invocation.env.iter().map(|(k, v)| (k.as_str(), v.as_str())));
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
 
@@ -587,7 +579,10 @@ mod tests {
             .iter()
             .position(|a| a == "--variant")
             .expect("--variant present");
-        assert_eq!(inv.args.get(variant_idx + 1).map(String::as_str), Some("minimal"));
+        assert_eq!(
+            inv.args.get(variant_idx + 1).map(String::as_str),
+            Some("minimal")
+        );
         assert!(inv.args.contains(&"-m".to_owned()));
         assert!(inv.args.contains(&"openai/gpt-5.4-mini".to_owned()));
         // Prompt must be the final positional arg (opencode reads it from argv).
