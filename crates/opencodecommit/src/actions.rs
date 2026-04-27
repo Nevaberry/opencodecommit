@@ -839,6 +839,7 @@ mod tests {
 
         with_repo(&repo, || {
             let cfg = Config {
+                backend: Backend::Opencode,
                 cli_path: "/no/such/opencode".to_owned(),
                 ..Config::default()
             };

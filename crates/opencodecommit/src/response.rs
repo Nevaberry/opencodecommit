@@ -6,13 +6,14 @@ use crate::config::{Config, DEFAULT_EMOJIS};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedCommit {
     pub type_name: String,
+    pub scope: Option<String>,
     pub message: String,
     pub description: Option<String>,
 }
 
 static TYPE_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| {
     regex::Regex::new(
-        r"^(feat|fix|docs|style|refactor|test|chore|perf|security|revert)(\(.*?\))?:\s*(.+)",
+        r"^(feat|fix|docs|style|refactor|test|chore|perf|security|revert)(?:\(([^)]+)\))?:\s*(.+)",
     )
     .unwrap()
 });
@@ -73,6 +74,7 @@ pub fn parse_response(response: &str) -> ParsedCommit {
 
     if let Some(caps) = TYPE_PATTERN.captures(first_line) {
         let type_name = caps.get(1).unwrap().as_str().to_owned();
+        let scope = caps.get(2).map(|m| m.as_str().trim().to_owned());
         let message = caps.get(3).unwrap().as_str().to_owned();
         let remaining: Vec<&str> = lines[1..]
             .iter()
@@ -86,6 +88,7 @@ pub fn parse_response(response: &str) -> ParsedCommit {
         };
         return ParsedCommit {
             type_name,
+            scope,
             message,
             description,
         };
@@ -93,6 +96,7 @@ pub fn parse_response(response: &str) -> ParsedCommit {
 
     ParsedCommit {
         type_name: infer_type(first_line),
+        scope: None,
         message: if first_line.is_empty() {
             "update code".to_owned()
         } else {
@@ -163,6 +167,19 @@ fn infer_type(message: &str) -> String {
     "chore".to_owned()
 }
 
+fn format_scope_template(template: &str, scope: Option<&str>) -> String {
+    let scope = scope.unwrap_or("").trim();
+    let parenthesized_scope = if scope.is_empty() {
+        String::new()
+    } else {
+        format!("({scope})")
+    };
+
+    template
+        .replace("({{scope}})", &parenthesized_scope)
+        .replace("{{scope}}", scope)
+}
+
 /// Format a parsed commit using the config template, emojis, lowercase.
 pub fn format_commit_message(parsed: &ParsedCommit, config: &Config) -> String {
     let mut message = parsed.message.clone();
@@ -194,9 +211,18 @@ pub fn format_commit_message(parsed: &ParsedCommit, config: &Config) -> String {
     }
 
     // Apply template
-    let mut result = config
-        .commit_template
-        .replace("{{type}}", &parsed.type_name)
+    let template_has_scope = config.commit_template.contains("{{scope}}");
+    let type_name = if template_has_scope {
+        parsed.type_name.clone()
+    } else {
+        match parsed.scope.as_deref().map(str::trim) {
+            Some(scope) if !scope.is_empty() => format!("{}({scope})", parsed.type_name),
+            _ => parsed.type_name.clone(),
+        }
+    };
+    let template = format_scope_template(&config.commit_template, parsed.scope.as_deref());
+    let mut result = template
+        .replace("{{type}}", &type_name)
         .replace("{{emoji}}", &emoji)
         .replace("{{message}}", &message);
 
@@ -432,6 +458,7 @@ mod tests {
     fn parse_conventional_commit() {
         let result = parse_response("feat: add login page");
         assert_eq!(result.type_name, "feat");
+        assert_eq!(result.scope, None);
         assert_eq!(result.message, "add login page");
         assert!(result.description.is_none());
     }
@@ -440,6 +467,7 @@ mod tests {
     fn parse_commit_with_scope() {
         let result = parse_response("fix(auth): resolve token expiry");
         assert_eq!(result.type_name, "fix");
+        assert_eq!(result.scope.as_deref(), Some("auth"));
         assert_eq!(result.message, "resolve token expiry");
     }
 
@@ -517,6 +545,7 @@ mod tests {
         let result = format_commit_message(
             &ParsedCommit {
                 type_name: "feat".to_owned(),
+                scope: None,
                 message: "Add login".to_owned(),
                 description: None,
             },
@@ -526,11 +555,30 @@ mod tests {
     }
 
     #[test]
+    fn format_preserves_parsed_scope_with_legacy_template() {
+        let config = make_config(|c| {
+            c.commit_template = "{{type}}: {{message}}".to_owned();
+        });
+        let parsed = parse_response("fix(auth): resolve token expiry");
+        let result = format_commit_message(&parsed, &config);
+        assert_eq!(result, "fix(auth): resolve token expiry");
+    }
+
+    #[test]
+    fn format_applies_scoped_default_template() {
+        let config = Config::default();
+        let parsed = parse_response("feat(extension): add command");
+        let result = format_commit_message(&parsed, &config);
+        assert_eq!(result, "feat(extension): add command");
+    }
+
+    #[test]
     fn format_applies_lowercase() {
         let config = make_config(|c| c.use_lower_case = true);
         let result = format_commit_message(
             &ParsedCommit {
                 type_name: "feat".to_owned(),
+                scope: None,
                 message: "Add login".to_owned(),
                 description: None,
             },
@@ -545,6 +593,7 @@ mod tests {
         let result = format_commit_message(
             &ParsedCommit {
                 type_name: "feat".to_owned(),
+                scope: None,
                 message: "Add login".to_owned(),
                 description: None,
             },
@@ -559,6 +608,7 @@ mod tests {
         let result = format_commit_message(
             &ParsedCommit {
                 type_name: "feat".to_owned(),
+                scope: None,
                 message: "add login".to_owned(),
                 description: None,
             },
@@ -577,6 +627,7 @@ mod tests {
         let result = format_commit_message(
             &ParsedCommit {
                 type_name: "feat".to_owned(),
+                scope: None,
                 message: "add login".to_owned(),
                 description: None,
             },
@@ -595,6 +646,7 @@ mod tests {
         let result = format_commit_message(
             &ParsedCommit {
                 type_name: "feat".to_owned(),
+                scope: None,
                 message: "add login".to_owned(),
                 description: None,
             },
@@ -609,6 +661,7 @@ mod tests {
         let result = format_commit_message(
             &ParsedCommit {
                 type_name: "feat".to_owned(),
+                scope: None,
                 message: "Update auth".to_owned(),
                 description: Some("- add JWT\n- remove cookies".to_owned()),
             },
@@ -627,6 +680,7 @@ mod tests {
         let result = format_commit_message(
             &ParsedCommit {
                 type_name: "feat".to_owned(),
+                scope: None,
                 message: "add login".to_owned(),
                 description: None,
             },

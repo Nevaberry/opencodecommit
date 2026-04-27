@@ -86,7 +86,7 @@ function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
     prTimeoutSeconds: 180,
     useEmojis: false,
     useLowerCase: true,
-    commitTemplate: "{{type}}: {{message}}",
+    commitTemplate: "{{type}}({{scope}}): {{message}}",
     languages: [
       {
         label: "English",
@@ -494,6 +494,7 @@ describe("parseResponse", () => {
   it("parses conventional commit format", () => {
     const result = parseResponse("feat: add login page")
     assert.strictEqual(result.type, "feat")
+    assert.strictEqual(result.scope, undefined)
     assert.strictEqual(result.message, "add login page")
     assert.strictEqual(result.description, undefined)
   })
@@ -501,6 +502,7 @@ describe("parseResponse", () => {
   it("parses commit with scope", () => {
     const result = parseResponse("fix(auth): resolve token expiry")
     assert.strictEqual(result.type, "fix")
+    assert.strictEqual(result.scope, "auth")
     assert.strictEqual(result.message, "resolve token expiry")
   })
 
@@ -562,6 +564,22 @@ describe("formatCommitMessage", () => {
       config,
     )
     assert.strictEqual(result, "feat: add login")
+  })
+
+  it("preserves parsed scope with legacy template", () => {
+    const config = makeConfig({
+      commitTemplate: "{{type}}: {{message}}",
+    })
+    const parsed = parseResponse("fix(auth): resolve token expiry")
+    const result = formatCommitMessage(parsed, config)
+    assert.strictEqual(result, "fix(auth): resolve token expiry")
+  })
+
+  it("applies scoped default template", () => {
+    const config = makeConfig()
+    const parsed = parseResponse("feat(extension): add command")
+    const result = formatCommitMessage(parsed, config)
+    assert.strictEqual(result, "feat(extension): add command")
   })
 
   it("applies lowercase", () => {

@@ -65,7 +65,7 @@ enum Commands {
         #[arg(long)]
         no_lowercase: bool,
 
-        /// Commit message template (e.g. "{{type}}: {{message}}")
+        /// Commit message template (e.g. "{{type}}({{scope}}): {{message}}")
         #[arg(long)]
         template: Option<String>,
 

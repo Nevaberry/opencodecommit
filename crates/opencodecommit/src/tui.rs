@@ -2699,6 +2699,7 @@ mod tests {
             message: "feat: add TUI".to_owned(),
             parsed: opencodecommit::response::ParsedCommit {
                 type_name: "feat".to_owned(),
+                scope: None,
                 message: "add TUI".to_owned(),
                 description: None,
             },

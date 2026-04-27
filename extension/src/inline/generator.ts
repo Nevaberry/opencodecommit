@@ -19,6 +19,7 @@ import type {
 
 interface ParsedCommit {
   type: string
+  scope?: string
   message: string
   description?: string
 }
@@ -33,7 +34,7 @@ function throwBackendErrors(backends: Backend[], errors: string[]): never {
 }
 
 const TYPE_PATTERN =
-  /^(feat|fix|docs|style|refactor|test|chore|perf|security|revert)(\(.*?\))?:\s*(.+)/
+  /^(feat|fix|docs|style|refactor|test|chore|perf|security|revert)(?:\(([^)]+)\))?:\s*(.+)/
 
 export function buildPrompt(
   context: CommitContext,
@@ -272,12 +273,13 @@ export function parseResponse(response: string): ParsedCommit {
   const match = firstLine.match(TYPE_PATTERN)
   if (match) {
     const type = match[1]
+    const scope = match[2]?.trim() || undefined
     const message = match[3]
     const remainingLines = lines.slice(1).filter((l) => l.trim().length > 0)
     const description =
       remainingLines.length > 0 ? remainingLines.join("\n") : undefined
 
-    return { type, message, description }
+    return { type, scope, message, description }
   }
 
   return { type: inferType(firstLine), message: firstLine || "update code" }
@@ -343,7 +345,17 @@ export function formatCommitMessage(
   }
 
   let result = config.commitTemplate
-    .replace("{{type}}", parsed.type)
+    .replace(
+      "({{scope}})",
+      parsed.scope ? `(${parsed.scope.trim()})` : "",
+    )
+    .replace("{{scope}}", parsed.scope?.trim() ?? "")
+    .replace(
+      "{{type}}",
+      parsed.scope && !config.commitTemplate.includes("{{scope}}")
+        ? `${parsed.type}(${parsed.scope.trim()})`
+        : parsed.type,
+    )
     .replace("{{emoji}}", emoji)
     .replace("{{message}}", message)
 

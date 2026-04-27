@@ -928,8 +928,8 @@
         "opencodecommit.commitTemplate": {
           "order": 11,
           "type": "string",
-          "default": "{{type}}: {{message}}",
-          "description": "Commit message template. Placeholders: {{type}}, {{emoji}}, {{message}}",
+          "default": "{{type}}({{scope}}): {{message}}",
+          "description": "Commit message template. Placeholders: {{type}}, {{scope}}, {{emoji}}, {{message}}",
           "scope": "machine"
         },
         "opencodecommit.custom.emojis": {

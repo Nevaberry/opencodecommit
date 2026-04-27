@@ -504,7 +504,7 @@ fn default_true() -> bool {
 }
 
 fn default_commit_template() -> String {
-    "{{type}}: {{message}}".to_owned()
+    "{{type}}({{scope}}): {{message}}".to_owned()
 }
 
 fn default_languages() -> Vec<LanguageConfig> {
@@ -1085,7 +1085,7 @@ mod tests {
         assert_eq!(cfg.pr_timeout_seconds, 180);
         assert!(!cfg.use_emojis);
         assert!(cfg.use_lower_case);
-        assert_eq!(cfg.commit_template, "{{type}}: {{message}}");
+        assert_eq!(cfg.commit_template, "{{type}}({{scope}}): {{message}}");
         assert_eq!(cfg.languages.len(), 12);
         assert_eq!(cfg.languages[0].label, "English");
         assert_eq!(cfg.languages[1].label, "Finnish");
@@ -1313,7 +1313,7 @@ prompt = "Generate: {{{{diff}}}}"
 
         // Unset fields should get defaults
         assert_eq!(cfg.diff_source, DiffSource::Auto);
-        assert_eq!(cfg.commit_template, "{{type}}: {{message}}");
+        assert_eq!(cfg.commit_template, "{{type}}({{scope}}): {{message}}");
         assert_eq!(cfg.codex_model, "gpt-5.4-mini");
 
         let _ = std::fs::remove_dir_all(&dir);
