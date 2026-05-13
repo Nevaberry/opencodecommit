@@ -14,6 +14,7 @@ import {
   formatBranchName,
   formatCommitMessage,
   parseResponse,
+  prepareCommitPromptContext,
   sanitizeResponse,
 } from "../inline/generator"
 import {
@@ -1042,6 +1043,38 @@ describe("buildPrompt", () => {
     const prompt = buildPrompt(context, config)
     assert.ok(prompt.includes("--- src/app.ts (full) ---"))
     assert.ok(prompt.includes("const x = 1"))
+  })
+
+  it("prepares prompt context with the same diff truncation used by generation", () => {
+    const config = makeConfig({ maxDiffLength: 10 })
+    const context = makeContext({
+      diff: "0123456789abcdef",
+      fileContents: [
+        {
+          path: "src/a.ts",
+          content: "abc",
+          truncationMode: "full",
+        },
+        {
+          path: "src/b.ts",
+          content: "defgh",
+          truncationMode: "sections",
+        },
+      ],
+    })
+
+    const prepared = prepareCommitPromptContext(context, config)
+
+    assert.strictEqual(context.diff, "0123456789abcdef")
+    assert.strictEqual(prepared.context.diff, "0123456789\n... (truncated)")
+    assert.strictEqual(prepared.summary.diffChars, 16)
+    assert.strictEqual(prepared.summary.promptDiffChars, 26)
+    assert.strictEqual(prepared.summary.diffTruncated, true)
+    assert.strictEqual(prepared.summary.fileContextChars, 8)
+    assert.deepStrictEqual(prepared.summary.fileContexts, [
+      { path: "src/a.ts", chars: 3, mode: "full" },
+      { path: "src/b.ts", chars: 5, mode: "sections" },
+    ])
   })
 
   it("uses custom prompt.baseModule when set", () => {

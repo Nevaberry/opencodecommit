@@ -1,27 +1,39 @@
-import { backendLabel, isCliBackend } from "./backends"
 import { execApi } from "./api"
+import { backendLabel, isCliBackend } from "./backends"
 import {
   buildInvocation,
-  getInvocationTimeoutMs,
-  type InvocationOperation,
   detectCli,
   execCli,
   getConfigPath,
+  getInvocationTimeoutMs,
+  type InvocationOperation,
   parseOpenCodeJson,
 } from "./cli"
 import type { CommitContext } from "./context"
-import type {
-  Backend,
-  BranchMode,
-  CommitMode,
-  ExtensionConfig,
-} from "./types"
+import type { Backend, BranchMode, CommitMode, ExtensionConfig } from "./types"
 
 interface ParsedCommit {
   type: string
   scope?: string
   message: string
   description?: string
+}
+
+export interface CommitPromptContextSummary {
+  diffChars: number
+  promptDiffChars: number
+  diffTruncated: boolean
+  fileContextChars: number
+  fileContexts: Array<{
+    path: string
+    chars: number
+    mode: CommitContext["fileContents"][number]["truncationMode"]
+  }>
+}
+
+export interface PreparedCommitPromptContext {
+  context: CommitContext
+  summary: CommitPromptContextSummary
 }
 
 function throwBackendErrors(backends: Backend[], errors: string[]): never {
@@ -35,6 +47,34 @@ function throwBackendErrors(backends: Backend[], errors: string[]): never {
 
 const TYPE_PATTERN =
   /^(feat|fix|docs|style|refactor|test|chore|perf|security|revert)(?:\(([^)]+)\))?:\s*(.+)/
+
+export function prepareCommitPromptContext(
+  context: CommitContext,
+  config: Pick<ExtensionConfig, "maxDiffLength">,
+): PreparedCommitPromptContext {
+  const diffTruncated = context.diff.length > config.maxDiffLength
+  const promptDiff = diffTruncated
+    ? `${context.diff.slice(0, config.maxDiffLength)}\n... (truncated)`
+    : context.diff
+  const promptContext =
+    promptDiff === context.diff ? context : { ...context, diff: promptDiff }
+  const fileContexts = context.fileContents.map((fileContext) => ({
+    path: fileContext.path,
+    chars: fileContext.content.length,
+    mode: fileContext.truncationMode,
+  }))
+
+  return {
+    context: promptContext,
+    summary: {
+      diffChars: context.diff.length,
+      promptDiffChars: promptDiff.length,
+      diffTruncated,
+      fileContextChars: fileContexts.reduce((sum, item) => sum + item.chars, 0),
+      fileContexts,
+    },
+  }
+}
 
 export function buildPrompt(
   context: CommitContext,
@@ -345,10 +385,7 @@ export function formatCommitMessage(
   }
 
   let result = config.commitTemplate
-    .replace(
-      "({{scope}})",
-      parsed.scope ? `(${parsed.scope.trim()})` : "",
-    )
+    .replace("({{scope}})", parsed.scope ? `(${parsed.scope.trim()})` : "")
     .replace("{{scope}}", parsed.scope?.trim() ?? "")
     .replace(
       "{{type}}",
@@ -433,12 +470,18 @@ export async function generateCommitMessage(
   const logFn = logger ?? (() => {})
   const activeMode = mode ?? config.commitMode
 
-  const truncatedContext = { ...context }
-  if (context.diff.length > config.maxDiffLength) {
-    truncatedContext.diff = `${context.diff.slice(0, config.maxDiffLength)}\n... (truncated)`
-  }
+  const { context: promptContext, summary } = prepareCommitPromptContext(
+    context,
+    config,
+  )
 
-  const prompt = buildPrompt(truncatedContext, config, activeMode)
+  const prompt = buildPrompt(promptContext, config, activeMode)
+  const truncation = summary.diffTruncated
+    ? `truncated at ${config.maxDiffLength}`
+    : "not truncated"
+  logFn(
+    `Prompt input: diff=${summary.promptDiffChars}/${summary.diffChars} chars (${truncation}), fileContext=${summary.fileContextChars} chars across ${summary.fileContexts.length} files`,
+  )
   logFn(`Prompt length: ${prompt.length} chars, mode: ${activeMode}`)
 
   const backends = config.backendOrder

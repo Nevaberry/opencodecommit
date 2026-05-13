@@ -1,19 +1,23 @@
 import * as vscode from "vscode"
 
-import { backendLabel, isCliBackend, withBackendOverride } from "./inline/backends"
 import {
-  getConfig as getInlineConfig,
+  backendLabel,
+  isCliBackend,
+  withBackendOverride,
+} from "./inline/backends"
+import {
+  generateChangelogEntry,
+  mergeChangelogContent,
+} from "./inline/changelog"
+import {
   getConfigDetails,
+  getConfig as getInlineConfig,
   initializeConfig,
   openConfigFile as openInlineConfigFile,
   resetConfig,
   revealConfigPath as revealInlineConfigPath,
 } from "./inline/config"
 import { gatherContext, getRecentBranchNames } from "./inline/context"
-import {
-  generateChangelogEntry,
-  mergeChangelogContent,
-} from "./inline/changelog"
 import {
   generateBranchName,
   generateCommitMessage,
@@ -179,9 +183,7 @@ async function getDiff(
   )
 }
 
-async function getResolvedConfig(
-  backendOverride?: Backend,
-) {
+async function getResolvedConfig(backendOverride?: Backend) {
   const config = await getInlineConfig()
   return backendOverride ? withBackendOverride(config, backendOverride) : config
 }
@@ -234,7 +236,9 @@ async function generateMessageInline(
 
     if (choice === primaryAction) {
       if (blocking) {
-        log("Sensitive warning acknowledged: bypassing once for this generation")
+        log(
+          "Sensitive warning acknowledged: bypassing once for this generation",
+        )
       } else {
         log("Sensitive warning acknowledged: continuing after review prompt")
       }
@@ -362,12 +366,7 @@ async function createChangelogInline(repo: Repository, version: string) {
   const onProgress = (msg: string) => {
     if (msg.includes("failed")) showAutoCloseToast(msg)
   }
-  const entry = await generateChangelogEntry(
-    context,
-    config,
-    log,
-    onProgress,
-  )
+  const entry = await generateChangelogEntry(context, config, log, onProgress)
   log(`Generated changelog entry (${entry.length} chars) for ${version}`)
 
   const changelogUri = vscode.Uri.joinPath(repo.rootUri, "CHANGELOG.md")
@@ -382,10 +381,7 @@ async function createChangelogInline(repo: Repository, version: string) {
   await vscode.window.showTextDocument(document, { preview: false })
 }
 
-async function generatePrInline(
-  repo: Repository,
-  backendOverride?: Backend,
-) {
+async function generatePrInline(repo: Repository, backendOverride?: Backend) {
   const config = await getResolvedConfig(backendOverride)
   log(`PR backend order: [${config.backendOrder.join(", ")}]`)
 
@@ -719,10 +715,13 @@ export async function activate(context: vscode.ExtensionContext) {
       createChangelog(arg),
     ),
     ...oneShotCommands,
-    vscode.commands.registerCommand("opencodecommit.generateBranch", async (arg) => {
-      const config = await getInlineConfig()
-      return generateBranch(config.branchMode, arg)
-    }),
+    vscode.commands.registerCommand(
+      "opencodecommit.generateBranch",
+      async (arg) => {
+        const config = await getInlineConfig()
+        return generateBranch(config.branchMode, arg)
+      },
+    ),
     vscode.commands.registerCommand(
       "opencodecommit.generateBranchAdaptive",
       (arg) => generateBranch("adaptive", arg),
@@ -771,14 +770,17 @@ export async function activate(context: vscode.ExtensionContext) {
         }
       },
     ),
-    vscode.commands.registerCommand("opencodecommit.openConfigFile", async () => {
-      try {
-        await openInlineConfigFile()
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err)
-        vscode.window.showErrorMessage(`OpenCodeCommit: ${msg}`)
-      }
-    }),
+    vscode.commands.registerCommand(
+      "opencodecommit.openConfigFile",
+      async () => {
+        try {
+          await openInlineConfigFile()
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err)
+          vscode.window.showErrorMessage(`OpenCodeCommit: ${msg}`)
+        }
+      },
+    ),
     vscode.commands.registerCommand(
       "opencodecommit.revealConfigPath",
       async () => {
@@ -853,7 +855,9 @@ export async function activate(context: vscode.ExtensionContext) {
         log(`DIAGNOSE: Commit mode: ${config.commitMode}`)
         log(`DIAGNOSE: Diff source: ${config.diffSource}`)
         log(`DIAGNOSE: Max diff length: ${config.maxDiffLength}`)
-        log(`DIAGNOSE: Commit/branch timeout: ${config.commitBranchTimeoutSeconds}s`)
+        log(
+          `DIAGNOSE: Commit/branch timeout: ${config.commitBranchTimeoutSeconds}s`,
+        )
         log(`DIAGNOSE: PR timeout: ${config.prTimeoutSeconds}s`)
 
         const { detectCli, getConfigPath: getCliConfigPath } = await import(
@@ -902,9 +906,26 @@ ${diff.slice(0, 500)}`)
           `DIAGNOSE: Recent commits: ${context.recentCommits.slice(0, 5).join(", ")}`,
         )
 
-        const { buildPrompt } = await import("./inline/generator")
+        const { buildPrompt, prepareCommitPromptContext } = await import(
+          "./inline/generator"
+        )
         const { buildInvocation } = await import("./inline/cli")
-        const prompt = buildPrompt(context, config, config.commitMode)
+        const { context: promptContext, summary } = prepareCommitPromptContext(
+          context,
+          config,
+        )
+        const prompt = buildPrompt(promptContext, config, config.commitMode)
+        const truncation = summary.diffTruncated
+          ? `truncated at ${config.maxDiffLength}`
+          : "not truncated"
+        log(
+          `DIAGNOSE: Prompt input: diff=${summary.promptDiffChars}/${summary.diffChars} chars (${truncation}), fileContext=${summary.fileContextChars} chars across ${summary.fileContexts.length} files`,
+        )
+        if (summary.fileContexts.length > 0) {
+          log(
+            `DIAGNOSE: File context: ${summary.fileContexts.map((file) => `${file.path}:${file.chars}:${file.mode}`).join(", ")}`,
+          )
+        }
         log(`DIAGNOSE: Prompt length: ${prompt.length} chars`)
         log(`DIAGNOSE: Prompt preview:
 ${prompt.slice(0, 1000)}`)
