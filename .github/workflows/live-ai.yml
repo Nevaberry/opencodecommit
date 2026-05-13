@@ -1,0 +1,42 @@
+name: Live AI smoke
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1"
+
+jobs:
+  hosted-api-artifacts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Run live hosted API artifact smoke tests
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          backends=()
+          [ -n "${OPENAI_API_KEY:-}" ] && backends+=(openai-api)
+          [ -n "${ANTHROPIC_API_KEY:-}" ] && backends+=(anthropic-api)
+          [ -n "${GEMINI_API_KEY:-}" ] && backends+=(gemini-api)
+          [ -n "${OPENROUTER_API_KEY:-}" ] && backends+=(openrouter-api)
+          [ -n "${OPENCODE_API_KEY:-}" ] && backends+=(opencode-api)
+
+          if [ "${#backends[@]}" -eq 0 ]; then
+            echo "No hosted API secrets configured; skipping live AI smoke."
+            exit 0
+          fi
+
+          IFS=,
+          scripts/test-e2e.sh \
+            --backends "${backends[*]}" \
+            --target cli \
+            --suite artifacts \
+            --log-file ".logs/live-ai-hosted-api.log"

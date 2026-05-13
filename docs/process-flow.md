@@ -85,8 +85,8 @@ flowchart TD
         TRY --> FOUND{"Backend ready?"}
         FOUND -->|no| MORE{"More backends<br/>to try?"}
         FOUND -->|yes| KIND{"CLI or API?"}
-        KIND -->|CLI| INVOKE["Spawn CLI process<br/>(timeout 120s)"]
-        KIND -->|API| INVOKE_API["Send HTTP request<br/>(timeout 120s)"]
+        KIND -->|CLI| INVOKE["Spawn CLI process<br/>(configured timeout)"]
+        KIND -->|API| INVOKE_API["Send HTTP request<br/>(configured timeout)"]
         INVOKE --> EXEC_OK{"Execution<br/>succeeded?"}
         INVOKE_API --> EXEC_OK
         EXEC_OK -->|yes| DONE_LOOP(["Got response"])

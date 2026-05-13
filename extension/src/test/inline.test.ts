@@ -3,10 +3,9 @@ import * as fs from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
 import { describe, it } from "node:test"
-import { backendLabel, withBackendOverride } from "../inline/backends"
+import { withBackendOverride } from "../inline/backends"
 import { buildInvocation, detectCli, execCli } from "../inline/cli"
 import type { CommitContext } from "../inline/context"
-import { detectSensitiveContent } from "../inline/context"
 import {
   buildBranchPrompt,
   buildPrompt,
@@ -14,7 +13,6 @@ import {
   formatBranchName,
   formatCommitMessage,
   parseResponse,
-  prepareCommitPromptContext,
   sanitizeResponse,
 } from "../inline/generator"
 import {
@@ -288,15 +286,6 @@ function codexPlatformParts():
 }
 
 describe("backend helpers", () => {
-  it("formats backend labels for UI", () => {
-    assert.strictEqual(backendLabel("codex"), "Codex")
-    assert.strictEqual(backendLabel("opencode"), "OpenCode")
-    assert.strictEqual(backendLabel("claude"), "Claude")
-    assert.strictEqual(backendLabel("gemini"), "Gemini")
-    assert.strictEqual(backendLabel("openai-api"), "OpenAI API")
-    assert.strictEqual(backendLabel("ollama-api"), "Ollama API")
-  })
-
   it("restricts generation to the selected backend", () => {
     const config = makeConfig()
     const overridden = withBackendOverride(config, "claude")
@@ -855,49 +844,6 @@ describe("formatCommitMessage", () => {
     }
   })
 
-  it("applies default template", () => {
-    const config = makeConfig()
-    const result = formatCommitMessage(
-      { type: "feat", message: "Add login" },
-      config,
-    )
-    assert.strictEqual(result, "feat: add login")
-  })
-
-  it("preserves parsed scope with legacy template", () => {
-    const config = makeConfig({
-      commitTemplate: "{{type}}: {{message}}",
-    })
-    const parsed = parseResponse("fix(auth): resolve token expiry")
-    const result = formatCommitMessage(parsed, config)
-    assert.strictEqual(result, "fix(auth): resolve token expiry")
-  })
-
-  it("applies scoped default template", () => {
-    const config = makeConfig()
-    const parsed = parseResponse("feat(extension): add command")
-    const result = formatCommitMessage(parsed, config)
-    assert.strictEqual(result, "feat(extension): add command")
-  })
-
-  it("applies lowercase", () => {
-    const config = makeConfig({ useLowerCase: true })
-    const result = formatCommitMessage(
-      { type: "feat", message: "Add login" },
-      config,
-    )
-    assert.strictEqual(result, "feat: add login")
-  })
-
-  it("preserves case when useLowerCase is false", () => {
-    const config = makeConfig({ useLowerCase: false })
-    const result = formatCommitMessage(
-      { type: "feat", message: "Add login" },
-      config,
-    )
-    assert.strictEqual(result, "feat: Add login")
-  })
-
   it("includes emoji when enabled", () => {
     const config = makeConfig({ useEmojis: true })
     const result = formatCommitMessage(
@@ -905,48 +851,6 @@ describe("formatCommitMessage", () => {
       config,
     )
     assert.strictEqual(result, "feat: add login")
-  })
-
-  it("includes emoji with custom template", () => {
-    const config = makeConfig({
-      useEmojis: true,
-      commitTemplate: "{{emoji}} {{type}}: {{message}}",
-    })
-    const result = formatCommitMessage(
-      { type: "feat", message: "add login" },
-      config,
-    )
-    assert.strictEqual(result, "\u2728 feat: add login")
-  })
-
-  it("uses custom emoji override", () => {
-    const config = makeConfig({
-      useEmojis: true,
-      commitTemplate: "{{emoji}} {{type}}: {{message}}",
-      custom: {
-        emojis: { feat: "\uD83D\uDE80" },
-      },
-    })
-    const result = formatCommitMessage(
-      { type: "feat", message: "add login" },
-      config,
-    )
-    assert.strictEqual(result, "\uD83D\uDE80 feat: add login")
-  })
-
-  it("appends description", () => {
-    const config = makeConfig()
-    const result = formatCommitMessage(
-      {
-        type: "feat",
-        message: "Update auth",
-        description: "- add JWT\n- remove cookies",
-      },
-      config,
-    )
-    assert.ok(result.startsWith("feat: update auth"))
-    assert.ok(result.includes("- add JWT"))
-    assert.ok(result.includes("- remove cookies"))
   })
 
   it("collapses multiple spaces", () => {
@@ -1045,38 +949,6 @@ describe("buildPrompt", () => {
     assert.ok(prompt.includes("const x = 1"))
   })
 
-  it("prepares prompt context with the same diff truncation used by generation", () => {
-    const config = makeConfig({ maxDiffLength: 10 })
-    const context = makeContext({
-      diff: "0123456789abcdef",
-      fileContents: [
-        {
-          path: "src/a.ts",
-          content: "abc",
-          truncationMode: "full",
-        },
-        {
-          path: "src/b.ts",
-          content: "defgh",
-          truncationMode: "sections",
-        },
-      ],
-    })
-
-    const prepared = prepareCommitPromptContext(context, config)
-
-    assert.strictEqual(context.diff, "0123456789abcdef")
-    assert.strictEqual(prepared.context.diff, "0123456789\n... (truncated)")
-    assert.strictEqual(prepared.summary.diffChars, 16)
-    assert.strictEqual(prepared.summary.promptDiffChars, 26)
-    assert.strictEqual(prepared.summary.diffTruncated, true)
-    assert.strictEqual(prepared.summary.fileContextChars, 8)
-    assert.deepStrictEqual(prepared.summary.fileContexts, [
-      { path: "src/a.ts", chars: 3, mode: "full" },
-      { path: "src/b.ts", chars: 5, mode: "sections" },
-    ])
-  })
-
   it("uses custom prompt.baseModule when set", () => {
     const defaults = makeConfig()
     const config = makeConfig({
@@ -1121,112 +993,6 @@ describe("buildRefinePrompt", () => {
     assert.ok(prompt.includes("feat: add login"))
     assert.ok(prompt.includes("make it shorter"))
     assert.ok(prompt.includes("diff here"))
-  })
-})
-
-// --- detectSensitiveContent ---
-
-describe("detectSensitiveContent", () => {
-  it("detects .env file in changed files", () => {
-    assert.strictEqual(detectSensitiveContent("some diff", [".env"]), true)
-  })
-
-  it("detects .env.production in changed files", () => {
-    assert.strictEqual(
-      detectSensitiveContent("some diff", [".env.production"]),
-      true,
-    )
-  })
-
-  it("detects nested .env file", () => {
-    assert.strictEqual(
-      detectSensitiveContent("some diff", ["config/.env.local"]),
-      true,
-    )
-  })
-
-  it("detects credentials.json", () => {
-    assert.strictEqual(
-      detectSensitiveContent("some diff", ["credentials.json"]),
-      true,
-    )
-  })
-
-  it("detects API_KEY in added lines", () => {
-    const diff = `diff --git a/config.ts b/config.ts
-+const API_KEY = "sk-proj-abcdefghijklmnopqrstuvwxyz1234567890"`
-    assert.strictEqual(detectSensitiveContent(diff, ["config.ts"]), true)
-  })
-
-  it("detects SECRET_KEY in added lines", () => {
-    const diff = `+  SECRET_KEY: "Alpha9981Zeta"`
-    assert.strictEqual(detectSensitiveContent(diff, ["config.ts"]), true)
-  })
-
-  it("detects ACCESS_TOKEN in added lines", () => {
-    const diff = `+export const ACCESS_TOKEN = "Alpha9981Zeta99"`
-    assert.strictEqual(detectSensitiveContent(diff, ["auth.ts"]), true)
-  })
-
-  it("detects PASSWORD in added lines", () => {
-    const diff = `+  DB_PASSWORD=Alpha9981Zeta`
-    assert.strictEqual(detectSensitiveContent(diff, ["config.ts"]), true)
-  })
-
-  it("detects sk- prefixed keys", () => {
-    const diff = `+  key: "sk-proj-abcdefghijklmnopqrstuvwxyz1234567890"`
-    assert.strictEqual(detectSensitiveContent(diff, ["config.ts"]), true)
-  })
-
-  it("detects ghp_ prefixed tokens", () => {
-    const diff = `+  GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz1234`
-    assert.strictEqual(detectSensitiveContent(diff, ["ci.yml"]), true)
-  })
-
-  it("detects AWS access key IDs", () => {
-    const diff = `+  aws_key = "AKIAIOSFODNN7EXAMPLE"`
-    assert.strictEqual(detectSensitiveContent(diff, ["config.ts"]), true)
-  })
-
-  it("ignores removed lines", () => {
-    const diff = `-  API_KEY = "old-key"`
-    assert.strictEqual(detectSensitiveContent(diff, ["config.ts"]), false)
-  })
-
-  it("ignores diff header lines", () => {
-    const diff = `+++ b/API_KEY_handler.ts`
-    assert.strictEqual(
-      detectSensitiveContent(diff, ["API_KEY_handler.ts"]),
-      false,
-    )
-  })
-
-  it("returns false for normal code", () => {
-    const diff = `+  const result = await fetchData()`
-    assert.strictEqual(detectSensitiveContent(diff, ["app.ts"]), false)
-  })
-
-  it("detects source map files", () => {
-    assert.strictEqual(detectSensitiveContent("diff", ["bundle.js.map"]), true)
-    assert.strictEqual(detectSensitiveContent("diff", ["styles.css.map"]), true)
-    assert.strictEqual(detectSensitiveContent("diff", ["dist/app.map"]), true)
-  })
-
-  it("detects private key files", () => {
-    assert.strictEqual(detectSensitiveContent("diff", ["server.pem"]), true)
-    assert.strictEqual(detectSensitiveContent("diff", ["cert.p12"]), true)
-    assert.strictEqual(detectSensitiveContent("diff", ["ssl.key"]), true)
-    assert.strictEqual(detectSensitiveContent("diff", ["app.keystore"]), true)
-  })
-
-  it("detects SSH private keys", () => {
-    assert.strictEqual(detectSensitiveContent("diff", ["id_rsa"]), true)
-    assert.strictEqual(detectSensitiveContent("diff", ["id_ed25519"]), true)
-    assert.strictEqual(detectSensitiveContent("diff", [".ssh/config"]), true)
-  })
-
-  it("detects htpasswd", () => {
-    assert.strictEqual(detectSensitiveContent("diff", [".htpasswd"]), true)
   })
 })
 

@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.7.1
+
+- Codex one-shot generation now uses the fast prompt-only profile across the
+  CLI, TUI, and extension: apps/plugins disabled, web search disabled, no
+  reasoning effort, read-only/no-approval execution, minimal `CODEX_HOME`, and
+  an empty temporary working directory for occ-managed prompt tasks.
+- npm-installed Codex wrappers are bypassed when the native binary can be
+  resolved safely, while custom paths, Flatpak, Windows/WSL, Homebrew, and
+  unknown layouts keep the wrapper fallback.
+- Commit and branch-style Codex calls can use structured output with a plain
+  text fallback, reducing response parsing failures without changing user
+  configuration.
+- PR generation keeps the conservative quality profile instead of inheriting
+  commit-style fast flags.
+- Extension Diagnose and normal generation logs now report prompt input sizes,
+  diff truncation, and file-context contribution so backend timeouts can be
+  investigated from real logs.
+- Public project docs were refreshed with security reporting, privacy notes,
+  clearer README positioning, focused backend/config/CI docs, and GitHub issue
+  and PR templates.
+
 ## 1.6.2
 
 - Conventional commit prompts now require `type(scope): description` across

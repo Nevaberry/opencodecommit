@@ -37,6 +37,10 @@ graph TB
         GEMINI["Gemini"]
     end
 
+    subgraph "Direct API Backends"
+        API["OpenAI-compatible HTTP APIs<br/>OpenAI, Anthropic, Gemini,<br/>OpenRouter, OpenCode Zen,<br/>Ollama, LM Studio, custom"]
+    end
+
     %% Rust CLI flow
     CLI --> MAIN
     TUI --> MAIN
@@ -54,6 +58,7 @@ graph TB
     BACKEND_RS --> CLAUDE
     BACKEND_RS --> CODEX
     BACKEND_RS --> GEMINI
+    BACKEND_RS --> API
 
     %% Rust response
     BACKEND_RS -->|"raw AI output"| RESP
@@ -82,6 +87,7 @@ graph TB
     EXT_CLI --> CLAUDE
     EXT_CLI --> CODEX
     EXT_CLI --> GEMINI
+    EXT_CLI --> API
 
     style CLI fill:#4a9eff,color:#fff
     style TUI fill:#4a9eff,color:#fff
@@ -93,4 +99,5 @@ graph TB
     style CLAUDE fill:#22c55e,color:#fff
     style CODEX fill:#22c55e,color:#fff
     style GEMINI fill:#22c55e,color:#fff
+    style API fill:#22c55e,color:#fff
 ```
