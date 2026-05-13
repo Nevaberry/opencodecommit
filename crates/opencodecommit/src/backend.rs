@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{LazyLock, Mutex};
 use std::time::Duration;
 
@@ -11,8 +12,10 @@ use crate::{Error, Result};
 
 static CACHED_PATHS: LazyLock<Mutex<HashMap<CliBackend, PathBuf>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
+static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 const TIMEOUT_SECS: u64 = 120;
+const CODEX_RESPONSE_FIELD: &str = "response";
 
 /// Labels for error messages.
 fn backend_label(backend: CliBackend) -> &'static str {
@@ -137,6 +140,92 @@ fn run_wsl_which(binary: &str) -> Option<String> {
     None
 }
 
+fn is_flatpak() -> bool {
+    Path::new("/.flatpak-info").exists()
+}
+
+fn codex_platform_package_and_target() -> Option<(&'static str, &'static str, &'static str)> {
+    if cfg!(target_os = "windows") {
+        return None;
+    }
+
+    match (std::env::consts::OS, std::env::consts::ARCH) {
+        ("linux", "x86_64") => Some((
+            "@openai/codex-linux-x64",
+            "x86_64-unknown-linux-musl",
+            "codex",
+        )),
+        ("linux", "aarch64") => Some((
+            "@openai/codex-linux-arm64",
+            "aarch64-unknown-linux-musl",
+            "codex",
+        )),
+        ("macos", "x86_64") => Some(("@openai/codex-darwin-x64", "x86_64-apple-darwin", "codex")),
+        ("macos", "aarch64") => Some((
+            "@openai/codex-darwin-arm64",
+            "aarch64-apple-darwin",
+            "codex",
+        )),
+        _ => None,
+    }
+}
+
+fn resolve_npm_codex_native_binary(path: &Path) -> Option<PathBuf> {
+    if cfg!(target_os = "windows") || is_flatpak() {
+        return None;
+    }
+
+    let resolved = std::fs::canonicalize(path).ok()?;
+    if resolved.file_name()?.to_str()? != "codex.js" {
+        return None;
+    }
+
+    let bin_dir = resolved.parent()?;
+    if bin_dir.file_name()?.to_str()? != "bin" {
+        return None;
+    }
+
+    let package_root = bin_dir.parent()?;
+    if package_root.file_name()?.to_str()? != "codex" {
+        return None;
+    }
+    if package_root.parent()?.file_name()?.to_str()? != "@openai" {
+        return None;
+    }
+
+    let (platform_package, target_triple, binary_name) = codex_platform_package_and_target()?;
+    let native = package_root
+        .join("node_modules")
+        .join(platform_package)
+        .join("vendor")
+        .join(target_triple)
+        .join("codex")
+        .join(binary_name);
+    if is_executable(&native) {
+        return Some(native);
+    }
+
+    let local_vendor = package_root
+        .join("vendor")
+        .join(target_triple)
+        .join("codex")
+        .join(binary_name);
+    if is_executable(&local_vendor) {
+        return Some(local_vendor);
+    }
+
+    None
+}
+
+fn detected_cli_path(backend: CliBackend, path: PathBuf) -> PathBuf {
+    if backend == CliBackend::Codex
+        && let Some(native) = resolve_npm_codex_native_binary(&path)
+    {
+        return native;
+    }
+    path
+}
+
 /// Detect the CLI binary path using a 6-step cascade.
 pub fn detect_cli(backend: CliBackend, config_path: &str) -> Result<PathBuf> {
     let binary = backend_binary(backend);
@@ -165,30 +254,35 @@ pub fn detect_cli(backend: CliBackend, config_path: &str) -> Result<PathBuf> {
     if let Some(p) = run_which(binary)
         && is_executable(&p)
     {
+        let p = detected_cli_path(backend, p);
         if let Ok(mut cache) = CACHED_PATHS.lock() {
             cache.insert(backend, p.clone());
         }
         return Ok(p);
     }
 
-    // 4. Shell profile sourcing (Unix)
-    if let Some(p) = run_shell_source_which(binary)
-        && is_executable(&p)
-    {
-        if let Ok(mut cache) = CACHED_PATHS.lock() {
-            cache.insert(backend, p.clone());
-        }
-        return Ok(p);
-    }
-
-    // 5. Common paths
+    // 4. Common paths
     for p in common_paths(binary) {
         if is_executable(&p) {
+            let p = detected_cli_path(backend, p);
             if let Ok(mut cache) = CACHED_PATHS.lock() {
                 cache.insert(backend, p.clone());
             }
             return Ok(p);
         }
+    }
+
+    // 5. Shell profile sourcing (Unix). This is slower because it starts a
+    // login-shell-style process, so keep it as the VS Code/VSCodium PATH gap
+    // fallback after cheap path checks.
+    if let Some(p) = run_shell_source_which(binary)
+        && is_executable(&p)
+    {
+        let p = detected_cli_path(backend, p);
+        if let Ok(mut cache) = CACHED_PATHS.lock() {
+            cache.insert(backend, p.clone());
+        }
+        return Ok(p);
     }
 
     // 6. WSL fallback (Windows only)
@@ -214,6 +308,17 @@ pub struct Invocation {
     /// Environment variables to set on the child process. Ordered for test
     /// determinism. Empty for backends that inherit the parent environment.
     pub env: Vec<(String, String)>,
+    /// Working directory for the child process. Codex prompt-only tasks use an
+    /// empty temp cwd because occ already supplied all repo context.
+    pub cwd: Option<PathBuf>,
+    /// Args to retry with when a structured Codex invocation fails before
+    /// producing a usable response.
+    pub fallback_args: Option<Vec<String>>,
+    /// JSON field to extract from stdout on success. Invalid JSON falls back to
+    /// the raw text so older CLIs or unexpected output remain usable.
+    pub json_response_field: Option<&'static str>,
+    /// Temp root to remove after execution.
+    pub cleanup_dir: Option<PathBuf>,
 }
 
 /// Build the command invocation for a given backend.
@@ -237,6 +342,10 @@ pub fn build_invocation_for(
                 args: opencode_base_args(&model_spec, prompt),
                 stdin: None,
                 env: vec![],
+                cwd: None,
+                fallback_args: None,
+                json_response_field: None,
+                cleanup_dir: None,
             }
         }
         CliBackend::Claude => Invocation {
@@ -252,12 +361,22 @@ pub fn build_invocation_for(
             ],
             stdin: Some(prompt.to_owned()),
             env: vec![],
+            cwd: None,
+            fallback_args: None,
+            json_response_field: None,
+            cleanup_dir: None,
         },
         CliBackend::Codex => {
-            let mut args = codex_base_args(&config.codex_model);
-            if !config.codex_provider.is_empty() {
-                args.push("-c".to_owned());
-                args.push(format!("model_provider=\"{}\"", config.codex_provider));
+            let (cwd, cleanup_dir) = codex_invocation_workspace();
+            let schema_path = cleanup_dir.as_deref().and_then(write_codex_response_schema);
+            let mut args = codex_base_args(&config.codex_model, schema_path.as_deref());
+            let mut fallback_args = schema_path
+                .as_ref()
+                .map(|_| codex_base_args(&config.codex_model, None));
+            add_codex_provider(&mut args, &config.codex_provider);
+            if let Some(fallback) = fallback_args.as_mut() {
+                add_codex_provider(fallback, &config.codex_provider);
+                fallback.push("-".to_owned());
             }
             args.push("-".to_owned());
             Invocation {
@@ -265,6 +384,10 @@ pub fn build_invocation_for(
                 args,
                 stdin: Some(prompt.to_owned()),
                 env: codex_env(),
+                cwd,
+                fallback_args,
+                json_response_field: schema_path.as_ref().map(|_| CODEX_RESPONSE_FIELD),
+                cleanup_dir,
             }
         }
         CliBackend::Gemini => {
@@ -280,6 +403,10 @@ pub fn build_invocation_for(
                 args,
                 stdin: None,
                 env: vec![],
+                cwd: None,
+                fallback_args: None,
+                json_response_field: None,
+                cleanup_dir: None,
             }
         }
     }
@@ -294,6 +421,48 @@ fn codex_env() -> Vec<(String, String)> {
     match codex_home::ensure_minimal_codex_home() {
         Some(path) => vec![("CODEX_HOME".to_owned(), path.to_string_lossy().into_owned())],
         None => vec![],
+    }
+}
+
+fn codex_temp_workspace() -> Option<(PathBuf, PathBuf)> {
+    let counter = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let root = std::env::temp_dir().join(format!(
+        "opencodecommit-codex-{}-{}",
+        std::process::id(),
+        counter
+    ));
+    let cwd = root.join("cwd");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&cwd).ok()?;
+    Some((root, cwd))
+}
+
+fn write_codex_response_schema(root: &Path) -> Option<PathBuf> {
+    let schema_path = root.join("response-schema.json");
+    let schema = r#"{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["response"],
+  "properties": {
+    "response": { "type": "string" }
+  }
+}
+"#;
+    std::fs::write(&schema_path, schema).ok()?;
+    Some(schema_path)
+}
+
+fn add_codex_provider(args: &mut Vec<String>, provider: &str) {
+    if !provider.is_empty() {
+        args.push("-c".to_owned());
+        args.push(format!("model_provider=\"{provider}\""));
+    }
+}
+
+fn codex_invocation_workspace() -> (Option<PathBuf>, Option<PathBuf>) {
+    match codex_temp_workspace() {
+        Some((root, cwd)) => (Some(cwd), Some(root)),
+        None => (None, None),
     }
 }
 
@@ -333,7 +502,7 @@ fn codex_common_args(model: &str) -> Vec<String> {
 ///   -c web_search="disabled"           — remove the web_search tool
 ///                                        (required for reasoning < low, and
 ///                                        trims tool preamble tokens)
-fn codex_base_args(model: &str) -> Vec<String> {
+fn codex_base_args(model: &str, schema_path: Option<&Path>) -> Vec<String> {
     let mut args = codex_common_args(model);
     args.push("--disable".to_owned());
     args.push("apps".to_owned());
@@ -341,6 +510,10 @@ fn codex_base_args(model: &str) -> Vec<String> {
     args.push("model_reasoning_effort=\"none\"".to_owned());
     args.push("-c".to_owned());
     args.push("web_search=\"disabled\"".to_owned());
+    if let Some(schema_path) = schema_path {
+        args.push("--output-schema".to_owned());
+        args.push(schema_path.to_string_lossy().into_owned());
+    }
     args
 }
 
@@ -402,6 +575,10 @@ pub fn build_invocation_with_model_for(
                 args: opencode_common_args(&model_spec, prompt),
                 stdin: None,
                 env: vec![],
+                cwd: None,
+                fallback_args: None,
+                json_response_field: None,
+                cleanup_dir: None,
             }
         }
         CliBackend::Claude => Invocation {
@@ -417,6 +594,10 @@ pub fn build_invocation_with_model_for(
             ],
             stdin: Some(prompt.to_owned()),
             env: vec![],
+            cwd: None,
+            fallback_args: None,
+            json_response_field: None,
+            cleanup_dir: None,
         },
         CliBackend::Codex => {
             // PR stages (summary + final) keep whatever reasoning_effort and
@@ -431,15 +612,19 @@ pub fn build_invocation_with_model_for(
                 ""
             });
             if !prov.is_empty() {
-                args.push("-c".to_owned());
-                args.push(format!("model_provider=\"{prov}\""));
+                add_codex_provider(&mut args, prov);
             }
             args.push("-".to_owned());
+            let (cwd, cleanup_dir) = codex_invocation_workspace();
             Invocation {
                 command: cli_path.to_owned(),
                 args,
                 stdin: Some(prompt.to_owned()),
                 env: codex_env(),
+                cwd,
+                fallback_args: None,
+                json_response_field: None,
+                cleanup_dir,
             }
         }
         CliBackend::Gemini => {
@@ -455,6 +640,10 @@ pub fn build_invocation_with_model_for(
                 args,
                 stdin: None,
                 env: vec![],
+                cwd: None,
+                fallback_args: None,
+                json_response_field: None,
+                cleanup_dir: None,
             }
         }
     }
@@ -467,11 +656,23 @@ pub fn strip_ansi(text: &str) -> String {
     RE.replace_all(text, "").to_string()
 }
 
-/// Execute a CLI invocation and return stdout, with a configurable timeout.
-pub fn exec_cli_with_timeout(invocation: &Invocation, timeout_secs: u64) -> Result<String> {
+fn parse_json_response_field(output: &str, field: &str) -> Option<String> {
+    let value: serde_json::Value = serde_json::from_str(output).ok()?;
+    value.get(field)?.as_str().map(str::to_owned)
+}
+
+fn exec_cli_once(
+    invocation: &Invocation,
+    args: &[String],
+    timeout_secs: u64,
+    json_response_field: Option<&str>,
+) -> Result<String> {
     let mut cmd = Command::new(&invocation.command);
-    cmd.args(&invocation.args);
+    cmd.args(args);
     cmd.envs(invocation.env.iter().map(|(k, v)| (k.as_str(), v.as_str())));
+    if let Some(cwd) = &invocation.cwd {
+        cmd.current_dir(cwd);
+    }
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
 
@@ -512,7 +713,13 @@ pub fn exec_cli_with_timeout(invocation: &Invocation, timeout_secs: u64) -> Resu
                     .unwrap_or_default();
 
                 if status.success() {
-                    return Ok(strip_ansi(stdout.trim()));
+                    let output = strip_ansi(stdout.trim());
+                    if let Some(field) = json_response_field
+                        && let Some(response) = parse_json_response_field(&output, field)
+                    {
+                        return Ok(response);
+                    }
+                    return Ok(output);
                 } else {
                     return Err(Error::BackendExecution(format!(
                         "CLI exited with code {}: {}",
@@ -538,6 +745,28 @@ pub fn exec_cli_with_timeout(invocation: &Invocation, timeout_secs: u64) -> Resu
     }
 }
 
+/// Execute a CLI invocation and return stdout, with a configurable timeout.
+pub fn exec_cli_with_timeout(invocation: &Invocation, timeout_secs: u64) -> Result<String> {
+    let result = match exec_cli_once(
+        invocation,
+        &invocation.args,
+        timeout_secs,
+        invocation.json_response_field,
+    ) {
+        Err(Error::BackendExecution(_)) if invocation.fallback_args.is_some() => {
+            let fallback_args = invocation.fallback_args.as_ref().unwrap();
+            exec_cli_once(invocation, fallback_args, timeout_secs, None)
+        }
+        other => other,
+    };
+
+    if let Some(cleanup_dir) = &invocation.cleanup_dir {
+        let _ = std::fs::remove_dir_all(cleanup_dir);
+    }
+
+    result
+}
+
 /// Execute a CLI invocation and return stdout (default 120s timeout).
 pub fn exec_cli(invocation: &Invocation) -> Result<String> {
     exec_cli_with_timeout(invocation, TIMEOUT_SECS)
@@ -559,6 +788,37 @@ mod tests {
                 assert!(!v.is_empty(), "CODEX_HOME path must not be empty");
             }
             other => panic!("unexpected codex env: {other:?}"),
+        }
+    }
+
+    fn temp_test_dir(label: &str) -> PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("occ-backend-test-{}-{}", std::process::id(), label));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn fake_executable(path: &Path, body: &str) {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        std::fs::write(path, format!("#!/bin/sh\n{body}\n")).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+    }
+
+    #[cfg(all(unix, any(target_os = "linux", target_os = "macos")))]
+    fn codex_target_triple() -> &'static str {
+        match (std::env::consts::OS, std::env::consts::ARCH) {
+            ("linux", "x86_64") => "x86_64-unknown-linux-musl",
+            ("linux", "aarch64") => "aarch64-unknown-linux-musl",
+            ("macos", "x86_64") => "x86_64-apple-darwin",
+            ("macos", "aarch64") => "aarch64-apple-darwin",
+            other => panic!("unsupported test target: {other:?}"),
         }
     }
 
@@ -654,6 +914,135 @@ mod tests {
         assert_eq!(inv.args.last().map(String::as_str), Some("-"));
         assert_eq!(inv.stdin.as_deref(), Some("hello"));
         assert_codex_env_shape(&inv.env);
+    }
+
+    #[test]
+    fn codex_fast_invocation_uses_structured_schema() {
+        let config = Config {
+            backend: Backend::Codex,
+            codex_model: "gpt-5.4-mini".to_owned(),
+            ..Config::default()
+        };
+        let inv = build_invocation(Path::new("/usr/bin/codex"), "hello", &config);
+
+        assert!(inv.args.contains(&"--output-schema".to_owned()));
+        let schema_idx = inv
+            .args
+            .iter()
+            .position(|arg| arg == "--output-schema")
+            .expect("--output-schema present");
+        let schema_path = inv.args.get(schema_idx + 1).expect("schema path");
+        assert!(
+            Path::new(schema_path).is_file(),
+            "schema file should exist at {schema_path}"
+        );
+    }
+
+    #[test]
+    fn codex_pr_invocation_keeps_quality_profile() {
+        let config = Config {
+            backend: Backend::Codex,
+            codex_provider: "openrouter".to_owned(),
+            ..Config::default()
+        };
+        let inv = build_invocation_with_model(
+            Path::new("/usr/bin/codex"),
+            "draft the pr",
+            &config,
+            "gpt-5.4",
+            Some("openrouter"),
+        );
+
+        assert!(!inv.args.contains(&"--output-schema".to_owned()));
+        assert!(
+            !inv.args
+                .contains(&"model_reasoning_effort=\"none\"".to_owned())
+        );
+        assert!(!inv.args.contains(&"web_search=\"disabled\"".to_owned()));
+        let disables: Vec<&str> = inv
+            .args
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, arg)| {
+                if arg == "--disable" {
+                    inv.args.get(idx + 1).map(String::as_str)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        assert!(disables.contains(&"plugins"));
+        assert!(!disables.contains(&"apps"));
+    }
+
+    #[test]
+    fn codex_exec_runs_from_empty_temp_cwd() {
+        let dir = temp_test_dir("empty-cwd");
+        let cli = dir.join("codex");
+        fake_executable(
+            &cli,
+            "printf '%s\\n' \"$(pwd)\"\nfind . -mindepth 1 -maxdepth 1 | wc -l",
+        );
+        let config = Config {
+            backend: Backend::Codex,
+            codex_model: "gpt-5.4-mini".to_owned(),
+            ..Config::default()
+        };
+        let inv = build_invocation(&cli, "hello", &config);
+
+        let output = exec_cli_with_timeout(&inv, 5).unwrap();
+        let lines: Vec<&str> = output.lines().map(str::trim).collect();
+        assert_eq!(lines.len(), 2);
+        assert_ne!(Path::new(lines[0]), std::env::current_dir().unwrap());
+        assert_eq!(lines[1], "0", "codex cwd should be empty");
+    }
+
+    #[test]
+    fn codex_structured_output_extracts_response_field() {
+        let dir = temp_test_dir("structured-output");
+        let cli = dir.join("codex");
+        fake_executable(&cli, "printf '{\"response\":\"feat: structured\"}'");
+        let config = Config {
+            backend: Backend::Codex,
+            codex_model: "gpt-5.4-mini".to_owned(),
+            ..Config::default()
+        };
+        let inv = build_invocation(&cli, "hello", &config);
+
+        let output = exec_cli_with_timeout(&inv, 5).unwrap();
+        assert_eq!(output, "feat: structured");
+    }
+
+    #[test]
+    fn codex_structured_failure_reruns_plain_text() {
+        let dir = temp_test_dir("schema-fallback");
+        let cli = dir.join("codex");
+        let log = dir.join("args.log");
+        fake_executable(
+            &cli,
+            &format!(
+                "printf '%s\\n' \"$*\" >> '{}'\ncase \" $* \" in *\" --output-schema \"*) exit 42;; esac\nprintf 'feat: fallback\\n'",
+                log.display()
+            ),
+        );
+        let config = Config {
+            backend: Backend::Codex,
+            codex_model: "gpt-5.4-mini".to_owned(),
+            ..Config::default()
+        };
+        let inv = build_invocation(&cli, "hello", &config);
+
+        let output = exec_cli_with_timeout(&inv, 5).unwrap();
+        let calls = std::fs::read_to_string(&log).unwrap();
+        assert_eq!(output, "feat: fallback");
+        assert!(
+            calls.lines().any(|line| line.contains("--output-schema")),
+            "first call should try schema mode: {calls}"
+        );
+        assert!(
+            calls.lines().any(|line| !line.contains("--output-schema")),
+            "fallback call should omit schema mode: {calls}"
+        );
     }
 
     #[test]
@@ -829,5 +1218,109 @@ mod tests {
         // This test just verifies the detection doesn't panic.
         // It may or may not find a binary depending on the system.
         let _ = detect_cli(CliBackend::Opencode, "");
+    }
+
+    #[test]
+    fn detect_cli_checks_common_paths_before_shell_profile() {
+        let _lock = crate::TEST_CWD_LOCK.lock().unwrap();
+        let dir = temp_test_dir("detect-order");
+        let fake_bin = dir.join("bin");
+        let home = dir.join("home");
+        let common_codex = home.join(".local/bin/codex");
+        let shell_codex = dir.join("shell/codex");
+        fake_executable(&common_codex, "exit 0");
+        fake_executable(&shell_codex, "exit 0");
+        fake_executable(&fake_bin.join("which"), "exit 1");
+        fake_executable(
+            &fake_bin.join("bash"),
+            &format!("printf '%s\\n' '{}'", shell_codex.display()),
+        );
+
+        let original_path = std::env::var_os("PATH");
+        let original_home = std::env::var_os("HOME");
+        if let Ok(mut cache) = CACHED_PATHS.lock() {
+            cache.clear();
+        }
+        unsafe {
+            std::env::set_var("PATH", &fake_bin);
+            std::env::set_var("HOME", &home);
+        }
+
+        let result = detect_cli(CliBackend::Codex, "");
+
+        unsafe {
+            if let Some(path) = original_path {
+                std::env::set_var("PATH", path);
+            } else {
+                std::env::remove_var("PATH");
+            }
+            if let Some(home) = original_home {
+                std::env::set_var("HOME", home);
+            } else {
+                std::env::remove_var("HOME");
+            }
+        }
+        if let Ok(mut cache) = CACHED_PATHS.lock() {
+            cache.clear();
+        }
+
+        assert_eq!(result.unwrap(), common_codex);
+    }
+
+    #[cfg(all(unix, any(target_os = "linux", target_os = "macos")))]
+    #[test]
+    fn detect_codex_uses_native_binary_for_npm_wrapper() {
+        let _lock = crate::TEST_CWD_LOCK.lock().unwrap();
+        let dir = temp_test_dir("native-codex");
+        let fake_bin = dir.join("bin");
+        let package_root = dir.join("lib/node_modules/@openai/codex");
+        let wrapper = package_root.join("bin/codex.js");
+        let global_codex = fake_bin.join("codex");
+        let platform_package = match (std::env::consts::OS, std::env::consts::ARCH) {
+            ("linux", "x86_64") => "@openai/codex-linux-x64",
+            ("linux", "aarch64") => "@openai/codex-linux-arm64",
+            ("macos", "x86_64") => "@openai/codex-darwin-x64",
+            ("macos", "aarch64") => "@openai/codex-darwin-arm64",
+            other => panic!("unsupported test target: {other:?}"),
+        };
+        let native = package_root
+            .join("node_modules")
+            .join(platform_package)
+            .join("vendor")
+            .join(codex_target_triple())
+            .join("codex")
+            .join("codex");
+
+        fake_executable(&wrapper, "exit 0");
+        fake_executable(&native, "exit 0");
+        std::fs::create_dir_all(&fake_bin).unwrap();
+        std::os::unix::fs::symlink(&wrapper, &global_codex).unwrap();
+        fake_executable(
+            &fake_bin.join("which"),
+            &format!("printf '%s\\n' '{}'", global_codex.display()),
+        );
+
+        let original_path = std::env::var_os("PATH");
+        if let Ok(mut cache) = CACHED_PATHS.lock() {
+            cache.clear();
+        }
+        unsafe {
+            std::env::set_var("PATH", &fake_bin);
+        }
+
+        let result = detect_cli(CliBackend::Codex, "");
+
+        unsafe {
+            if let Some(path) = original_path {
+                std::env::set_var("PATH", path);
+            } else {
+                std::env::remove_var("PATH");
+            }
+        }
+        if let Ok(mut cache) = CACHED_PATHS.lock() {
+            cache.clear();
+        }
+
+        assert_eq!(result.unwrap(), native);
     }
 }

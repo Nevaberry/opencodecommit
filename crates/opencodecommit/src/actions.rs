@@ -417,12 +417,13 @@ fn generate_pr_preview_internal(
 
     if pr_model == cheap_model || !pr_ctx.from_branch_diff {
         let prompt = build_pr_prompt(&pr_commit_context(&pr_ctx), config);
-        let task = if pr_model != config.backend_model() {
-            DispatchTask::PrFinal
-        } else {
-            DispatchTask::Commit
-        };
-        let response = dispatch::dispatch(config.backend, &prompt, config, task, timeout_secs)?;
+        let response = dispatch::dispatch(
+            config.backend,
+            &prompt,
+            config,
+            DispatchTask::PrFinal,
+            timeout_secs,
+        )?;
         let parsed: ParsedPr = parse_pr_response(&response);
         return Ok(PrPreview {
             title: parsed.title,
@@ -902,5 +903,48 @@ mod tests {
         });
 
         cleanup(&dir);
+    }
+
+    #[test]
+    fn single_stage_codex_pr_uses_pr_quality_profile() {
+        let repo = setup_repo("single-stage-pr-codex");
+        fs::write(repo.join("README.md"), "# Hello\n\nMore detail\n").unwrap();
+        let log = repo.join("codex-args.log");
+        let cli = fake_cli(
+            "codex-pr",
+            &format!(
+                "printf '%s\\n' \"$*\" >> '{}'\nprintf 'TITLE: Update docs\\nBODY:\\n## Summary\\n- update docs\\n'",
+                log.display()
+            ),
+        );
+
+        with_repo(&repo, || {
+            let cfg = Config {
+                backend: Backend::Codex,
+                codex_path: cli.to_string_lossy().to_string(),
+                codex_model: "gpt-5.4-mini".to_owned(),
+                codex_pr_model: "gpt-5.4-mini".to_owned(),
+                backend_order: vec![Backend::Codex],
+                ..Config::default()
+            };
+
+            let preview = generate_pr_preview_with_fallback(&cfg, None, |_| {}).unwrap();
+            assert_eq!(preview.title, "Update docs");
+            let args = fs::read_to_string(&log).unwrap();
+            assert!(
+                !args.contains("model_reasoning_effort"),
+                "single-stage PR must not use commit reasoning profile: {args}"
+            );
+            assert!(
+                !args.contains("web_search"),
+                "single-stage PR must not disable web search: {args}"
+            );
+            assert!(
+                !args.contains("apps"),
+                "single-stage PR must not disable apps: {args}"
+            );
+        });
+
+        cleanup(&repo);
     }
 }

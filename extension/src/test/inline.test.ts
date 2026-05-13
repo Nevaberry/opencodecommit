@@ -1,9 +1,10 @@
 import * as assert from "node:assert"
 import * as fs from "node:fs"
+import * as os from "node:os"
 import * as path from "node:path"
 import { describe, it } from "node:test"
 import { backendLabel, withBackendOverride } from "../inline/backends"
-import { buildInvocation } from "../inline/cli"
+import { buildInvocation, detectCli, execCli } from "../inline/cli"
 import type { CommitContext } from "../inline/context"
 import { detectSensitiveContent } from "../inline/context"
 import {
@@ -22,12 +23,12 @@ import {
   parsePrResponse,
 } from "../inline/pr"
 import {
-  type SensitiveFinding,
-  type SensitiveReport,
   detectSensitiveReport,
   formatSensitiveWarningMessage,
   formatSensitiveWarningReport,
   formatSensitiveWarningSummary,
+  type SensitiveFinding,
+  type SensitiveReport,
 } from "../inline/sensitive"
 import type { BranchMode, ExtensionConfig } from "../inline/types"
 
@@ -88,9 +89,7 @@ function loadSharedScenarios(): SharedScenario[] {
     __dirname,
     "../../../test-fixtures/sensitive-scenarios.json",
   )
-  return JSON.parse(
-    fs.readFileSync(fixturePath, "utf8"),
-  ) as SharedScenario[]
+  return JSON.parse(fs.readFileSync(fixturePath, "utf8")) as SharedScenario[]
 }
 
 function loadSharedCommitFormattingScenarios(): SharedCommitFormattingScenario[] {
@@ -243,6 +242,50 @@ function makeContext(overrides: Partial<CommitContext> = {}): CommitContext {
   }
 }
 
+function tempDir(label: string): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), `occ-inline-${label}-`))
+}
+
+function fakeExecutable(filePath: string, body: string): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true })
+  fs.writeFileSync(filePath, `#!/bin/sh\n${body}\n`)
+  fs.chmodSync(filePath, 0o755)
+}
+
+function codexPlatformParts():
+  | { packageName: string; triple: string; binaryName: string }
+  | undefined {
+  if (process.platform === "linux" && process.arch === "x64") {
+    return {
+      packageName: "@openai/codex-linux-x64",
+      triple: "x86_64-unknown-linux-musl",
+      binaryName: "codex",
+    }
+  }
+  if (process.platform === "linux" && process.arch === "arm64") {
+    return {
+      packageName: "@openai/codex-linux-arm64",
+      triple: "aarch64-unknown-linux-musl",
+      binaryName: "codex",
+    }
+  }
+  if (process.platform === "darwin" && process.arch === "x64") {
+    return {
+      packageName: "@openai/codex-darwin-x64",
+      triple: "x86_64-apple-darwin",
+      binaryName: "codex",
+    }
+  }
+  if (process.platform === "darwin" && process.arch === "arm64") {
+    return {
+      packageName: "@openai/codex-darwin-arm64",
+      triple: "aarch64-apple-darwin",
+      binaryName: "codex",
+    }
+  }
+  return undefined
+}
+
 describe("backend helpers", () => {
   it("formats backend labels for UI", () => {
     assert.strictEqual(backendLabel("codex"), "Codex")
@@ -321,13 +364,200 @@ describe("backend helpers", () => {
     assert.strictEqual(pr.invocation.timeout, 210_000)
     assert.strictEqual(changelog.invocation.timeout, 75_000)
   })
+
+  it("uses the fast Codex profile for prompt-only operations", () => {
+    const config = makeConfig({ codexProvider: "openrouter" })
+
+    for (const operation of ["commit", "branch", "changelog"] as const) {
+      const { invocation, stdin } = buildInvocation(
+        "/usr/bin/codex",
+        "summarize the diff",
+        config,
+        "codex",
+        operation,
+      )
+      const disables = invocation.args.flatMap((arg, index) =>
+        arg === "--disable" ? [invocation.args[index + 1]] : [],
+      )
+
+      assert.ok(disables.includes("plugins"))
+      assert.ok(disables.includes("apps"))
+      assert.ok(invocation.args.includes('model_reasoning_effort="none"'))
+      assert.ok(invocation.args.includes('web_search="disabled"'))
+      assert.ok(invocation.args.includes("--output-schema"))
+      assert.strictEqual(stdin, "summarize the diff")
+      assert.ok(invocation.cwd)
+      assert.strictEqual(
+        fs.readdirSync(invocation.cwd).length,
+        0,
+        "Codex should run from an empty cwd",
+      )
+    }
+  })
+
+  it("keeps the conservative Codex profile for PR generation", () => {
+    const config = makeConfig({ codexProvider: "openrouter" })
+    const { invocation } = buildInvocation(
+      "/usr/bin/codex",
+      "draft the pr",
+      config,
+      "codex",
+      "pr",
+    )
+    const disables = invocation.args.flatMap((arg, index) =>
+      arg === "--disable" ? [invocation.args[index + 1]] : [],
+    )
+
+    assert.ok(disables.includes("plugins"))
+    assert.ok(!disables.includes("apps"))
+    assert.ok(!invocation.args.includes('model_reasoning_effort="none"'))
+    assert.ok(!invocation.args.includes('web_search="disabled"'))
+    assert.ok(!invocation.args.includes("--output-schema"))
+  })
+
+  it("parses Codex structured response JSON when schema mode succeeds", async () => {
+    if (process.platform === "win32") return
+    const dir = tempDir("codex-json")
+    const cli = path.join(dir, "codex")
+    fakeExecutable(cli, 'printf \'{"response":"feat: structured"}\'')
+    const config = makeConfig()
+    const { invocation, stdin } = buildInvocation(
+      cli,
+      "summarize the diff",
+      config,
+      "codex",
+      "commit",
+    )
+
+    const output = await execCli(invocation, stdin)
+    assert.strictEqual(output, "feat: structured")
+  })
+
+  it("falls back to plain Codex execution when schema mode fails", async () => {
+    if (process.platform === "win32") return
+    const dir = tempDir("codex-schema-fallback")
+    const cli = path.join(dir, "codex")
+    const log = path.join(dir, "args.log")
+    fakeExecutable(
+      cli,
+      `printf '%s\\n' "$*" >> '${log}'
+case " $* " in *" --output-schema "*) exit 42;; esac
+printf 'feat: fallback\\n'`,
+    )
+    const config = makeConfig()
+    const { invocation, stdin } = buildInvocation(
+      cli,
+      "summarize the diff",
+      config,
+      "codex",
+      "commit",
+    )
+
+    const output = await execCli(invocation, stdin)
+    const calls = fs.readFileSync(log, "utf8").trim().split("\n")
+    assert.strictEqual(output, "feat: fallback")
+    assert.ok(calls.some((line) => line.includes("--output-schema")))
+    assert.ok(calls.some((line) => !line.includes("--output-schema")))
+  })
+
+  it("runs Codex from an empty temporary cwd", async () => {
+    if (process.platform === "win32") return
+    const dir = tempDir("codex-cwd")
+    const cli = path.join(dir, "codex")
+    fakeExecutable(
+      cli,
+      "printf '%s\\n' \"$(pwd)\"\nfind . -mindepth 1 -maxdepth 1 | wc -l",
+    )
+    const config = makeConfig()
+    const { invocation, stdin } = buildInvocation(
+      cli,
+      "summarize the diff",
+      config,
+      "codex",
+      "commit",
+    )
+
+    const output = await execCli(invocation, stdin)
+    const lines = output.split("\n").map((line) => line.trim())
+    assert.notStrictEqual(lines[0], process.cwd())
+    assert.strictEqual(lines[1], "0")
+  })
+
+  it("checks common CLI paths before shell-profile PATH repair", async () => {
+    if (process.platform === "win32") return
+    const dir = tempDir("detect-order")
+    const fakeBin = path.join(dir, "bin")
+    const home = path.join(dir, "home")
+    const commonCodex = path.join(home, ".local", "bin", "codex")
+    const shellCodex = path.join(dir, "shell", "codex")
+    fakeExecutable(commonCodex, "exit 0")
+    fakeExecutable(shellCodex, "exit 0")
+    fakeExecutable(path.join(fakeBin, "which"), "exit 1")
+    fakeExecutable(path.join(fakeBin, "bash"), `printf '%s\\n' '${shellCodex}'`)
+
+    const originalPath = process.env.PATH
+    const originalHome = process.env.HOME
+    process.env.PATH = fakeBin
+    process.env.HOME = home
+    try {
+      const detected = await detectCli("codex")
+      assert.strictEqual(detected, commonCodex)
+    } finally {
+      process.env.PATH = originalPath
+      process.env.HOME = originalHome
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("bypasses the Node Codex wrapper for npm-installed native binaries", async () => {
+    if (process.platform === "win32") return
+    const parts = codexPlatformParts()
+    if (!parts) return
+
+    const dir = tempDir("native-codex")
+    const fakeBin = path.join(dir, "bin")
+    const packageRoot = path.join(
+      dir,
+      "lib",
+      "node_modules",
+      "@openai",
+      "codex",
+    )
+    const wrapper = path.join(packageRoot, "bin", "codex.js")
+    const globalCodex = path.join(fakeBin, "codex")
+    const native = path.join(
+      packageRoot,
+      "node_modules",
+      parts.packageName,
+      "vendor",
+      parts.triple,
+      "codex",
+      parts.binaryName,
+    )
+    fakeExecutable(wrapper, "exit 0")
+    fakeExecutable(native, "exit 0")
+    fs.mkdirSync(fakeBin, { recursive: true })
+    fs.symlinkSync(wrapper, globalCodex)
+    fakeExecutable(
+      path.join(fakeBin, "which"),
+      `printf '%s\\n' '${globalCodex}'`,
+    )
+
+    const originalPath = process.env.PATH
+    process.env.PATH = fakeBin
+    try {
+      const detected = await detectCli("codex")
+      assert.strictEqual(detected, native)
+    } finally {
+      process.env.PATH = originalPath
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })
 
 describe("extension manifest", () => {
   it("registers the PR backend submenu commands", () => {
-    const manifest = JSON.parse(
-      fs.readFileSync("package.json", "utf8"),
-    )
+    const manifest = JSON.parse(fs.readFileSync("package.json", "utf8"))
 
     const commands = manifest.contributes.commands.map(
       (command: { command: string }) => command.command,
@@ -346,7 +576,8 @@ describe("extension manifest", () => {
     )
     assert.ok(submenus.includes("opencodecommit.prBackendMenu"))
 
-    const prBackendMenu = manifest.contributes.menus["opencodecommit.prBackendMenu"]
+    const prBackendMenu =
+      manifest.contributes.menus["opencodecommit.prBackendMenu"]
     assert.strictEqual(prBackendMenu.length, 12)
   })
 })
@@ -492,7 +723,7 @@ describe("sanitizeResponse", () => {
     )
   })
 
-  it("strips \"I'm …\" preamble", () => {
+  it('strips "I\'m …" preamble', () => {
     assert.strictEqual(
       sanitizeResponse(
         "I'm checking the exact content change so the commit message reflects the real behavior, not just the file name.\nfix: remove stray lorem ipsum from alcohol section copy",
@@ -508,7 +739,7 @@ describe("sanitizeResponse", () => {
     )
   })
 
-  it("preserves single-line commit starting with \"I'm\"", () => {
+  it('preserves single-line commit starting with "I\'m"', () => {
     assert.strictEqual(
       sanitizeResponse("I'm bumping version to 2.0"),
       "I'm bumping version to 2.0",
@@ -1087,7 +1318,8 @@ describe("formatSensitiveWarningReport", () => {
             rule: "openai-project-key",
             filePath: ".env.example",
             lineNumber: 2,
-            preview: "OPENAI_API_KEY=sk-proj-abcdefghijklmnopqrstuvwxyz1234567890",
+            preview:
+              "OPENAI_API_KEY=sk-proj-abcdefghijklmnopqrstuvwxyz1234567890",
             tier: "confirmed-secret",
             severity: "block",
           },

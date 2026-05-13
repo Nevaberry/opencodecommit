@@ -10,9 +10,15 @@ export interface CliInvocation {
   args: string[]
   timeout: number
   env?: Record<string, string>
+  cwd?: string
+  fallbackArgs?: string[]
+  jsonResponseField?: string
+  cleanupDir?: string
 }
 
 export type InvocationOperation = "commit" | "branch" | "pr" | "changelog"
+
+const CODEX_RESPONSE_FIELD = "response"
 
 const cachedCliPaths: Partial<Record<CliBackend, string>> = {}
 
@@ -96,7 +102,7 @@ function runShellSourceWhich(binary: string): Promise<string | undefined> {
 }
 
 function getCommonPaths(binary: string): string[] {
-  const home = os.homedir()
+  const home = process.env.HOME || os.homedir()
 
   if (process.platform === "win32") {
     const appData = process.env.APPDATA ?? path.join(home, "AppData", "Roaming")
@@ -140,6 +146,90 @@ function runWslWhich(binary: string): Promise<string | undefined> {
   })
 }
 
+function codexPlatformParts():
+  | { packageName: string; triple: string; binaryName: string }
+  | undefined {
+  if (process.platform === "linux" && process.arch === "x64") {
+    return {
+      packageName: "@openai/codex-linux-x64",
+      triple: "x86_64-unknown-linux-musl",
+      binaryName: "codex",
+    }
+  }
+  if (process.platform === "linux" && process.arch === "arm64") {
+    return {
+      packageName: "@openai/codex-linux-arm64",
+      triple: "aarch64-unknown-linux-musl",
+      binaryName: "codex",
+    }
+  }
+  if (process.platform === "darwin" && process.arch === "x64") {
+    return {
+      packageName: "@openai/codex-darwin-x64",
+      triple: "x86_64-apple-darwin",
+      binaryName: "codex",
+    }
+  }
+  if (process.platform === "darwin" && process.arch === "arm64") {
+    return {
+      packageName: "@openai/codex-darwin-arm64",
+      triple: "aarch64-apple-darwin",
+      binaryName: "codex",
+    }
+  }
+  return undefined
+}
+
+function resolveNpmCodexNativeBinary(cliPath: string): string | undefined {
+  if (process.platform === "win32" || isFlatpak()) return undefined
+
+  let resolved: string
+  try {
+    resolved = fs.realpathSync(cliPath)
+  } catch {
+    return undefined
+  }
+
+  if (path.basename(resolved) !== "codex.js") return undefined
+  const binDir = path.dirname(resolved)
+  if (path.basename(binDir) !== "bin") return undefined
+  const packageRoot = path.dirname(binDir)
+  if (path.basename(packageRoot) !== "codex") return undefined
+  if (path.basename(path.dirname(packageRoot)) !== "@openai") return undefined
+
+  const parts = codexPlatformParts()
+  if (!parts) return undefined
+
+  const native = path.join(
+    packageRoot,
+    "node_modules",
+    parts.packageName,
+    "vendor",
+    parts.triple,
+    "codex",
+    parts.binaryName,
+  )
+  if (isExecutable(native)) return native
+
+  const localVendor = path.join(
+    packageRoot,
+    "vendor",
+    parts.triple,
+    "codex",
+    parts.binaryName,
+  )
+  if (isExecutable(localVendor)) return localVendor
+
+  return undefined
+}
+
+function detectedCliPath(backend: CliBackend, cliPath: string): string {
+  if (backend === "codex") {
+    return resolveNpmCodexNativeBinary(cliPath) ?? cliPath
+  }
+  return cliPath
+}
+
 const BACKEND_LABELS: Record<CliBackend, string> = {
   opencode: "OpenCode CLI",
   claude: "Claude Code CLI",
@@ -168,23 +258,27 @@ export async function detectCli(
   // 3. which/where
   const whichResult = await runWhich(binary)
   if (whichResult && isExecutable(whichResult)) {
-    cachedCliPaths[backend] = whichResult
-    return whichResult
+    const detected = detectedCliPath(backend, whichResult)
+    cachedCliPaths[backend] = detected
+    return detected
   }
 
-  // 4. Shell profile sourcing (Unix)
-  const shellResult = await runShellSourceWhich(binary)
-  if (shellResult && isExecutable(shellResult)) {
-    cachedCliPaths[backend] = shellResult
-    return shellResult
-  }
-
-  // 5. Common paths
+  // 4. Common paths
   for (const p of getCommonPaths(binary)) {
     if (isExecutable(p)) {
-      cachedCliPaths[backend] = p
-      return p
+      const detected = detectedCliPath(backend, p)
+      cachedCliPaths[backend] = detected
+      return detected
     }
+  }
+
+  // 5. Shell profile sourcing (Unix). Keep this slower repair path after
+  // cheap checks for VS Code/VSCodium sessions with a sparse PATH.
+  const shellResult = await runShellSourceWhich(binary)
+  if (shellResult && isExecutable(shellResult)) {
+    const detected = detectedCliPath(backend, shellResult)
+    cachedCliPaths[backend] = detected
+    return detected
   }
 
   // 6. WSL fallback (Windows only)
@@ -236,6 +330,74 @@ export function getInvocationTimeoutMs(
   return normalizeTimeoutSeconds(seconds) * 1000
 }
 
+function makeCodexWorkspace():
+  | { cwd: string; cleanupDir: string; schemaPath: string }
+  | undefined {
+  try {
+    const cleanupDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "opencodecommit-codex-"),
+    )
+    const cwd = path.join(cleanupDir, "cwd")
+    fs.mkdirSync(cwd)
+    const schemaPath = path.join(cleanupDir, "response-schema.json")
+    fs.writeFileSync(
+      schemaPath,
+      JSON.stringify(
+        {
+          type: "object",
+          additionalProperties: false,
+          required: [CODEX_RESPONSE_FIELD],
+          properties: {
+            [CODEX_RESPONSE_FIELD]: { type: "string" },
+          },
+        },
+        null,
+        2,
+      ),
+    )
+    return { cwd, cleanupDir, schemaPath }
+  } catch {
+    return undefined
+  }
+}
+
+function codexCommonArgs(model: string): string[] {
+  return [
+    "exec",
+    "--ephemeral",
+    "--skip-git-repo-check",
+    "-s",
+    "read-only",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "--disable",
+    "plugins",
+    "-c",
+    "mcp_servers={}",
+    "-m",
+    model,
+  ]
+}
+
+function codexFastArgs(model: string, schemaPath?: string): string[] {
+  const args = [
+    ...codexCommonArgs(model),
+    "--disable",
+    "apps",
+    "-c",
+    'model_reasoning_effort="none"',
+    "-c",
+    'web_search="disabled"',
+  ]
+  if (schemaPath) {
+    args.push("--output-schema", schemaPath)
+  }
+  return args
+}
+
+function addCodexProvider(args: string[], provider: string): void {
+  if (provider) args.push("-c", `model_provider="${provider}"`)
+}
+
 export function buildInvocation(
   cliPath: string,
   prompt: string,
@@ -280,22 +442,20 @@ export function buildInvocation(
       }
 
     case "codex": {
-      const codexArgs = [
-        "exec",
-        "--ephemeral",
-        "--skip-git-repo-check",
-        "-s",
-        "read-only",
-        "--dangerously-bypass-approvals-and-sandbox",
-        "--disable",
-        "plugins",
-        "-c",
-        "mcp_servers={}",
-        "-m",
-        config.codexModel,
-      ]
-      if (config.codexProvider) {
-        codexArgs.push("-c", `model_provider="${config.codexProvider}"`)
+      const workspace = makeCodexWorkspace()
+      const useFastProfile = operation !== "pr"
+      const codexArgs = useFastProfile
+        ? codexFastArgs(config.codexModel, workspace?.schemaPath)
+        : codexCommonArgs(config.codexModel)
+      const fallbackArgs =
+        useFastProfile && workspace
+          ? codexFastArgs(config.codexModel)
+          : undefined
+
+      addCodexProvider(codexArgs, config.codexProvider)
+      if (fallbackArgs) {
+        addCodexProvider(fallbackArgs, config.codexProvider)
+        fallbackArgs.push("-")
       }
       codexArgs.push("-")
       const env: Record<string, string> = {}
@@ -307,6 +467,11 @@ export function buildInvocation(
           args: codexArgs,
           timeout,
           env,
+          cwd: workspace?.cwd,
+          fallbackArgs,
+          jsonResponseField:
+            useFastProfile && workspace ? CODEX_RESPONSE_FIELD : undefined,
+          cleanupDir: workspace?.cleanupDir,
         },
         stdin: prompt,
       }
@@ -362,97 +527,133 @@ function isFlatpak(): boolean {
   }
 }
 
+function parseJsonResponseField(
+  output: string,
+  field: string | undefined,
+): string | undefined {
+  if (!field) return undefined
+  try {
+    const parsed = JSON.parse(output)
+    const value = parsed?.[field]
+    return typeof value === "string" ? value : undefined
+  } catch {
+    return undefined
+  }
+}
+
 export function execCli(
   invocation: CliInvocation,
   stdin?: string,
 ): Promise<string> {
-  return new Promise((resolve, reject) => {
-    // In Flatpak sandbox, escape to host so CLIs can find node, auth, etc.
-    let command = invocation.command
-    let args = invocation.args
-    if (isFlatpak()) {
-      const envFlags: string[] = []
-      if (invocation.env) {
-        for (const [key, value] of Object.entries(invocation.env)) {
-          envFlags.push(`--env=${key}=${value}`)
+  const run = (
+    invocationArgs: string[],
+    jsonResponseField?: string,
+  ): Promise<string> =>
+    new Promise((resolve, reject) => {
+      // In Flatpak sandbox, escape to host so CLIs can find node, auth, etc.
+      let command = invocation.command
+      let args = invocationArgs
+      if (isFlatpak()) {
+        const envFlags: string[] = []
+        if (invocation.env) {
+          for (const [key, value] of Object.entries(invocation.env)) {
+            envFlags.push(`--env=${key}=${value}`)
+          }
+        }
+        args = ["--host", ...envFlags, command, ...args]
+        command = "flatpak-spawn"
+      }
+
+      const spawnEnvPath = process.env.OCC_E2E_LAST_SPAWN_ENV_PATH
+      if (spawnEnvPath) {
+        try {
+          fs.writeFileSync(
+            spawnEnvPath,
+            JSON.stringify({
+              command,
+              args,
+              env: invocation.env ?? {},
+              cwd: invocation.cwd,
+              originalCommand: invocation.command,
+              originalArgs: invocationArgs,
+            }),
+          )
+        } catch {
+          // best-effort capture — never break production flow
         }
       }
-      args = ["--host", ...envFlags, command, ...args]
-      command = "flatpak-spawn"
-    }
 
-    const spawnEnvPath = process.env.OCC_E2E_LAST_SPAWN_ENV_PATH
-    if (spawnEnvPath) {
-      try {
-        fs.writeFileSync(
-          spawnEnvPath,
-          JSON.stringify({
-            command,
-            args,
-            env: invocation.env ?? {},
-            originalCommand: invocation.command,
-            originalArgs: invocation.args,
-          }),
-        )
-      } catch {
-        // best-effort capture — never break production flow
+      const child = spawn(command, args, {
+        stdio: [stdin ? "pipe" : "ignore", "pipe", "pipe"],
+        env: invocation.env
+          ? { ...process.env, ...invocation.env }
+          : process.env,
+        cwd: invocation.cwd,
+      })
+
+      const MAX_OUTPUT = 1024 * 1024 // 1MB
+      let stdout = ""
+      let stderr = ""
+      let killed = false
+
+      child.stdout?.on("data", (d: Buffer) => {
+        stdout += d
+        if (stdout.length > MAX_OUTPUT && !killed) {
+          killed = true
+          child.kill()
+          reject(new Error("CLI output exceeded 1MB limit"))
+        }
+      })
+      child.stderr?.on("data", (d: Buffer) => {
+        stderr += d
+        if (stderr.length > MAX_OUTPUT && !killed) {
+          killed = true
+          child.kill()
+          reject(new Error("CLI error output exceeded 1MB limit"))
+        }
+      })
+
+      if (stdin && child.stdin) {
+        child.stdin.write(stdin)
+        child.stdin.end()
       }
-    }
 
-    const child = spawn(command, args, {
-      stdio: [stdin ? "pipe" : "ignore", "pipe", "pipe"],
-      env: invocation.env
-        ? { ...process.env, ...invocation.env }
-        : process.env,
-    })
-
-    const MAX_OUTPUT = 1024 * 1024 // 1MB
-    let stdout = ""
-    let stderr = ""
-    let killed = false
-
-    child.stdout?.on("data", (d: Buffer) => {
-      stdout += d
-      if (stdout.length > MAX_OUTPUT && !killed) {
-        killed = true
+      const timer = setTimeout(() => {
         child.kill()
-        reject(new Error("CLI output exceeded 1MB limit"))
-      }
-    })
-    child.stderr?.on("data", (d: Buffer) => {
-      stderr += d
-      if (stderr.length > MAX_OUTPUT && !killed) {
-        killed = true
-        child.kill()
-        reject(new Error("CLI error output exceeded 1MB limit"))
-      }
-    })
-
-    if (stdin && child.stdin) {
-      child.stdin.write(stdin)
-      child.stdin.end()
-    }
-
-    const timer = setTimeout(() => {
-      child.kill()
-      reject(
-        new Error(`CLI timed out after ${invocation.timeout / 1000} seconds`),
-      )
-    }, invocation.timeout)
-
-    child.on("close", (code) => {
-      clearTimeout(timer)
-      if (code === 0) resolve(stripAnsi(stdout.trim()))
-      else
         reject(
-          new Error(
-            `CLI exited with code ${code}: ${stripAnsi(stderr.trim())}`,
-          ),
+          new Error(`CLI timed out after ${invocation.timeout / 1000} seconds`),
         )
+      }, invocation.timeout)
+
+      child.on("close", (code) => {
+        clearTimeout(timer)
+        if (code === 0) {
+          const output = stripAnsi(stdout.trim())
+          resolve(parseJsonResponseField(output, jsonResponseField) ?? output)
+        } else {
+          reject(
+            new Error(
+              `CLI exited with code ${code}: ${stripAnsi(stderr.trim())}`,
+            ),
+          )
+        }
+      })
+
+      child.on("error", (err) =>
+        reject(new Error(`Failed to run CLI: ${err.message}`)),
+      )
     })
 
-    child.on("error", (err) =>
-      reject(new Error(`Failed to run CLI: ${err.message}`)),
-    )
-  })
+  return run(invocation.args, invocation.jsonResponseField)
+    .catch((err: unknown) => {
+      if (invocation.fallbackArgs) {
+        return run(invocation.fallbackArgs)
+      }
+      throw err
+    })
+    .finally(() => {
+      if (invocation.cleanupDir) {
+        fs.rmSync(invocation.cleanupDir, { recursive: true, force: true })
+      }
+    })
 }
