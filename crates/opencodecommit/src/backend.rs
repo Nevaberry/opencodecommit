@@ -473,6 +473,10 @@ fn codex_invocation_workspace() -> (Option<PathBuf>, Option<PathBuf>) {
 ///   -s read-only                 sandbox
 ///   --dangerously-bypass-*       skip interactive approvals
 ///   --disable plugins            skip loading user-configured codex plugins
+///   --disable apps               skip external app integrations; occ provides
+///                                all task context through stdin
+///   --disable shell_tool         remove shell execution from the model toolset;
+///                                occ already passes the required repo context
 ///   -c mcp_servers={}            belt-and-braces: never spawn MCP servers
 ///                                even if CODEX_HOME falls back to the user's
 ///                                real home with its own MCP registry
@@ -486,6 +490,10 @@ fn codex_common_args(model: &str) -> Vec<String> {
         "--dangerously-bypass-approvals-and-sandbox".to_owned(),
         "--disable".to_owned(),
         "plugins".to_owned(),
+        "--disable".to_owned(),
+        "apps".to_owned(),
+        "--disable".to_owned(),
+        "shell_tool".to_owned(),
         "-c".to_owned(),
         "mcp_servers={}".to_owned(),
         "-m".to_owned(),
@@ -494,18 +502,12 @@ fn codex_common_args(model: &str) -> Vec<String> {
 }
 
 /// `codex exec` argv for the fast commit-generation path. Adds:
-///   --disable apps                     — skip loading external "apps"
-///                                        integrations we don't use for commit
-///                                        generation (consistently ~0.5–1 s off
-///                                        cold invocations in benchmarking)
 ///   -c model_reasoning_effort="none"   — commits don't need reasoning
 ///   -c web_search="disabled"           — remove the web_search tool
 ///                                        (required for reasoning < low, and
 ///                                        trims tool preamble tokens)
 fn codex_base_args(model: &str, schema_path: Option<&Path>) -> Vec<String> {
     let mut args = codex_common_args(model);
-    args.push("--disable".to_owned());
-    args.push("apps".to_owned());
     args.push("-c".to_owned());
     args.push("model_reasoning_effort=\"none\"".to_owned());
     args.push("-c".to_owned());
@@ -603,8 +605,8 @@ pub fn build_invocation_with_model_for(
             // PR stages (summary + final) keep whatever reasoning_effort and
             // web_search the user configured in ~/.codex/config.toml, so PR
             // quality is preserved. We still apply the cheap flags
-            // (--ephemeral, --skip-git-repo-check, --disable plugins) because
-            // they cost nothing and never affect output quality.
+            // (--ephemeral, --skip-git-repo-check, --disable plugins/apps/shell_tool)
+            // because they cost nothing and never affect output quality.
             let mut args = codex_common_args(model);
             let prov = provider.unwrap_or(if !config.codex_provider.is_empty() {
                 &config.codex_provider
@@ -909,6 +911,7 @@ mod tests {
             .collect();
         assert!(disables.contains(&"plugins"));
         assert!(disables.contains(&"apps"));
+        assert!(disables.contains(&"shell_tool"));
         assert!(inv.args.contains(&"-m".to_owned()));
         assert!(inv.args.contains(&"gpt-5.4-mini".to_owned()));
         assert_eq!(inv.args.last().map(String::as_str), Some("-"));
@@ -972,7 +975,8 @@ mod tests {
             })
             .collect();
         assert!(disables.contains(&"plugins"));
-        assert!(!disables.contains(&"apps"));
+        assert!(disables.contains(&"apps"));
+        assert!(disables.contains(&"shell_tool"));
     }
 
     #[test]

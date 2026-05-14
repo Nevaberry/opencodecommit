@@ -136,6 +136,7 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     static COUNTER: AtomicU64 = AtomicU64::new(0);
+    static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
     struct TestDirs {
         root: PathBuf,
@@ -231,11 +232,12 @@ mod tests {
 
     #[test]
     fn resolve_cache_dir_prefers_xdg_when_absolute() {
+        let _guard = ENV_LOCK.lock().expect("env lock");
         // Saved guard for XDG so tests don't pollute subsequent runs.
         let prev = std::env::var_os("XDG_CACHE_HOME");
         // SAFETY: tests in this module mutate process env; Rust 2024 requires
         // `unsafe` around `set_var`, and we accept the risk because these test
-        // cases are fast and cooperate via the CACHED_HOME mutex upstream.
+        // cases are fast and cooperate via ENV_LOCK.
         unsafe {
             std::env::set_var("XDG_CACHE_HOME", "/explicit/xdg/cache");
         }
@@ -257,6 +259,7 @@ mod tests {
 
     #[test]
     fn resolve_cache_dir_falls_back_to_home_cache() {
+        let _guard = ENV_LOCK.lock().expect("env lock");
         let prev = std::env::var_os("XDG_CACHE_HOME");
         unsafe {
             std::env::remove_var("XDG_CACHE_HOME");

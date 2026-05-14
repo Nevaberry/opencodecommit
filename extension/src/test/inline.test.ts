@@ -372,6 +372,7 @@ describe("backend helpers", () => {
 
       assert.ok(disables.includes("plugins"))
       assert.ok(disables.includes("apps"))
+      assert.ok(disables.includes("shell_tool"))
       assert.ok(invocation.args.includes('model_reasoning_effort="none"'))
       assert.ok(invocation.args.includes('web_search="disabled"'))
       assert.ok(invocation.args.includes("--output-schema"))
@@ -385,7 +386,7 @@ describe("backend helpers", () => {
     }
   })
 
-  it("keeps the conservative Codex profile for PR generation", () => {
+  it("keeps the Codex PR quality profile while skipping external integrations", () => {
     const config = makeConfig({ codexProvider: "openrouter" })
     const { invocation } = buildInvocation(
       "/usr/bin/codex",
@@ -399,7 +400,8 @@ describe("backend helpers", () => {
     )
 
     assert.ok(disables.includes("plugins"))
-    assert.ok(!disables.includes("apps"))
+    assert.ok(disables.includes("apps"))
+    assert.ok(disables.includes("shell_tool"))
     assert.ok(!invocation.args.includes('model_reasoning_effort="none"'))
     assert.ok(!invocation.args.includes('web_search="disabled"'))
     assert.ok(!invocation.args.includes("--output-schema"))

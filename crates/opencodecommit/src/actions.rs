@@ -940,8 +940,12 @@ mod tests {
                 "single-stage PR must not disable web search: {args}"
             );
             assert!(
-                !args.contains("apps"),
-                "single-stage PR must not disable apps: {args}"
+                args.contains("--disable apps"),
+                "single-stage PR should skip external Codex apps: {args}"
+            );
+            assert!(
+                args.contains("--disable shell_tool"),
+                "single-stage PR should not expose shell execution to Codex: {args}"
             );
         });
 

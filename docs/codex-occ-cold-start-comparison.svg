@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="590" viewBox="0 0 980 590" role="img" aria-labelledby="title desc">
+  <title id="title">Codex and OpenCodeCommit cold-start comparison</title>
+  <desc id="desc">Grouped bar chart comparing old and new median e2e wall times in milliseconds. Lower is better.</desc>
+  <rect width="980" height="590" fill="#f8faf9"/>
+  <text x="36" y="44" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="700" fill="#18201f">Codex CLI + OpenCodeCommit cold-start e2e</text>
+  <text x="36" y="72" font-family="Inter, Arial, sans-serif" font-size="14" fill="#4f5f5b">Median wall time in milliseconds, 9-11 offline fixture runs, lower is better.</text>
+
+  <rect x="36" y="96" width="14" height="14" fill="#7a8797" rx="2"/>
+  <text x="58" y="108" font-family="Inter, Arial, sans-serif" font-size="13" fill="#35413f">Old baseline</text>
+  <rect x="158" y="96" width="14" height="14" fill="#198c74" rx="2"/>
+  <text x="180" y="108" font-family="Inter, Arial, sans-serif" font-size="13" fill="#35413f">Patched pair</text>
+
+  <line x1="260" y1="132" x2="760" y2="132" stroke="#d7dedb" stroke-width="1"/>
+  <line x1="260" y1="522" x2="760" y2="522" stroke="#d7dedb" stroke-width="1"/>
+  <line x1="260" y1="132" x2="260" y2="522" stroke="#d7dedb" stroke-width="1"/>
+  <line x1="385" y1="132" x2="385" y2="522" stroke="#e5ebe8" stroke-width="1"/>
+  <line x1="510" y1="132" x2="510" y2="522" stroke="#e5ebe8" stroke-width="1"/>
+  <line x1="635" y1="132" x2="635" y2="522" stroke="#e5ebe8" stroke-width="1"/>
+  <line x1="760" y1="132" x2="760" y2="522" stroke="#e5ebe8" stroke-width="1"/>
+  <text x="254" y="544" font-family="Inter, Arial, sans-serif" font-size="12" fill="#697774">0</text>
+  <text x="371" y="544" font-family="Inter, Arial, sans-serif" font-size="12" fill="#697774">400</text>
+  <text x="496" y="544" font-family="Inter, Arial, sans-serif" font-size="12" fill="#697774">800</text>
+  <text x="617" y="544" font-family="Inter, Arial, sans-serif" font-size="12" fill="#697774">1200</text>
+  <text x="742" y="544" font-family="Inter, Arial, sans-serif" font-size="12" fill="#697774">1600</text>
+
+  <text x="36" y="158" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#18201f">Codex exec OCC profile</text>
+  <rect x="260" y="142" width="57" height="15" fill="#7a8797" rx="3"/>
+  <rect x="260" y="162" width="51" height="15" fill="#198c74" rx="3"/>
+  <text x="327" y="155" font-family="Inter, Arial, sans-serif" font-size="12" fill="#35413f">183</text>
+  <text x="321" y="175" font-family="Inter, Arial, sans-serif" font-size="12" fill="#35413f">163</text>
+  <text x="805" y="162" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#198c74">1.12x</text>
+
+  <text x="36" y="218" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#18201f">occ commit</text>
+  <rect x="260" y="202" width="102" height="15" fill="#7a8797" rx="3"/>
+  <rect x="260" y="222" width="84" height="15" fill="#198c74" rx="3"/>
+  <text x="372" y="215" font-family="Inter, Arial, sans-serif" font-size="12" fill="#35413f">327</text>
+  <text x="354" y="235" font-family="Inter, Arial, sans-serif" font-size="12" fill="#35413f">270</text>
+  <text x="805" y="222" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#198c74">1.21x</text>
+
+  <text x="36" y="278" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#18201f">occ changelog</text>
+  <rect x="260" y="262" width="89" height="15" fill="#7a8797" rx="3"/>
+  <rect x="260" y="282" width="89" height="15" fill="#198c74" rx="3"/>
+  <text x="359" y="275" font-family="Inter, Arial, sans-serif" font-size="12" fill="#35413f">284</text>
+  <text x="359" y="295" font-family="Inter, Arial, sans-serif" font-size="12" fill="#35413f">285</text>
+  <text x="805" y="282" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#198c74">1.00x</text>
+
+  <text x="36" y="338" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#18201f">occ branch</text>
+  <rect x="260" y="322" width="98" height="15" fill="#7a8797" rx="3"/>
+  <rect x="260" y="342" width="82" height="15" fill="#198c74" rx="3"/>
+  <text x="368" y="335" font-family="Inter, Arial, sans-serif" font-size="12" fill="#35413f">312</text>
+  <text x="352" y="355" font-family="Inter, Arial, sans-serif" font-size="12" fill="#35413f">263</text>
+  <text x="805" y="342" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#198c74">1.19x</text>
+
+  <text x="36" y="398" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#18201f">occ pr</text>
+  <rect x="260" y="382" width="198" height="15" fill="#7a8797" rx="3"/>
+  <rect x="260" y="402" width="167" height="15" fill="#198c74" rx="3"/>
+  <text x="468" y="395" font-family="Inter, Arial, sans-serif" font-size="12" fill="#35413f">632</text>
+  <text x="437" y="415" font-family="Inter, Arial, sans-serif" font-size="12" fill="#35413f">534</text>
+  <text x="805" y="402" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#198c74">1.19x</text>
+
+  <text x="36" y="458" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#18201f">OCC aggregate</text>
+  <rect x="260" y="442" width="486" height="15" fill="#7a8797" rx="3"/>
+  <rect x="260" y="462" width="423" height="15" fill="#198c74" rx="3"/>
+  <text x="756" y="455" font-family="Inter, Arial, sans-serif" font-size="12" fill="#35413f">1557</text>
+  <text x="693" y="475" font-family="Inter, Arial, sans-serif" font-size="12" fill="#35413f">1354</text>
+  <text x="805" y="462" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#198c74">1.15x</text>
+
+  <text x="36" y="574" font-family="Inter, Arial, sans-serif" font-size="12" fill="#697774">Measured on 2026-05-14 with real release binaries and offline SSE fixtures.</text>
+</svg>

@@ -371,6 +371,10 @@ function codexCommonArgs(model: string): string[] {
     "--dangerously-bypass-approvals-and-sandbox",
     "--disable",
     "plugins",
+    "--disable",
+    "apps",
+    "--disable",
+    "shell_tool",
     "-c",
     "mcp_servers={}",
     "-m",
@@ -381,8 +385,6 @@ function codexCommonArgs(model: string): string[] {
 function codexFastArgs(model: string, schemaPath?: string): string[] {
   const args = [
     ...codexCommonArgs(model),
-    "--disable",
-    "apps",
     "-c",
     'model_reasoning_effort="none"',
     "-c",
