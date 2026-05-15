@@ -426,15 +426,30 @@ fn codex_env() -> Vec<(String, String)> {
 
 fn codex_temp_workspace() -> Option<(PathBuf, PathBuf)> {
     let counter = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
-    let root = std::env::temp_dir().join(format!(
-        "opencodecommit-codex-{}-{}",
-        std::process::id(),
-        counter
-    ));
+    let workspace_root = codex_workspace_root();
+    let root = workspace_root.join(format!("run-{}-{}", std::process::id(), counter));
     let cwd = root.join("cwd");
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&cwd).ok()?;
     Some((root, cwd))
+}
+
+fn codex_workspace_root() -> PathBuf {
+    if let Some(xdg) = std::env::var_os("XDG_CACHE_HOME") {
+        let xdg = PathBuf::from(xdg);
+        if xdg.is_absolute() {
+            return xdg.join("opencodecommit").join("codex-tmp");
+        }
+    }
+
+    if let Some(home) = std::env::var_os("HOME") {
+        return PathBuf::from(home)
+            .join(".cache")
+            .join("opencodecommit")
+            .join("codex-tmp");
+    }
+
+    std::env::temp_dir().join("opencodecommit-codex")
 }
 
 fn write_codex_response_schema(root: &Path) -> Option<PathBuf> {
@@ -936,6 +951,44 @@ mod tests {
             Path::new(schema_path).is_file(),
             "schema file should exist at {schema_path}"
         );
+    }
+
+    #[test]
+    fn codex_temp_workspace_uses_xdg_cache_when_available() {
+        let _lock = crate::TEST_CWD_LOCK.lock().unwrap();
+        let dir = temp_test_dir("xdg-codex-workspace");
+        let cache_root = dir.join("cache");
+        let original_xdg = std::env::var_os("XDG_CACHE_HOME");
+
+        unsafe {
+            std::env::set_var("XDG_CACHE_HOME", &cache_root);
+        }
+
+        let config = Config {
+            backend: Backend::Codex,
+            codex_model: "gpt-5.4-mini".to_owned(),
+            ..Config::default()
+        };
+        let inv = build_invocation(Path::new("/usr/bin/codex"), "hello", &config);
+
+        unsafe {
+            match original_xdg {
+                Some(value) => std::env::set_var("XDG_CACHE_HOME", value),
+                None => std::env::remove_var("XDG_CACHE_HOME"),
+            }
+        }
+
+        let expected_root = cache_root.join("opencodecommit").join("codex-tmp");
+        let cwd = inv.cwd.as_ref().expect("codex cwd");
+        assert!(
+            cwd.starts_with(&expected_root),
+            "expected Codex cwd under {}, got {}",
+            expected_root.display(),
+            cwd.display()
+        );
+        if let Some(cleanup_dir) = &inv.cleanup_dir {
+            let _ = std::fs::remove_dir_all(cleanup_dir);
+        }
     }
 
     #[test]

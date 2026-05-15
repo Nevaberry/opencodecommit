@@ -385,6 +385,41 @@ describe("backend helpers", () => {
     }
   })
 
+  it("places the Codex temp workspace under XDG cache when available", () => {
+    const dir = tempDir("codex-xdg-cache")
+    const cacheRoot = path.join(dir, "cache")
+    const previousXdg = process.env.XDG_CACHE_HOME
+    process.env.XDG_CACHE_HOME = cacheRoot
+
+    try {
+      const { invocation } = buildInvocation(
+        "/usr/bin/codex",
+        "summarize the diff",
+        makeConfig(),
+        "codex",
+        "commit",
+      )
+
+      assert.ok(invocation.cwd)
+      assert.ok(invocation.cleanupDir)
+      const expectedRoot = path.join(cacheRoot, "opencodecommit", "codex-tmp")
+      const relativeCwd = path.relative(expectedRoot, invocation.cwd)
+      assert.ok(
+        relativeCwd &&
+          !relativeCwd.startsWith("..") &&
+          !path.isAbsolute(relativeCwd),
+        `expected Codex cwd under ${expectedRoot}, got ${invocation.cwd}`,
+      )
+      fs.rmSync(invocation.cleanupDir, { recursive: true, force: true })
+    } finally {
+      if (previousXdg === undefined) {
+        delete process.env.XDG_CACHE_HOME
+      } else {
+        process.env.XDG_CACHE_HOME = previousXdg
+      }
+    }
+  })
+
   it("keeps the conservative Codex profile for PR generation", () => {
     const config = makeConfig({ codexProvider: "openrouter" })
     const { invocation } = buildInvocation(

@@ -2,7 +2,7 @@
   "name": "opencodecommit",
   "displayName": "OpenCodeCommit",
   "description": "AI commit, branch, PR, changelog, and CI scan tooling with local secret checks",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "publisher": "Nevaberry",
   "license": "MIT",
   "repository": {

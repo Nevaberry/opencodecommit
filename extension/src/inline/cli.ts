@@ -334,9 +334,9 @@ function makeCodexWorkspace():
   | { cwd: string; cleanupDir: string; schemaPath: string }
   | undefined {
   try {
-    const cleanupDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), "opencodecommit-codex-"),
-    )
+    const workspaceRoot = codexWorkspaceRoot()
+    fs.mkdirSync(workspaceRoot, { recursive: true })
+    const cleanupDir = fs.mkdtempSync(path.join(workspaceRoot, "run-"))
     const cwd = path.join(cleanupDir, "cwd")
     fs.mkdirSync(cwd)
     const schemaPath = path.join(cleanupDir, "response-schema.json")
@@ -359,6 +359,20 @@ function makeCodexWorkspace():
   } catch {
     return undefined
   }
+}
+
+function codexWorkspaceRoot(): string {
+  const xdg = process.env.XDG_CACHE_HOME
+  if (xdg && path.isAbsolute(xdg)) {
+    return path.join(xdg, "opencodecommit", "codex-tmp")
+  }
+
+  const home = os.homedir()
+  if (home) {
+    return path.join(home, ".cache", "opencodecommit", "codex-tmp")
+  }
+
+  return path.join(os.tmpdir(), "opencodecommit-codex")
 }
 
 function codexCommonArgs(model: string): string[] {
