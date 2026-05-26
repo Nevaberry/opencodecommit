@@ -51,6 +51,14 @@ private/
 temp/
 *.xcf
 
+# OpenCodeCommit local evidence testing
+.occ/
+occ-evidence-*.toml
+occ-evidence-*.json
+occ-evidence-*.txt
+occ-sensitive-*.csv
+occ-sensitive-*.toml
+
 # Rust
 target/
 

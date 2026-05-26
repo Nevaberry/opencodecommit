@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.9
+
+- Adds optional `occ evidence` mode with `samd` and `defence` profiles for
+  repo-local audit trails, environment provenance, and sensitive-term controls.
+
 ## 1.8
 
 - Replaced hook/global guard flows with a repo-local `occ guard install` workflow
