@@ -144,6 +144,47 @@ pub fn unset_global_hooks_path() -> Result<()> {
     Ok(())
 }
 
+/// Get the repository-local hooks path.
+pub fn get_local_hooks_path(repo: &Path) -> Result<Option<PathBuf>> {
+    let (output, status) = git_with_allowed_statuses(
+        repo,
+        &[
+            "config",
+            "--local",
+            "--type=path",
+            "--get",
+            "core.hooksPath",
+        ],
+        &[1, 5],
+    )?;
+    if status == 1 || status == 5 || output.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(PathBuf::from(output)))
+}
+
+/// Configure the repository-local hooks path.
+pub fn set_local_hooks_path(repo: &Path, path: &Path) -> Result<()> {
+    let value = path.to_string_lossy().to_string();
+    git(repo, &["config", "--local", "core.hooksPath", &value])?;
+    Ok(())
+}
+
+/// Remove the repository-local hooks path, if one is configured.
+pub fn unset_local_hooks_path(repo: &Path) -> Result<()> {
+    let _ = git_with_allowed_statuses(
+        repo,
+        &["config", "--local", "--unset", "core.hooksPath"],
+        &[1, 5],
+    )?;
+    Ok(())
+}
+
+/// Write the current index as a tree and return the tree object id.
+pub fn write_index_tree(repo: &Path) -> Result<String> {
+    git(repo, &["write-tree"])
+}
+
 /// Get the diff based on the configured source.
 /// - `Staged`: staged changes only (`git diff --cached`)
 /// - `All`: all working tree changes (`git diff HEAD`)

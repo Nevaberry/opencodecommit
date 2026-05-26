@@ -153,33 +153,35 @@ fn tui_core_buttons_and_sidebar_work_in_a_real_pty() {
     }
     session.send(ControlCode::ESC).unwrap();
 
-    watch_step("safety: install prepare-commit-msg hook");
+    watch_step("guard: install repo-local guard");
     session.send("4").unwrap();
-    session.expect("SAFETY SETTINGS").unwrap();
+    session.expect("GUARD SETTINGS").unwrap();
     session.send("i").unwrap();
     session.expect("[y Yes]").unwrap();
     session.send("y").unwrap();
-    session.expect("installed prepare-commit-msg hook").unwrap();
+    session
+        .expect("installed repo-local OpenCodeCommit guard")
+        .unwrap();
 
-    watch_step("safety: uninstall hook");
+    watch_step("guard: uninstall guard");
     session.send("4").unwrap();
-    session.expect("SAFETY SETTINGS").unwrap();
+    session.expect("GUARD SETTINGS").unwrap();
     session.send("u").unwrap();
     session.expect("[y Yes]").unwrap();
     session.send("y").unwrap();
     session
-        .expect("uninstalled prepare-commit-msg hook")
+        .expect("uninstalled repo-local OpenCodeCommit guard")
         .unwrap();
 
     watch_step("safety: apply human sensitive profile");
     session.send("4").unwrap();
-    session.expect("SAFETY SETTINGS").unwrap();
+    session.expect("GUARD SETTINGS").unwrap();
     session.send("h").unwrap();
     session.expect("Applied human sensitive profile").unwrap();
 
     watch_step("safety: apply strict-agent profile");
     session.send("4").unwrap();
-    session.expect("SAFETY SETTINGS").unwrap();
+    session.expect("GUARD SETTINGS").unwrap();
     session.send("a").unwrap();
     session
         .expect("Applied strict-agent sensitive profile")
@@ -293,7 +295,7 @@ fn tui_targeted_single_backend_smoke() {
     session.expect("1 Commit").unwrap();
     session.expect("2 Branch").unwrap();
     session.expect("3 PR").unwrap();
-    session.expect("4 Safety Hook").unwrap();
+    session.expect("4 Guard").unwrap();
     session.expect("5 Backend").unwrap();
     session.expect("6 Commit").unwrap();
     session.expect("7 PR").unwrap();

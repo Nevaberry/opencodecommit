@@ -70,7 +70,8 @@ CI and local scanning:
 ```bash
 occ scan --format text
 occ scan --format sarif --output occ-scan.sarif
-occ guard install --global
+occ guard install
+occ git commit -m "manual draft"
 ```
 
 ## What You Get
@@ -79,6 +80,7 @@ occ guard install --global
 - Branch names, PR drafts, and changelog entries from the same context pipeline.
 - A terminal TUI with backend picks, diff view, output panels, and file staging.
 - Local sensitive-content scanning with `warn`, `block-*`, and `strict-*` enforcement modes.
+- A repo-local Git guard that routes raw `git commit` messages through OCC using `prepare-commit-msg`.
 - CI output as text, JSON, SARIF, or GitHub annotations.
 - Built-in language templates for English, Finnish, Japanese, Chinese, Spanish, Portuguese, French, Korean, Russian, Vietnamese, and German.
 

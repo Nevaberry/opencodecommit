@@ -2,6 +2,8 @@
 
 This diagram focuses on generation flows (`occ commit`, `occ branch`, `occ pr`, `occ changelog`, TUI, and the VS Code extension).
 
+`occ guard install` adds a repo-local `prepare-commit-msg` guard under `.git/occ/hooks` and sets local `core.hooksPath`. Raw `git commit` and `git commit --no-verify` then generate from the staged diff through the same commit pipeline before Git completes the commit. `occ commit` and the VS Code extension write a short-lived one-shot token so already generated or manually approved messages are preserved once for the matching index tree.
+
 `occ scan` reuses the same config loading, diff acquisition, and sensitive scanning phases, then exits after reporting:
 - exit `0` when the selected enforcement allows the diff
 - exit `2` when blocking findings remain

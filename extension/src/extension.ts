@@ -23,6 +23,7 @@ import {
   generateCommitMessage,
   refineCommitMessage,
 } from "./inline/generator"
+import { writePreserveMessageToken } from "./inline/guard"
 import { type GeneratedPrDraft, generatePrDraft } from "./inline/pr"
 import type { SensitiveReport } from "./inline/sensitive"
 import {
@@ -264,6 +265,8 @@ async function generateMessageInline(
   )
   log(`Generated message: "${message}"`)
   repo.inputBox.value = message
+  const tokenPath = await writePreserveMessageToken(repo.rootUri.fsPath)
+  log(`Wrote guard preserve token: ${tokenPath}`)
 }
 
 async function refineMessageInline(repo: Repository) {
@@ -296,6 +299,8 @@ async function refineMessageInline(repo: Repository) {
     onProgress,
   )
   repo.inputBox.value = message
+  const tokenPath = await writePreserveMessageToken(repo.rootUri.fsPath)
+  log(`Wrote guard preserve token: ${tokenPath}`)
 }
 
 function formatPrDraftDocument(draft: GeneratedPrDraft): string {
@@ -493,6 +498,23 @@ async function refineMessage(arg?: { rootUri?: vscode.Uri }) {
   )
 
   vscode.commands.executeCommand("workbench.view.scm")
+}
+
+async function manualCommitOnce(arg?: { rootUri?: vscode.Uri }) {
+  const repo = resolveRepository(arg)
+  if (!repo) {
+    vscode.window.showErrorMessage("No git repository found.")
+    return
+  }
+
+  try {
+    const tokenPath = await writePreserveMessageToken(repo.rootUri.fsPath)
+    log(`Wrote manual guard preserve token: ${tokenPath}`)
+    await vscode.commands.executeCommand("git.commit")
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    vscode.window.showErrorMessage(`OpenCodeCommit: ${msg}`)
+  }
 }
 
 async function generatePr(
@@ -707,6 +729,9 @@ export async function activate(context: vscode.ExtensionContext) {
     ),
     vscode.commands.registerCommand("opencodecommit.refine", (arg) =>
       refineMessage(arg),
+    ),
+    vscode.commands.registerCommand("opencodecommit.manualCommitOnce", (arg) =>
+      manualCommitOnce(arg),
     ),
     vscode.commands.registerCommand("opencodecommit.generatePr", (arg) =>
       generatePr(arg),

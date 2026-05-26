@@ -5,6 +5,7 @@ OpenCodeCommit contributes actions to the Source Control title bar.
 Common actions:
 - generate a commit message
 - refine the current message
+- manual commit once through VS Code's built-in Git commit command
 - generate a branch name
 - generate a PR draft
 - create a changelog entry
@@ -14,6 +15,8 @@ Common actions:
 - run Diagnose
 
 The extension uses the same `config.toml` as the CLI and TUI. Settings under `opencodecommit.*` are synchronized with that file.
+
+When `occ guard install` is active in a repository, generated and refined messages write a one-shot preserve token for the current staged index so VS Code's Commit button keeps the message. Use `occ: Manual Commit Once` before a deliberately handwritten commit message.
 
 ## Flatpak Notes
 

@@ -29,6 +29,7 @@ type Scenario =
   | { kind: "branch" }
   | { kind: "changelog" }
   | { kind: "language" }
+  | { kind: "manualCommitOnce" }
   | { kind: "openConfig" }
   | { kind: "revealConfig" }
   | { kind: "openSettings" }
@@ -125,6 +126,8 @@ function classify(command: string): Scenario {
       return { kind: "commit", conventional: true }
     case "opencodecommit.refine":
       return { kind: "refine" }
+    case "opencodecommit.manualCommitOnce":
+      return { kind: "manualCommitOnce" }
     case "opencodecommit.generatePr":
       return { kind: "pr" }
     case "opencodecommit.createChangelog":
@@ -369,6 +372,18 @@ describe("Extension Commands E2E", function () {
               return value && value !== "English" ? value : undefined
             })
             assert.notEqual(current, "English")
+            break
+          }
+
+          case "manualCommitOnce": {
+            let committed = false
+            stubExecuteCommand(sandbox, {
+              "git.commit"() {
+                committed = true
+              },
+            })
+            await originalExecuteCommand(command)
+            assert.equal(committed, true)
             break
           }
 

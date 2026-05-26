@@ -18,7 +18,7 @@ graph TB
         DIFF["Diff Viewer<br/>unified diff"]
         OUTPUT["Output Panel<br/>commit preview, menus"]
         ACTIONS["actions.rs<br/>commit, branch, PR,<br/>changelog generation"]
-        GUARD["guard.rs<br/>prepare-commit-msg hook"]
+        GUARD["guard.rs<br/>repo-local prepare-commit-msg guard"]
     end
 
     subgraph "VS Code Extension (TypeScript)"
@@ -26,6 +26,7 @@ graph TB
         EXT_CTX["context.ts<br/>Git diff, branch, commits"]
         EXT_SENS["sensitive.ts<br/>Mirrors Rust patterns"]
         EXT_GEN["generator.ts<br/>Prompt building + response parsing"]
+        EXT_GUARD["guard.ts<br/>one-shot preserve tokens"]
         EXT_CLI["cli.ts<br/>Spawn backend CLI"]
         EXT_PR["pr.ts<br/>PR title/body generation"]
     end
@@ -71,13 +72,14 @@ graph TB
     GIT -->|"diff text"| DIFF
     ACTIONS --> CTX
     OUTPUT -->|"user confirms"| GIT
-    GUARD -->|"intercepts git commit"| MAIN
+    GUARD -->|"intercepts raw git commit"| MAIN
 
     %% Extension flow (independent parallel pipeline)
     EXT --> EXT_CTX
     EXT --> EXT_SENS
     EXT_CTX --> EXT_GEN
     EXT_SENS --> EXT_GEN
+    EXT_GEN --> EXT_GUARD
     EXT_GEN --> EXT_CLI
     EXT --> EXT_PR
     EXT_PR --> EXT_CLI

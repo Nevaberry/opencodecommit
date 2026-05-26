@@ -12,7 +12,7 @@ use opencodecommit::config::{Backend, CommitMode, Config, DiffSource, SensitiveP
 use opencodecommit::scan::{self, ScanFormat};
 use opencodecommit::sensitive::SensitiveEnforcement;
 
-use crate::actions::{ActionError, BackendProgress, CommitRequest, HookOperation};
+use crate::actions::{ActionError, BackendProgress, CommitRequest};
 
 #[derive(Parser)]
 #[command(
@@ -173,16 +173,16 @@ enum Commands {
         text: bool,
     },
 
-    /// Install or uninstall git hooks
-    Hook {
-        #[command(subcommand)]
-        action: HookAction,
-    },
-
     /// Install or uninstall the transparent git commit guard
     Guard {
         #[command(subcommand)]
         action: GuardAction,
+    },
+
+    /// Run guarded git-shaped commands
+    Git {
+        #[command(subcommand)]
+        action: GitAction,
     },
 
     /// Launch the interactive terminal UI
@@ -350,36 +350,19 @@ impl BranchModeArg {
     }
 }
 
-#[derive(Clone, Copy, Subcommand)]
-enum HookAction {
-    /// Install prepare-commit-msg hook
-    Install,
-    /// Uninstall prepare-commit-msg hook
-    Uninstall,
-}
-
-impl HookAction {
-    fn to_operation(self) -> HookOperation {
-        match self {
-            HookAction::Install => HookOperation::Install,
-            HookAction::Uninstall => HookOperation::Uninstall,
-        }
-    }
-}
-
 #[derive(Clone, Subcommand)]
 enum GuardAction {
-    /// Install the global guard via core.hooksPath
-    Install {
-        /// Install machine-wide
+    /// Install the repo-local guard via core.hooksPath
+    Install,
+    /// Uninstall the repo-local guard
+    Uninstall,
+    /// Print guard installation status for this repository
+    Status,
+    /// Preserve the next manual commit message for the current index tree
+    AllowNext {
+        /// Confirm this is an explicit manual commit
         #[arg(long)]
-        global: bool,
-    },
-    /// Uninstall the global guard
-    Uninstall {
-        /// Uninstall machine-wide
-        #[arg(long)]
-        global: bool,
+        manual: bool,
     },
     /// Apply a named sensitive-content profile to the config file
     Profile {
@@ -389,6 +372,15 @@ enum GuardAction {
         /// Optional config file path
         #[arg(long)]
         config: Option<String>,
+    },
+}
+
+#[derive(Clone, Subcommand)]
+enum GitAction {
+    /// Delegate to git commit after verifying the repo guard is installed
+    Commit {
+        #[arg(allow_hyphen_values = true, trailing_var_arg = true)]
+        args: Vec<String>,
     },
 }
 
@@ -999,30 +991,16 @@ fn handle_scan(
     });
 }
 
-fn handle_hook(action: HookAction) {
-    match actions::run_hook(action.to_operation()) {
-        Ok(message) => println!("{message}"),
-        Err(err) => {
-            eprintln!("error: {err}");
-            process::exit(1);
-        }
-    }
-}
-
 fn handle_guard(action: GuardAction) {
     let result = match action {
-        GuardAction::Install { global } => {
-            if !global {
-                Err("only --global is currently supported".to_owned())
+        GuardAction::Install => guard::install().map_err(|err| err.to_string()),
+        GuardAction::Uninstall => guard::uninstall().map_err(|err| err.to_string()),
+        GuardAction::Status => guard::status().map_err(|err| err.to_string()),
+        GuardAction::AllowNext { manual } => {
+            if manual {
+                guard::allow_next_manual().map_err(|err| err.to_string())
             } else {
-                guard::install_global().map_err(|err| err.to_string())
-            }
-        }
-        GuardAction::Uninstall { global } => {
-            if !global {
-                Err("only --global is currently supported".to_owned())
-            } else {
-                guard::uninstall_global().map_err(|err| err.to_string())
+                Err("use --manual to confirm preserving the next manual commit message".to_owned())
             }
         }
         GuardAction::Profile { profile, config } => {
@@ -1060,6 +1038,20 @@ fn handle_guard(action: GuardAction) {
             process::exit(1);
         }
     }
+}
+
+fn handle_git(action: GitAction) {
+    let code = match action {
+        GitAction::Commit { args } => match guard::delegate_git_commit(&args) {
+            Ok(code) => code,
+            Err(err) => {
+                eprintln!("error: {err}");
+                1
+            }
+        },
+    };
+
+    process::exit(code);
 }
 
 fn handle_internal(action: InternalAction) {
@@ -1200,8 +1192,8 @@ fn main() {
             };
             handle_pr(&cfg, text, base_ref);
         }
-        Commands::Hook { action } => handle_hook(action),
         Commands::Guard { action } => handle_guard(action),
+        Commands::Git { action } => handle_git(action),
         Commands::Tui { backend, config } => handle_tui(config, backend),
         Commands::Update => handle_update(),
         Commands::Changelog {
@@ -1264,5 +1256,19 @@ mod tests {
 
         assert_eq!(config.backend, Backend::Claude);
         assert_eq!(config.backend_order, vec![Backend::Claude]);
+    }
+
+    #[test]
+    fn git_commit_accepts_git_shaped_args() {
+        let cli =
+            Cli::try_parse_from(["occ", "git", "commit", "--no-verify", "-m", "msg"]).unwrap();
+        match cli.command {
+            Commands::Git {
+                action: GitAction::Commit { args },
+            } => {
+                assert_eq!(args, vec!["--no-verify", "-m", "msg"]);
+            }
+            _ => panic!("expected git commit command"),
+        }
     }
 }

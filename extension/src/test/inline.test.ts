@@ -1,4 +1,5 @@
 import * as assert from "node:assert"
+import { execFileSync } from "node:child_process"
 import * as fs from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
@@ -15,6 +16,7 @@ import {
   parseResponse,
   sanitizeResponse,
 } from "../inline/generator"
+import { writePreserveMessageToken } from "../inline/guard"
 import {
   buildPrFinalPrompt,
   buildPrPrompt,
@@ -251,6 +253,20 @@ function fakeExecutable(filePath: string, body: string): void {
   fs.chmodSync(filePath, 0o755)
 }
 
+function runGit(repoPath: string, args: string[]): string {
+  return execFileSync("git", args, {
+    cwd: repoPath,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      GIT_AUTHOR_NAME: "OpenCodeCommit Test",
+      GIT_AUTHOR_EMAIL: "test@example.com",
+      GIT_COMMITTER_NAME: "OpenCodeCommit Test",
+      GIT_COMMITTER_EMAIL: "test@example.com",
+    },
+  }).trim()
+}
+
 function codexPlatformParts():
   | { packageName: string; triple: string; binaryName: string }
   | undefined {
@@ -284,6 +300,23 @@ function codexPlatformParts():
   }
   return undefined
 }
+
+describe("guard token", () => {
+  it("writes a preserve-message token for the current index tree", async () => {
+    const repo = tempDir("guard-token")
+    runGit(repo, ["init", "-q"])
+    fs.writeFileSync(path.join(repo, "README.md"), "# Test\n")
+    runGit(repo, ["add", "README.md"])
+
+    const tokenPath = await writePreserveMessageToken(repo)
+    const token = fs.readFileSync(tokenPath, "utf8")
+    const indexTree = runGit(repo, ["write-tree"])
+
+    assert.match(token, /kind = "preserve-message"/)
+    assert.match(token, new RegExp(`index-tree = "${indexTree}"`))
+    assert.match(token, /expires-at-unix = \d+/)
+  })
+})
 
 describe("backend helpers", () => {
   it("restricts generation to the selected backend", () => {

@@ -66,3 +66,15 @@ commit-template = "{{type}}({{scope}}): {{message}}"
 ```
 
 Custom prompt modules and custom language entries can be edited directly in `config.toml`.
+
+## Repo-Local Guard
+
+Install the raw Git commit guard per repository:
+
+```bash
+occ guard install
+occ guard status
+occ guard uninstall
+```
+
+The guard stores managed hooks and one-shot preserve tokens under `.git/occ/`. It saves and restores any existing local `core.hooksPath`.

@@ -22,6 +22,7 @@ use crate::actions::{
     PrContext, PrPreview, RepoSummary,
 };
 use crate::e2e_trace;
+use crate::guard;
 
 type TuiTerminal = Terminal<CrosstermBackend<io::Stdout>>;
 
@@ -81,8 +82,8 @@ fn panel_buttons(output: &OutputContent) -> Vec<String> {
         | OutputContent::CommitBackendMenu
         | OutputContent::PrBackendMenu => backend_menu_buttons(),
         OutputContent::HookMenu => vec![
-            "[i Install Hook]".to_owned(),
-            "[u Uninstall Hook]".to_owned(),
+            "[i Install Guard]".to_owned(),
+            "[u Uninstall Guard]".to_owned(),
             "[h Human Profile]".to_owned(),
             "[a Strict Agent]".to_owned(),
         ],
@@ -97,7 +98,7 @@ enum ButtonId {
     Commit,        // 1
     Branch,        // 2
     Pr,            // 3
-    SafetyHook,    // 4
+    Guard,         // 4
     Backend,       // 5
     CommitBackend, // 6
     PrBackend,     // 7
@@ -109,7 +110,7 @@ impl ButtonId {
         ButtonId::Commit,
         ButtonId::Branch,
         ButtonId::Pr,
-        ButtonId::SafetyHook,
+        ButtonId::Guard,
         ButtonId::Backend,
         ButtonId::CommitBackend,
         ButtonId::PrBackend,
@@ -121,7 +122,7 @@ impl ButtonId {
             ButtonId::Commit => '1',
             ButtonId::Branch => '2',
             ButtonId::Pr => '3',
-            ButtonId::SafetyHook => '4',
+            ButtonId::Guard => '4',
             ButtonId::Backend => '5',
             ButtonId::CommitBackend => '6',
             ButtonId::PrBackend => '7',
@@ -134,7 +135,7 @@ impl ButtonId {
             ButtonId::Commit => "Commit",
             ButtonId::Branch => "Branch",
             ButtonId::Pr => "PR",
-            ButtonId::SafetyHook => "Safety Hook",
+            ButtonId::Guard => "Guard",
             ButtonId::Backend => "Backend",
             ButtonId::CommitBackend => "Commit Backend",
             ButtonId::PrBackend => "PR Backend",
@@ -153,7 +154,7 @@ impl ButtonId {
             }
             ButtonId::Branch => "Generate a branch name from the current diff",
             ButtonId::Pr => "Generate a PR title and body from the current diff",
-            ButtonId::SafetyHook => "Install or uninstall the prepare-commit-msg safety hook",
+            ButtonId::Guard => "Install or uninstall the repo-local commit guard",
             ButtonId::Backend => "Select which AI backend commit, branch, and PR actions use",
             ButtonId::CommitBackend => {
                 "Generate a commit message with one backend without changing the default"
@@ -296,7 +297,7 @@ impl PendingJob {
             PendingJob::GeneratingBranch => "Generating branch name",
             PendingJob::CreatingBranch => "Creating branch",
             PendingJob::GeneratingPr => "Generating PR preview",
-            PendingJob::RunningHook => "Updating git hook",
+            PendingJob::RunningHook => "Updating commit guard",
             PendingJob::SubmittingPr => "Submitting pull request",
         }
     }
@@ -804,15 +805,15 @@ fn panel_button_description(content: &OutputContent, index: usize) -> &'static s
             }
         }
         OutputContent::HookMenu => match index {
-            0 => "Install the prepare-commit-msg hook to auto-generate commit messages",
-            1 => "Remove the prepare-commit-msg hook",
+            0 => "Install the repo-local guard to control raw git commit messages",
+            1 => "Remove the repo-local guard",
             2 => "Set sensitive enforcement to the human-friendly warning profile",
             3 => "Set sensitive enforcement to the strict autonomous-agent profile",
             _ => "",
         },
         OutputContent::HookConfirm { operation } => match (operation, index) {
-            (HookOperation::Install, 0) => "Confirm installing the hook",
-            (HookOperation::Uninstall, 0) => "Confirm uninstalling the hook",
+            (HookOperation::Install, 0) => "Confirm installing the guard",
+            (HookOperation::Uninstall, 0) => "Confirm uninstalling the guard",
             (_, 1) => "Cancel and go back",
             _ => "",
         },
@@ -852,13 +853,7 @@ fn install_panic_cleanup_hook() {
 }
 
 fn detect_hook_installed(repo: &RepoSummary) -> bool {
-    let git_dir = repo.repo_root.join(".git");
-    let hook_path = git_dir.join("hooks").join("prepare-commit-msg");
-    if let Ok(content) = std::fs::read_to_string(&hook_path) {
-        content.contains("opencodecommit")
-    } else {
-        false
-    }
+    guard::is_installed_for_repo(&repo.repo_root).unwrap_or(false)
 }
 
 // ── Entry point ──
@@ -1162,7 +1157,7 @@ fn activate_bar_button(app: &mut App, btn: ButtonId, tx: &Sender<WorkerMessage>)
         ButtonId::Commit => spawn_generate_commit(app, tx, false),
         ButtonId::Branch => spawn_generate_branch(app, tx),
         ButtonId::Pr => spawn_generate_pr(app, tx),
-        ButtonId::SafetyHook => {
+        ButtonId::Guard => {
             app.set_output(OutputContent::HookMenu);
         }
         ButtonId::Backend => {
@@ -2393,9 +2388,9 @@ fn render_pr_backend_menu(frame: &mut Frame, area: Rect, app: &App) {
 
 fn render_hook_menu(frame: &mut Frame, area: Rect, app: &App) {
     let status = if app.hook_installed {
-        "Hook is currently installed."
+        "Guard is currently installed."
     } else {
-        "Hook is not installed."
+        "Guard is not installed."
     };
     let profile = match app.config.sensitive.enforcement {
         opencodecommit::sensitive::SensitiveEnforcement::Warn => "Human (warn)",
@@ -2406,7 +2401,7 @@ fn render_hook_menu(frame: &mut Frame, area: Rect, app: &App) {
     };
     let body_lines = vec![
         Line::styled(
-            "SAFETY SETTINGS",
+            "GUARD SETTINGS",
             Style::default()
                 .fg(Color::DarkGray)
                 .add_modifier(Modifier::BOLD),
@@ -2439,7 +2434,7 @@ fn render_hook_confirm(frame: &mut Frame, area: Rect, operation: HookOperation, 
     };
 
     let body_lines = vec![Line::styled(
-        format!("{action} the prepare-commit-msg hook?"),
+        format!("{action} the repo-local commit guard?"),
         Style::default().add_modifier(Modifier::BOLD),
     )];
     let footer_lines = render_panel_button_lines(app);
@@ -2747,7 +2742,7 @@ mod tests {
         assert!(text.contains("1 Commit"), "missing Commit button");
         assert!(text.contains("2 Branch"), "missing Branch button");
         assert!(text.contains("3 PR"), "missing PR button");
-        assert!(text.contains("4 Safety Hook"), "missing Safety Hook button");
+        assert!(text.contains("4 Guard"), "missing Guard button");
         assert!(text.contains("5 Backend"), "missing Backend button");
         assert!(
             text.contains("6 Commit Backend"),
@@ -3068,13 +3063,13 @@ mod tests {
     }
 
     #[test]
-    fn safety_hook_shows_menu() {
+    fn guard_shows_menu() {
         let mut app = test_app();
         app.set_output(OutputContent::HookMenu);
         let text = render_text(&app, 100, 24);
-        assert!(text.contains("SAFETY SETTINGS"), "missing hook menu title");
-        assert!(text.contains("Install Hook"), "missing install button");
-        assert!(text.contains("Uninstall Hook"), "missing uninstall button");
+        assert!(text.contains("GUARD SETTINGS"), "missing guard menu title");
+        assert!(text.contains("Install Guard"), "missing install button");
+        assert!(text.contains("Uninstall Guard"), "missing uninstall button");
         assert!(
             text.contains("Human Profile"),
             "missing human profile button"
@@ -3086,13 +3081,13 @@ mod tests {
     }
 
     #[test]
-    fn hook_menu_actions_stay_visible_in_compact_viewport() {
+    fn guard_menu_actions_stay_visible_in_compact_viewport() {
         let mut app = test_app();
         app.set_output(OutputContent::HookMenu);
 
         let text = render_text(&app, 100, 12);
         assert!(
-            text.contains("[i Install Hook]"),
+            text.contains("[i Install Guard]"),
             "install action should stay visible"
         );
         assert!(
@@ -3102,7 +3097,7 @@ mod tests {
     }
 
     #[test]
-    fn hook_confirm_actions_stay_visible_in_compact_viewport() {
+    fn guard_confirm_actions_stay_visible_in_compact_viewport() {
         let mut app = test_app();
         app.set_output(OutputContent::HookConfirm {
             operation: HookOperation::Install,
