@@ -3,7 +3,7 @@
 ## 1.9
 
 - Adds optional `occ evidence` mode with `samd` and `defence` profiles for
-  repo-local audit trails, environment provenance, and sensitive-term controls.
+  sidecar audit trails, sensitive-term controls, and `Assisted-by` attribution.
 
 ## 1.8
 
