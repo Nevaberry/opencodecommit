@@ -261,5 +261,5 @@ export function appendAssistedByTrailers(
 
   const trimmed = message.trimEnd()
   const separator = trimmed.length === 0 ? "" : "\n"
-  return `${trimmed}${separator}${unique.join("\n")}\n`
+  return `${trimmed}${separator}${unique.join("\n")}`
 }

@@ -333,10 +333,16 @@ describe("evidence Assisted-by helpers", () => {
       "Codex CLI",
       "Claude Code CLI",
     ])
+    assert.ok(DEFAULT_HARNESSES.includes("GitHub Copilot"))
     assert.ok(DEFAULT_MODELS.includes("claude-opus-4.7"))
     assert.ok(DEFAULT_MODELS.includes("composer-2.5"))
+    assert.ok(DEFAULT_MODELS.includes("big-pickle"))
     assert.ok(!DEFAULT_MODELS.includes("Opus-4.7"))
     assert.ok(!DEFAULT_MODELS.includes("anthropic/claude-opus-4.7"))
+    assert.deepStrictEqual(
+      DEFAULT_ASSISTED_BY_QUICK_OPTIONS.map((option) => option.label),
+      ["Codex CLI GPT-5.5", "Claude Code CLI Opus 4.7"],
+    )
     assert.strictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find(
         (option) => option.agent === "Claude Code CLI",
@@ -359,8 +365,9 @@ describe("evidence Assisted-by helpers", () => {
     ])
     assert.strictEqual(
       message,
-      "feat: add thing\nAssisted-by: Codex CLI 0.133.0:gpt-5.5\n",
+      "feat: add thing\nAssisted-by: Codex CLI 0.133.0:gpt-5.5",
     )
+    assert.ok(!message.endsWith("\n"))
   })
 
   it("stores custom quick options in repo-local evidence TOML", async () => {
