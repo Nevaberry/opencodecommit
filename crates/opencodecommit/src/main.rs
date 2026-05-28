@@ -31,8 +31,8 @@ enum Commands {
     /// Generate a commit message from the current diff
     Commit {
         /// AI backend to use
-        #[arg(long, value_enum, default_value_t = BackendArg::Opencode)]
-        backend: BackendArg,
+        #[arg(long, value_enum)]
+        backend: Option<BackendArg>,
 
         /// AI provider (for opencode backend)
         #[arg(long)]
@@ -120,8 +120,8 @@ enum Commands {
         /// Optional description to generate branch name from
         description: Option<String>,
 
-        #[arg(long, value_enum, default_value_t = BackendArg::Opencode)]
-        backend: BackendArg,
+        #[arg(long, value_enum)]
+        backend: Option<BackendArg>,
 
         #[arg(long)]
         provider: Option<String>,
@@ -150,8 +150,8 @@ enum Commands {
 
     /// Generate a PR title and body
     Pr {
-        #[arg(long, value_enum, default_value_t = BackendArg::Opencode)]
-        backend: BackendArg,
+        #[arg(long, value_enum)]
+        backend: Option<BackendArg>,
 
         #[arg(long)]
         provider: Option<String>,
@@ -209,8 +209,8 @@ enum Commands {
 
     /// Generate a changelog entry
     Changelog {
-        #[arg(long, value_enum, default_value_t = BackendArg::Opencode)]
-        backend: BackendArg,
+        #[arg(long, value_enum)]
+        backend: Option<BackendArg>,
 
         #[arg(long)]
         provider: Option<String>,
@@ -586,13 +586,17 @@ fn load_config_or_exit_plain(config: Option<&str>) -> Config {
 
 fn apply_backend_overrides(
     config: &mut Config,
-    backend: &BackendArg,
+    backend: &Option<BackendArg>,
     provider: &Option<String>,
     model: &Option<String>,
     cli_path: &Option<String>,
 ) {
-    config.backend = backend.to_config();
-    config.backend_order = vec![config.backend];
+    // Only override the configured backend when `--backend` is explicitly passed;
+    // otherwise honor config.toml's backend and full fallback chain.
+    if let Some(backend) = backend {
+        config.backend = backend.to_config();
+        config.backend_order = vec![config.backend];
+    }
     if let Some(provider) = provider {
         match config.backend {
             Backend::Opencode => config.provider = provider.clone(),
@@ -665,7 +669,7 @@ fn set_language(config: &mut Config, language: &Option<String>) -> Result<(), St
 #[allow(clippy::too_many_arguments)]
 fn apply_commit_args(
     config: &mut Config,
-    backend: &BackendArg,
+    backend: &Option<BackendArg>,
     provider: &Option<String>,
     model: &Option<String>,
     mode: &CommitModeArg,
@@ -1443,10 +1447,26 @@ mod tests {
         let mut config = Config::default();
         config.backend_order = vec![Backend::Codex, Backend::Opencode];
 
-        apply_backend_overrides(&mut config, &BackendArg::Claude, &None, &None, &None);
+        apply_backend_overrides(&mut config, &Some(BackendArg::Claude), &None, &None, &None);
 
         assert_eq!(config.backend, Backend::Claude);
         assert_eq!(config.backend_order, vec![Backend::Claude]);
+    }
+
+    #[test]
+    fn omitted_backend_preserves_config_backend_and_order() {
+        let mut config = Config::default();
+        config.backend = Backend::Codex;
+        config.backend_order = vec![Backend::Codex, Backend::Opencode, Backend::Claude];
+
+        // No `--backend` flag: config.toml's backend and fallback chain must be honored.
+        apply_backend_overrides(&mut config, &None, &None, &None, &None);
+
+        assert_eq!(config.backend, Backend::Codex);
+        assert_eq!(
+            config.backend_order,
+            vec![Backend::Codex, Backend::Opencode, Backend::Claude]
+        );
     }
 
     #[test]
