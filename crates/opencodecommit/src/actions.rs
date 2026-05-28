@@ -17,6 +17,7 @@ use opencodecommit::response::{
 };
 use opencodecommit::sensitive::SensitiveReport;
 
+use crate::evidence;
 use crate::guard;
 
 #[derive(Debug)]
@@ -310,10 +311,13 @@ pub fn commit_message(message: &str, used_stdin: bool) -> Result<CommitResult> {
         }
     }
 
+    let message = evidence::append_to_commit_message(&repo_root, message)
+        .map_err(|e| ActionError::Hook(format!("failed to write OCC evidence: {e}")))?;
+
     guard::allow_next_if_installed()
         .map_err(|e| ActionError::Hook(format!("failed to prepare guard preserve token: {e}")))?;
 
-    let git_output = git::git_commit(&repo_root, message)?;
+    let git_output = git::git_commit(&repo_root, &message)?;
     Ok(CommitResult {
         git_output,
         staged_all,

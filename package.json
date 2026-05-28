@@ -68,6 +68,22 @@
         "icon": "$(check)"
       },
       {
+        "command": "opencodecommit.assistedByCodexGpt55",
+        "title": "occ: Assisted-by Codex CLI GPT-5.5"
+      },
+      {
+        "command": "opencodecommit.assistedByClaudeOpus47",
+        "title": "occ: Assisted-by Claude Code CLI Opus 4.7"
+      },
+      {
+        "command": "opencodecommit.assistedByPick",
+        "title": "occ: Assisted-by Pick Harness + Model"
+      },
+      {
+        "command": "opencodecommit.assistedByCustom",
+        "title": "occ: Assisted-by Add Custom"
+      },
+      {
         "command": "opencodecommit.generatePr",
         "title": "occ: Generate PR",
         "icon": "$(git-pull-request)"
@@ -224,6 +240,10 @@
         "icon": "$(ellipsis)"
       },
       {
+        "id": "opencodecommit.assistedByMenu",
+        "label": "Assisted-by:"
+      },
+      {
         "id": "opencodecommit.commitAdaptiveBackendMenu",
         "label": "occ: Commit Adaptive Backend"
       },
@@ -246,6 +266,10 @@
         }
       ],
       "opencodecommit.menu": [
+        {
+          "submenu": "opencodecommit.assistedByMenu",
+          "group": "0_assisted"
+        },
         {
           "command": "opencodecommit.generateAdaptive",
           "group": "1_modes"
@@ -321,6 +345,24 @@
         {
           "command": "opencodecommit.createChangelog",
           "group": "2_actions@7"
+        }
+      ],
+      "opencodecommit.assistedByMenu": [
+        {
+          "command": "opencodecommit.assistedByCodexGpt55",
+          "group": "1_quick"
+        },
+        {
+          "command": "opencodecommit.assistedByClaudeOpus47",
+          "group": "1_quick"
+        },
+        {
+          "command": "opencodecommit.assistedByPick",
+          "group": "2_picker"
+        },
+        {
+          "command": "opencodecommit.assistedByCustom",
+          "group": "2_picker"
         }
       ],
       "opencodecommit.commitAdaptiveBackendMenu": [

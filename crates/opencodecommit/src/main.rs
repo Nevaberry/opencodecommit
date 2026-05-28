@@ -1,5 +1,6 @@
 mod actions;
 mod e2e_trace;
+mod evidence;
 mod guard;
 mod tui;
 mod update;
@@ -183,6 +184,12 @@ enum Commands {
     Git {
         #[command(subcommand)]
         action: GitAction,
+    },
+
+    /// Manage repo-local evidence trails and assisted-by attribution
+    Evidence {
+        #[command(subcommand)]
+        action: EvidenceAction,
     },
 
     /// Launch the interactive terminal UI
@@ -382,6 +389,100 @@ enum GitAction {
         #[arg(allow_hyphen_values = true, trailing_var_arg = true)]
         args: Vec<String>,
     },
+}
+
+#[derive(Clone, Subcommand)]
+enum EvidenceAction {
+    /// Install repo-local evidence collection
+    Install {
+        /// Evidence profile to install
+        #[arg(long, value_enum)]
+        profile: EvidenceProfileArg,
+
+        /// Sidecar storage mode
+        #[arg(long, value_enum)]
+        storage: Option<EvidenceStorageArg>,
+
+        /// Confirm defence mode may commit cleartext evidence into the repo
+        #[arg(long)]
+        allow_cleartext_repo_evidence: bool,
+    },
+    /// Uninstall repo-local evidence collection
+    Uninstall,
+    /// Print current evidence status
+    Status,
+    /// Print the current evidence snapshot without committing
+    Snapshot {
+        /// Override profile for this one snapshot
+        #[arg(long, value_enum)]
+        profile: Option<EvidenceProfileArg>,
+    },
+    /// Manage user-confirmed Assisted-by trailers
+    Assist {
+        #[command(subcommand)]
+        action: EvidenceAssistAction,
+    },
+}
+
+#[derive(Clone, Subcommand)]
+enum EvidenceAssistAction {
+    /// Queue an Assisted-by trailer for the next matching commit
+    Add {
+        /// Use a configured quick option label
+        #[arg(long)]
+        quick: Option<String>,
+
+        /// AI harness or agent name
+        #[arg(long)]
+        agent: Option<String>,
+
+        /// User-confirmed model name
+        #[arg(long)]
+        model: Option<String>,
+
+        /// Optional exact harness version
+        #[arg(long)]
+        version: Option<String>,
+    },
+    /// Show pending and configured Assisted-by options
+    Status,
+    /// Detect installed harness versions without marking them as used
+    Detect,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum EvidenceProfileArg {
+    Samd,
+    Defence,
+    Defense,
+}
+
+impl EvidenceProfileArg {
+    fn to_evidence(self) -> evidence::EvidenceProfile {
+        match self {
+            EvidenceProfileArg::Samd => evidence::EvidenceProfile::Samd,
+            EvidenceProfileArg::Defence | EvidenceProfileArg::Defense => {
+                evidence::EvidenceProfile::Defence
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum EvidenceStorageArg {
+    Local,
+    Repo,
+    Artifact,
+}
+
+impl EvidenceStorageArg {
+    fn to_evidence(self) -> evidence::EvidenceStorage {
+        match self {
+            EvidenceStorageArg::Local => evidence::EvidenceStorage::Local,
+            EvidenceStorageArg::Repo => evidence::EvidenceStorage::Repo,
+            EvidenceStorageArg::Artifact => evidence::EvidenceStorage::Artifact,
+        }
+    }
 }
 
 #[derive(Clone, Subcommand)]
@@ -1054,6 +1155,95 @@ fn handle_git(action: GitAction) {
     process::exit(code);
 }
 
+fn handle_evidence(action: EvidenceAction) {
+    let result = match action {
+        EvidenceAction::Install {
+            profile,
+            storage,
+            allow_cleartext_repo_evidence,
+        } => {
+            let profile = profile.to_evidence();
+            let storage = storage.map(EvidenceStorageArg::to_evidence);
+            if profile == evidence::EvidenceProfile::Defence
+                && storage == Some(evidence::EvidenceStorage::Repo)
+                && !allow_cleartext_repo_evidence
+            {
+                eprintln!(
+                    "error: defence repo storage can commit clear machine and network evidence; pass --allow-cleartext-repo-evidence to confirm"
+                );
+                process::exit(1);
+            }
+            let guard_message = match guard::is_installed() {
+                Ok(true) => None,
+                Ok(false) => match guard::install() {
+                    Ok(message) => Some(message),
+                    Err(err) => {
+                        eprintln!("error: failed to install repo guard for evidence mode: {err}");
+                        process::exit(1);
+                    }
+                },
+                Err(err) => {
+                    eprintln!("error: failed to inspect repo guard status: {err}");
+                    process::exit(1);
+                }
+            };
+            evidence::install(profile, storage, allow_cleartext_repo_evidence)
+                .map(|message| {
+                    if let Some(guard_message) = guard_message {
+                        format!("{guard_message}\n{message}")
+                    } else {
+                        message
+                    }
+                })
+                .map_err(|err| err.to_string())
+        }
+        EvidenceAction::Uninstall => evidence::uninstall().map_err(|err| err.to_string()),
+        EvidenceAction::Status => evidence::status().map_err(|err| err.to_string()),
+        EvidenceAction::Snapshot { profile } => {
+            evidence::snapshot(profile.map(EvidenceProfileArg::to_evidence))
+                .map_err(|err| err.to_string())
+        }
+        EvidenceAction::Assist { action } => match action {
+            EvidenceAssistAction::Add {
+                quick,
+                agent,
+                model,
+                version,
+            } => {
+                if let Some(label) = quick {
+                    evidence::add_assisted_by_quick(&label).map_err(|err| err.to_string())
+                } else {
+                    match (agent, model) {
+                        (Some(agent), Some(model)) => {
+                            evidence::add_assisted_by(evidence::AssistedByInput {
+                                agent,
+                                model,
+                                version,
+                            })
+                            .map_err(|err| err.to_string())
+                        }
+                        _ => Err("use --quick or provide both --agent and --model".to_owned()),
+                    }
+                }
+            }
+            EvidenceAssistAction::Status => {
+                evidence::assist_status().map_err(|err| err.to_string())
+            }
+            EvidenceAssistAction::Detect => {
+                evidence::assist_detect().map_err(|err| err.to_string())
+            }
+        },
+    };
+
+    match result {
+        Ok(message) => println!("{message}"),
+        Err(err) => {
+            eprintln!("error: {err}");
+            process::exit(1);
+        }
+    }
+}
+
 fn handle_internal(action: InternalAction) {
     let code = match action {
         InternalAction::RunManagedHook { hook_name, args } => {
@@ -1194,6 +1384,7 @@ fn main() {
         }
         Commands::Guard { action } => handle_guard(action),
         Commands::Git { action } => handle_git(action),
+        Commands::Evidence { action } => handle_evidence(action),
         Commands::Tui { backend, config } => handle_tui(config, backend),
         Commands::Update => handle_update(),
         Commands::Changelog {

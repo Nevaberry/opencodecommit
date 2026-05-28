@@ -8,6 +8,12 @@ import { withBackendOverride } from "../inline/backends"
 import { buildInvocation, detectCli, execCli } from "../inline/cli"
 import type { CommitContext } from "../inline/context"
 import {
+  appendAssistedByTrailers,
+  assistedByTrailer,
+  readAssistedByOptions,
+  saveAssistedByQuickOption,
+} from "../inline/evidence"
+import {
   buildBranchPrompt,
   buildPrompt,
   buildRefinePrompt,
@@ -315,6 +321,42 @@ describe("guard token", () => {
     assert.match(token, /kind = "preserve-message"/)
     assert.match(token, new RegExp(`index-tree = "${indexTree}"`))
     assert.match(token, /expires-at-unix = \d+/)
+  })
+})
+
+describe("evidence Assisted-by helpers", () => {
+  it("formats and deduplicates Assisted-by trailers", () => {
+    const trailer = assistedByTrailer({
+      agent: "Codex CLI",
+      version: "0.133.0",
+      model: "GPT-5.5",
+    })
+    assert.strictEqual(trailer, "Assisted-by: Codex CLI 0.133.0:GPT-5.5")
+
+    const message = appendAssistedByTrailers("feat: add thing\n", [
+      trailer,
+      trailer,
+    ])
+    assert.strictEqual(
+      message,
+      "feat: add thing\nAssisted-by: Codex CLI 0.133.0:GPT-5.5\n",
+    )
+  })
+
+  it("stores custom quick options in repo-local evidence TOML", async () => {
+    const repo = tempDir("assisted-by-config")
+    runGit(repo, ["init", "-q"])
+
+    await saveAssistedByQuickOption(repo, {
+      label: "Custom Harness Model",
+      agent: "Custom Harness",
+      model: "custom-model",
+    })
+    const options = await readAssistedByOptions(repo)
+
+    assert.ok(
+      options.quick.some((option) => option.label === "Custom Harness Model"),
+    )
   })
 })
 

@@ -19,6 +19,15 @@ import {
 } from "./inline/config"
 import { gatherContext, getRecentBranchNames } from "./inline/context"
 import {
+  type AssistedByInput,
+  type AssistedByQuickOption,
+  appendAssistedByTrailers,
+  assistedByTrailer,
+  detectQuickOptionVersion,
+  readAssistedByOptions,
+  saveAssistedByQuickOption,
+} from "./inline/evidence"
+import {
   generateBranchName,
   generateCommitMessage,
   refineCommitMessage,
@@ -517,6 +526,169 @@ async function manualCommitOnce(arg?: { rootUri?: vscode.Uri }) {
   }
 }
 
+async function appendAssistedByRows(
+  repo: Repository,
+  inputs: AssistedByInput[],
+): Promise<void> {
+  const trailers = inputs.map(assistedByTrailer)
+  repo.inputBox.value = appendAssistedByTrailers(repo.inputBox.value, trailers)
+  const tokenPath = await writePreserveMessageToken(repo.rootUri.fsPath)
+  log(`Appended Assisted-by trailer(s): ${trailers.join("; ")}`)
+  log(`Wrote guard preserve token: ${tokenPath}`)
+}
+
+async function appendAssistedByQuick(
+  label: string,
+  arg?: { rootUri?: vscode.Uri },
+) {
+  const repo = resolveRepository(arg)
+  if (!repo) {
+    vscode.window.showErrorMessage("No git repository found.")
+    return
+  }
+
+  try {
+    const options = await readAssistedByOptions(repo.rootUri.fsPath)
+    const quick = options.quick.find((option) => option.label === label)
+    if (!quick) {
+      vscode.window.showErrorMessage(
+        `OpenCodeCommit: Assisted-by option not found: ${label}`,
+      )
+      return
+    }
+    const version = await detectQuickOptionVersion(quick).catch(() => undefined)
+    await appendAssistedByRows(repo, [
+      {
+        agent: quick.agent,
+        model: quick.model,
+        version,
+      },
+    ])
+    vscode.commands.executeCommand("workbench.view.scm")
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    vscode.window.showErrorMessage(`OpenCodeCommit: ${msg}`)
+  }
+}
+
+async function pickModelsForHarness(
+  harness: string,
+  models: string[],
+): Promise<string[] | undefined> {
+  const picked = await vscode.window.showQuickPick(
+    models.map((model) => ({ label: model })),
+    {
+      canPickMany: true,
+      placeHolder: `Select model(s) for ${harness}`,
+    },
+  )
+  if (!picked) return undefined
+  return picked.map((item) => item.label)
+}
+
+async function appendAssistedByPicked(arg?: { rootUri?: vscode.Uri }) {
+  const repo = resolveRepository(arg)
+  if (!repo) {
+    vscode.window.showErrorMessage("No git repository found.")
+    return
+  }
+
+  try {
+    const options = await readAssistedByOptions(repo.rootUri.fsPath)
+    const harnesses = await vscode.window.showQuickPick(
+      options.harnesses.map((harness) => ({ label: harness })),
+      {
+        canPickMany: true,
+        placeHolder: "Select AI harness(es)",
+      },
+    )
+    if (!harnesses || harnesses.length === 0) return
+
+    const inputs: AssistedByInput[] = []
+    for (const harness of harnesses.map((item) => item.label)) {
+      const models = await pickModelsForHarness(harness, options.models)
+      if (!models || models.length === 0) continue
+      const version = await detectHarnessVersion(harness, options.quick)
+      for (const model of models) {
+        inputs.push({ agent: harness, model, version })
+      }
+    }
+    if (inputs.length === 0) return
+
+    const preview = inputs.map(assistedByTrailer).join("\n")
+    const choice = await vscode.window.showInformationMessage(
+      "Append Assisted-by trailer(s)?",
+      { modal: true, detail: preview },
+      "Append",
+      "Cancel",
+    )
+    if (choice !== "Append") return
+
+    await appendAssistedByRows(repo, inputs)
+    vscode.commands.executeCommand("workbench.view.scm")
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    vscode.window.showErrorMessage(`OpenCodeCommit: ${msg}`)
+  }
+}
+
+async function detectHarnessVersion(
+  harness: string,
+  quickOptions: AssistedByQuickOption[],
+): Promise<string | undefined> {
+  const option = quickOptions.find((item) => item.agent === harness)
+  if (!option) return undefined
+  return detectQuickOptionVersion(option).catch(() => undefined)
+}
+
+async function appendAssistedByCustom(arg?: { rootUri?: vscode.Uri }) {
+  const repo = resolveRepository(arg)
+  if (!repo) {
+    vscode.window.showErrorMessage("No git repository found.")
+    return
+  }
+
+  try {
+    const agent = await vscode.window.showInputBox({
+      prompt: "AI harness or agent",
+      placeHolder: "Codex CLI",
+    })
+    if (!agent?.trim()) return
+    const model = await vscode.window.showInputBox({
+      prompt: "User-confirmed model",
+      placeHolder: "GPT-5.5",
+    })
+    if (!model?.trim()) return
+    const version = await vscode.window.showInputBox({
+      prompt: "Exact harness version (optional)",
+      placeHolder: "0.133.0",
+    })
+    const label = await vscode.window.showInputBox({
+      prompt: "Save quick option label",
+      value: `${agent.trim()} ${model.trim()}`,
+    })
+    if (label?.trim()) {
+      const configPath = await saveAssistedByQuickOption(repo.rootUri.fsPath, {
+        label: label.trim(),
+        agent: agent.trim(),
+        model: model.trim(),
+      })
+      log(`Saved Assisted-by quick option to ${configPath}`)
+    }
+    await appendAssistedByRows(repo, [
+      {
+        agent: agent.trim(),
+        model: model.trim(),
+        version: version?.trim() || undefined,
+      },
+    ])
+    vscode.commands.executeCommand("workbench.view.scm")
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    vscode.window.showErrorMessage(`OpenCodeCommit: ${msg}`)
+  }
+}
+
 async function generatePr(
   arg?: { rootUri?: vscode.Uri },
   backendOverride?: Backend,
@@ -732,6 +904,20 @@ export async function activate(context: vscode.ExtensionContext) {
     ),
     vscode.commands.registerCommand("opencodecommit.manualCommitOnce", (arg) =>
       manualCommitOnce(arg),
+    ),
+    vscode.commands.registerCommand(
+      "opencodecommit.assistedByCodexGpt55",
+      (arg) => appendAssistedByQuick("Codex CLI GPT-5.5", arg),
+    ),
+    vscode.commands.registerCommand(
+      "opencodecommit.assistedByClaudeOpus47",
+      (arg) => appendAssistedByQuick("Claude Code CLI Opus 4.7", arg),
+    ),
+    vscode.commands.registerCommand("opencodecommit.assistedByPick", (arg) =>
+      appendAssistedByPicked(arg),
+    ),
+    vscode.commands.registerCommand("opencodecommit.assistedByCustom", (arg) =>
+      appendAssistedByCustom(arg),
     ),
     vscode.commands.registerCommand("opencodecommit.generatePr", (arg) =>
       generatePr(arg),

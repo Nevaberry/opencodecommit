@@ -72,6 +72,8 @@ occ scan --format text
 occ scan --format sarif --output occ-scan.sarif
 occ guard install
 occ git commit -m "manual draft"
+occ evidence install --profile samd
+occ evidence snapshot
 ```
 
 ## What You Get
@@ -81,6 +83,7 @@ occ git commit -m "manual draft"
 - A terminal TUI with backend picks, diff view, output panels, and file staging.
 - Local sensitive-content scanning with `warn`, `block-*`, and `strict-*` enforcement modes.
 - A repo-local Git guard that routes raw `git commit` messages through OCC using `prepare-commit-msg`.
+- Optional repo-local evidence sidecars for `samd` and all-in `defence` profiles, referenced by compact `OCC-Evidence` trailers.
 - CI output as text, JSON, SARIF, or GitHub annotations.
 - Built-in language templates for English, Finnish, Japanese, Chinese, Spanish, Portuguese, French, Korean, Russian, Vietnamese, and German.
 
