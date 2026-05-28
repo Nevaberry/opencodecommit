@@ -11,7 +11,7 @@
       "Grok Build"
     ],
     "models": [
-      "claude-opus-4.7",
+      "claude-opus-4.8",
       "claude-sonnet-4.6",
       "gpt-5.5",
       "kimi-k2.6",
@@ -32,7 +32,7 @@
       {
         "label": "Claude Code Opus 4.7",
         "agent": "Claude Code",
-        "model": "claude-opus-4.7",
+        "model": "claude-opus-4.8",
         "versionCommand": "claude -v",
         "versionPattern": "(?<version>\\S+) \\(Claude Code\\)"
       }

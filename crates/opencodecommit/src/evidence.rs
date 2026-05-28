@@ -1213,14 +1213,14 @@ mod tests {
         assert_eq!(config.harnesses[0], "Codex CLI");
         assert_eq!(config.harnesses[1], "Claude Code CLI");
         assert!(config.harnesses.contains(&"GitHub Copilot".to_owned()));
-        assert!(config.models.contains(&"claude-opus-4.7".to_owned()));
+        assert!(config.models.contains(&"claude-opus-4.8".to_owned()));
         assert!(config.models.contains(&"composer-2.5".to_owned()));
         assert!(config.models.contains(&"big-pickle".to_owned()));
-        assert!(!config.models.contains(&"Opus-4.7".to_owned()));
+        assert!(!config.models.contains(&"opus-4.8".to_owned()));
         assert!(
             !config
                 .models
-                .contains(&"anthropic/claude-opus-4.7".to_owned())
+                .contains(&"anthropic/claude-opus-4.8".to_owned())
         );
         assert_eq!(
             config
@@ -1236,7 +1236,7 @@ mod tests {
                 .iter()
                 .find(|option| option.agent == "Claude Code CLI")
                 .map(|option| option.model.as_str()),
-            Some("claude-opus-4.7")
+            Some("claude-opus-4.8")
         );
     }
 
