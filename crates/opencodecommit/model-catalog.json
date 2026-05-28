@@ -1,14 +1,14 @@
 {
   "assistedBy": {
     "harnesses": [
-      "Codex CLI",
-      "Claude Code CLI",
+      "Codex",
+      "Claude Code",
       "GitHub Copilot",
-      "Codex-minimal CLI",
-      "OpenCode CLI",
+      "Codex-minimal",
+      "OpenCode",
       "Cursor",
-      "Antigravity CLI",
-      "Grok Build CLI"
+      "Antigravity",
+      "Grok Build"
     ],
     "models": [
       "claude-opus-4.7",
@@ -23,15 +23,15 @@
     ],
     "quick": [
       {
-        "label": "Codex CLI GPT-5.5",
-        "agent": "Codex CLI",
+        "label": "Codex GPT-5.5",
+        "agent": "Codex",
         "model": "gpt-5.5",
         "versionCommand": "codex -V",
         "versionPattern": "codex-cli (?<version>\\S+)"
       },
       {
-        "label": "Claude Code CLI Opus 4.7",
-        "agent": "Claude Code CLI",
+        "label": "Claude Code Opus 4.7",
+        "agent": "Claude Code",
         "model": "claude-opus-4.7",
         "versionCommand": "claude -v",
         "versionPattern": "(?<version>\\S+) \\(Claude Code\\)"
