@@ -80,7 +80,7 @@ build_vsix() {
   bun install
 
   echo "==> Building extension"
-  bunx tsc -p ./
+  bun run build:vsix
 
   echo "==> Packaging ${VSIX}"
   bunx @vscode/vsce package

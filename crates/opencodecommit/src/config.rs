@@ -556,7 +556,7 @@ fn default_gemini_cheap_model() -> String {
 }
 
 fn model_catalog_backend_default(backend: &str, tier: &str, fallback: &str) -> String {
-    serde_json::from_str::<serde_json::Value>(include_str!("../../../model-catalog.json"))
+    serde_json::from_str::<serde_json::Value>(include_str!("../model-catalog.json"))
         .ok()
         .and_then(|catalog| {
             catalog

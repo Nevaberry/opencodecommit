@@ -10,7 +10,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEFAULTS_FILE="$SCRIPT_DIR/../model-catalog.json"
+DEFAULTS_FILE="$SCRIPT_DIR/../crates/opencodecommit/model-catalog.json"
 
 if [[ ! -f "$DEFAULTS_FILE" ]]; then
     echo "ERROR: model-catalog.json not found at $DEFAULTS_FILE" >&2

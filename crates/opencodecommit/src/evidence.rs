@@ -1045,7 +1045,7 @@ fn default_assisted_by_config() -> AssistedByConfig {
 }
 
 fn model_catalog() -> ModelCatalog {
-    serde_json::from_str(include_str!("../../../model-catalog.json"))
+    serde_json::from_str(include_str!("../model-catalog.json"))
         .expect("model-catalog.json must be valid")
 }
 

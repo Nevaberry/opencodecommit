@@ -4,7 +4,7 @@ cd "$(dirname "$0")/.."
 
 cd extension
 bun install
-bunx tsc -p ./
+bun run build:vsix
 bunx @vscode/vsce package
 
 VSIX=$(ls -t opencodecommit-*.vsix | head -1)
