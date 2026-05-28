@@ -26,8 +26,8 @@ export interface AssistedByInput {
 type TomlObject = Record<string, unknown>
 
 export const DEFAULT_HARNESSES = [
-  "Claude Code CLI",
   "Codex CLI",
+  "Claude Code CLI",
   "Codex-minimal CLI",
   "OpenCode CLI",
   "Cursor",
@@ -36,7 +36,7 @@ export const DEFAULT_HARNESSES = [
 ]
 
 export const DEFAULT_MODELS = [
-  "Opus-4.7",
+  "claude-opus-4-7",
   "Sonnet-4.6",
   "GPT-5.5",
   "Kimi-2.6",
@@ -57,7 +57,7 @@ export const DEFAULT_ASSISTED_BY_QUICK_OPTIONS: AssistedByQuickOption[] = [
   {
     label: "Claude Code CLI Opus 4.7",
     agent: "Claude Code CLI",
-    model: "opus-4-7",
+    model: "claude-opus-4-7",
     versionCommand: "claude -v",
     versionPattern: "(?<version>\\S+) \\(Claude Code\\)",
   },

@@ -38,199 +38,199 @@
     "commands": [
       {
         "command": "opencodecommit.generate",
-        "title": "occ: Generate Message",
+        "title": "Generate Message",
         "icon": "$(sparkle)"
       },
       {
         "command": "opencodecommit.generateAdaptive",
-        "title": "occ: Generate Adaptive"
+        "title": "Generate Adaptive"
       },
       {
         "command": "opencodecommit.generateAdaptiveOneliner",
-        "title": "occ: Generate Adaptive Oneliner"
+        "title": "Generate Adaptive Oneliner"
       },
       {
         "command": "opencodecommit.generateConventional",
-        "title": "occ: Generate Conventional"
+        "title": "Generate Conventional"
       },
       {
         "command": "opencodecommit.generateConventionalOneliner",
-        "title": "occ: Generate Conventional Oneliner"
+        "title": "Generate Conventional Oneliner"
       },
       {
         "command": "opencodecommit.refine",
-        "title": "occ: Refine Message",
+        "title": "Refine Message",
         "icon": "$(edit)"
       },
       {
         "command": "opencodecommit.manualCommitOnce",
-        "title": "occ: Manual Commit Once",
+        "title": "Manual Commit Once",
         "icon": "$(check)"
       },
       {
         "command": "opencodecommit.assistedByCodexGpt55",
-        "title": "occ: Assisted-by Codex CLI GPT-5.5"
+        "title": "Assisted-by Codex CLI GPT-5.5"
       },
       {
         "command": "opencodecommit.assistedByClaudeOpus47",
-        "title": "occ: Assisted-by Claude Code CLI Opus 4.7"
+        "title": "Assisted-by Claude Code CLI Opus 4.7"
       },
       {
         "command": "opencodecommit.assistedByPick",
-        "title": "occ: Assisted-by Pick Harness + Model"
+        "title": "Assisted-by Pick Harness + Model"
       },
       {
         "command": "opencodecommit.assistedByCustom",
-        "title": "occ: Assisted-by Add Custom"
+        "title": "Assisted-by Add Custom"
       },
       {
         "command": "opencodecommit.generatePr",
-        "title": "occ: Generate PR",
+        "title": "Generate PR",
         "icon": "$(git-pull-request)"
       },
       {
         "command": "opencodecommit.createChangelog",
-        "title": "occ: Create Changelog",
+        "title": "Create Changelog",
         "icon": "$(list-unordered)"
       },
       {
         "command": "opencodecommit.switchLanguage",
-        "title": "occ: Switch Language",
+        "title": "Switch Language",
         "icon": "$(globe)"
       },
       {
         "command": "opencodecommit.openConfigFile",
-        "title": "occ: Open Config File",
+        "title": "Open Config File",
         "icon": "$(file-code)"
       },
       {
         "command": "opencodecommit.revealConfigPath",
-        "title": "occ: Reveal Config Path",
+        "title": "Reveal Config Path",
         "icon": "$(folder-opened)"
       },
       {
         "command": "opencodecommit.openSettings",
-        "title": "occ: Settings",
+        "title": "Settings",
         "icon": "$(gear)"
       },
       {
         "command": "opencodecommit.resetSettings",
-        "title": "occ: Reset Config to Defaults",
+        "title": "Reset Config to Defaults",
         "icon": "$(refresh)"
       },
       {
         "command": "opencodecommit.diagnose",
-        "title": "occ: Diagnose",
+        "title": "Diagnose",
         "icon": "$(bug)"
       },
       {
         "command": "opencodecommit.generateBranch",
-        "title": "occ: Generate Branch Name",
+        "title": "Generate Branch Name",
         "icon": "$(git-branch)"
       },
       {
         "command": "opencodecommit.generateBranchAdaptive",
-        "title": "occ: Generate Branch (Adaptive)"
+        "title": "Generate Branch (Adaptive)"
       },
       {
         "command": "opencodecommit.generateBranchConventional",
-        "title": "occ: Generate Branch (Conventional)"
+        "title": "Generate Branch (Conventional)"
       },
       {
         "command": "opencodecommit.generateAdaptiveCodex",
-        "title": "occ: Generate Adaptive via Codex"
+        "title": "Generate Adaptive via Codex"
       },
       {
         "command": "opencodecommit.generatePrCodex",
-        "title": "occ: Generate PR via Codex"
+        "title": "Generate PR via Codex"
       },
       {
         "command": "opencodecommit.generateAdaptiveOpencode",
-        "title": "occ: Generate Adaptive via OpenCode"
+        "title": "Generate Adaptive via OpenCode"
       },
       {
         "command": "opencodecommit.generatePrOpencode",
-        "title": "occ: Generate PR via OpenCode"
+        "title": "Generate PR via OpenCode"
       },
       {
         "command": "opencodecommit.generateAdaptiveClaude",
-        "title": "occ: Generate Adaptive via Claude"
+        "title": "Generate Adaptive via Claude"
       },
       {
         "command": "opencodecommit.generatePrClaude",
-        "title": "occ: Generate PR via Claude"
+        "title": "Generate PR via Claude"
       },
       {
         "command": "opencodecommit.generateAdaptiveGemini",
-        "title": "occ: Generate Adaptive via Gemini"
+        "title": "Generate Adaptive via Gemini"
       },
       {
         "command": "opencodecommit.generatePrGemini",
-        "title": "occ: Generate PR via Gemini"
+        "title": "Generate PR via Gemini"
       },
       {
         "command": "opencodecommit.generateAdaptiveOpenaiApi",
-        "title": "occ: Generate Adaptive via OpenAI API"
+        "title": "Generate Adaptive via OpenAI API"
       },
       {
         "command": "opencodecommit.generatePrOpenaiApi",
-        "title": "occ: Generate PR via OpenAI API"
+        "title": "Generate PR via OpenAI API"
       },
       {
         "command": "opencodecommit.generateAdaptiveAnthropicApi",
-        "title": "occ: Generate Adaptive via Anthropic API"
+        "title": "Generate Adaptive via Anthropic API"
       },
       {
         "command": "opencodecommit.generatePrAnthropicApi",
-        "title": "occ: Generate PR via Anthropic API"
+        "title": "Generate PR via Anthropic API"
       },
       {
         "command": "opencodecommit.generateAdaptiveGeminiApi",
-        "title": "occ: Generate Adaptive via Gemini API"
+        "title": "Generate Adaptive via Gemini API"
       },
       {
         "command": "opencodecommit.generatePrGeminiApi",
-        "title": "occ: Generate PR via Gemini API"
+        "title": "Generate PR via Gemini API"
       },
       {
         "command": "opencodecommit.generateAdaptiveOpenrouterApi",
-        "title": "occ: Generate Adaptive via OpenRouter API"
+        "title": "Generate Adaptive via OpenRouter API"
       },
       {
         "command": "opencodecommit.generatePrOpenrouterApi",
-        "title": "occ: Generate PR via OpenRouter API"
+        "title": "Generate PR via OpenRouter API"
       },
       {
         "command": "opencodecommit.generateAdaptiveOpencodeApi",
-        "title": "occ: Generate Adaptive via OpenCode Zen API"
+        "title": "Generate Adaptive via OpenCode Zen API"
       },
       {
         "command": "opencodecommit.generatePrOpencodeApi",
-        "title": "occ: Generate PR via OpenCode Zen API"
+        "title": "Generate PR via OpenCode Zen API"
       },
       {
         "command": "opencodecommit.generateAdaptiveOllamaApi",
-        "title": "occ: Generate Adaptive via Ollama API"
+        "title": "Generate Adaptive via Ollama API"
       },
       {
         "command": "opencodecommit.generatePrOllamaApi",
-        "title": "occ: Generate PR via Ollama API"
+        "title": "Generate PR via Ollama API"
       },
       {
         "command": "opencodecommit.generateAdaptiveLmStudioApi",
-        "title": "occ: Generate Adaptive via LM Studio API"
+        "title": "Generate Adaptive via LM Studio API"
       },
       {
         "command": "opencodecommit.generatePrLmStudioApi",
-        "title": "occ: Generate PR via LM Studio API"
+        "title": "Generate PR via LM Studio API"
       },
       {
         "command": "opencodecommit.generateAdaptiveCustomApi",
-        "title": "occ: Generate Adaptive via Custom API"
+        "title": "Generate Adaptive via Custom API"
       },
       {
         "command": "opencodecommit.generatePrCustomApi",
-        "title": "occ: Generate PR via Custom API"
+        "title": "Generate PR via Custom API"
       }
     ],
     "submenus": [
@@ -245,11 +245,11 @@
       },
       {
         "id": "opencodecommit.commitAdaptiveBackendMenu",
-        "label": "occ: Commit Adaptive Backend"
+        "label": "Commit Adaptive Backend"
       },
       {
         "id": "opencodecommit.prBackendMenu",
-        "label": "occ: Generate PR Backend"
+        "label": "Generate PR Backend"
       }
     ],
     "menus": {
@@ -350,11 +350,11 @@
       "opencodecommit.assistedByMenu": [
         {
           "command": "opencodecommit.assistedByCodexGpt55",
-          "group": "1_quick"
+          "group": "1_quick@1"
         },
         {
           "command": "opencodecommit.assistedByClaudeOpus47",
-          "group": "1_quick"
+          "group": "1_quick@2"
         },
         {
           "command": "opencodecommit.assistedByPick",

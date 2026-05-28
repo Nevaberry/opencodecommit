@@ -8,6 +8,9 @@ import { withBackendOverride } from "../inline/backends"
 import { buildInvocation, detectCli, execCli } from "../inline/cli"
 import type { CommitContext } from "../inline/context"
 import {
+  DEFAULT_ASSISTED_BY_QUICK_OPTIONS,
+  DEFAULT_HARNESSES,
+  DEFAULT_MODELS,
   appendAssistedByTrailers,
   assistedByTrailer,
   readAssistedByOptions,
@@ -325,6 +328,21 @@ describe("guard token", () => {
 })
 
 describe("evidence Assisted-by helpers", () => {
+  it("keeps Codex first and uses the official Claude Opus 4.7 slug", () => {
+    assert.deepStrictEqual(DEFAULT_HARNESSES.slice(0, 2), [
+      "Codex CLI",
+      "Claude Code CLI",
+    ])
+    assert.ok(DEFAULT_MODELS.includes("claude-opus-4-7"))
+    assert.ok(!DEFAULT_MODELS.includes("Opus-4.7"))
+    assert.strictEqual(
+      DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find(
+        (option) => option.agent === "Claude Code CLI",
+      )?.model,
+      "claude-opus-4-7",
+    )
+  })
+
   it("formats and deduplicates Assisted-by trailers", () => {
     const trailer = assistedByTrailer({
       agent: "Codex CLI",

@@ -1001,8 +1001,8 @@ fn default_assisted_by_config() -> AssistedByConfig {
         prompt: "ask".to_owned(),
         dedupe: true,
         harnesses: [
-            "Claude Code CLI",
             "Codex CLI",
+            "Claude Code CLI",
             "Codex-minimal CLI",
             "OpenCode CLI",
             "Cursor",
@@ -1013,7 +1013,7 @@ fn default_assisted_by_config() -> AssistedByConfig {
         .map(|value| (*value).to_owned())
         .collect(),
         models: [
-            "Opus-4.7",
+            "claude-opus-4-7",
             "Sonnet-4.6",
             "GPT-5.5",
             "Kimi-2.6",
@@ -1036,7 +1036,7 @@ fn default_assisted_by_config() -> AssistedByConfig {
             AssistedByQuickOption {
                 label: "Claude Code CLI Opus 4.7".to_owned(),
                 agent: "Claude Code CLI".to_owned(),
-                model: "opus-4-7".to_owned(),
+                model: "claude-opus-4-7".to_owned(),
                 version_command: "claude -v".to_owned(),
                 version_pattern: "(?P<version>\\S+) \\(Claude Code\\)".to_owned(),
             },
@@ -1199,6 +1199,24 @@ mod tests {
             version: Some("0.133.0".to_owned()),
         });
         assert_eq!(trailer, "Assisted-by: Codex CLI 0.133.0:GPT-5.5");
+    }
+
+    #[test]
+    fn default_assisted_by_config_uses_official_opus_slug_and_codex_first() {
+        let config = default_assisted_by_config();
+
+        assert_eq!(config.harnesses[0], "Codex CLI");
+        assert_eq!(config.harnesses[1], "Claude Code CLI");
+        assert!(config.models.contains(&"claude-opus-4-7".to_owned()));
+        assert!(!config.models.contains(&"Opus-4.7".to_owned()));
+        assert_eq!(
+            config
+                .quick
+                .iter()
+                .find(|option| option.agent == "Claude Code CLI")
+                .map(|option| option.model.as_str()),
+            Some("claude-opus-4-7")
+        );
     }
 
     #[test]

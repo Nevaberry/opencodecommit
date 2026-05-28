@@ -60,6 +60,35 @@ describe("config schema", () => {
     assert.strictEqual(properties["opencodecommit.prTimeoutSeconds"].scope, "machine")
     assert.strictEqual(properties["opencodecommit.prTimeoutSeconds"].default, 180)
     assert.ok(!("enum" in properties["opencodecommit.activeLanguage"]))
+
+    const commandTitles = new Map(
+      rootManifest.contributes.commands.map((command: any) => [
+        command.command,
+        command.title,
+      ]),
+    )
+    const submenuLabels = new Map(
+      rootManifest.contributes.submenus.map((submenu: any) => [
+        submenu.id,
+        submenu.label,
+      ]),
+    )
+    for (const menuId of [
+      "opencodecommit.menu",
+      "opencodecommit.assistedByMenu",
+      "opencodecommit.commitAdaptiveBackendMenu",
+      "opencodecommit.prBackendMenu",
+    ]) {
+      for (const item of rootManifest.contributes.menus[menuId] ?? []) {
+        const title = item.command
+          ? commandTitles.get(item.command)
+          : submenuLabels.get(item.submenu)
+        assert.ok(
+          typeof title !== "string" || !title.startsWith("occ: "),
+          `${menuId} item ${item.command ?? item.submenu} should not include the occ: prefix`,
+        )
+      }
+    }
   })
 
   it("round-trips canonical defaults through TOML and back into runtime config", () => {
