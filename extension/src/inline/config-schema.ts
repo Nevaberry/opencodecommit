@@ -1,3 +1,4 @@
+import { MODEL_CATALOG } from "./model-catalog"
 import type {
   ApiProviderConfig,
   Backend,
@@ -140,7 +141,10 @@ export const MIRRORED_SETTING_FIELDS = [
   { property: "sparkleMode", settingKey: "sparkleMode" },
   { property: "diffSource", settingKey: "diffSource" },
   { property: "maxDiffLength", settingKey: "maxDiffLength" },
-  { property: "commitBranchTimeoutSeconds", settingKey: "commitBranchTimeoutSeconds" },
+  {
+    property: "commitBranchTimeoutSeconds",
+    settingKey: "commitBranchTimeoutSeconds",
+  },
   { property: "prTimeoutSeconds", settingKey: "prTimeoutSeconds" },
   { property: "sensitiveEnforcement", settingKey: "sensitive.enforcement" },
   { property: "sensitiveAllowlist", settingKey: "sensitive.allowlist" },
@@ -258,9 +262,21 @@ function readApiProviderConfig(
   const object = readObject(value, apiProviderToToml(fallback), context)
   return {
     model: readString(object.model, fallback.model, `${context}.model`),
-    endpoint: readString(object.endpoint, fallback.endpoint, `${context}.endpoint`),
-    keyEnv: readString(object["key-env"], fallback.keyEnv, `${context}.key-env`),
-    prModel: readString(object["pr-model"], fallback.prModel, `${context}.pr-model`),
+    endpoint: readString(
+      object.endpoint,
+      fallback.endpoint,
+      `${context}.endpoint`,
+    ),
+    keyEnv: readString(
+      object["key-env"],
+      fallback.keyEnv,
+      `${context}.key-env`,
+    ),
+    prModel: readString(
+      object["pr-model"],
+      fallback.prModel,
+      `${context}.pr-model`,
+    ),
     cheapModel: readString(
       object["cheap-model"],
       fallback.cheapModel,
@@ -274,7 +290,8 @@ function languageToToml(language: LanguageConfig): TomlObject {
     label: language.label,
     instruction: language.instruction,
   }
-  if (language.baseModule !== undefined) result["base-module"] = language.baseModule
+  if (language.baseModule !== undefined)
+    result["base-module"] = language.baseModule
   if (language.adaptiveFormat !== undefined) {
     result["adaptive-format"] = language.adaptiveFormat
   }
@@ -414,7 +431,9 @@ function getPropertyDefault<T>(
 ): T {
   const property = properties[`opencodecommit.${key}`]
   if (!property) {
-    throw new Error(`missing manifest property default for opencodecommit.${key}`)
+    throw new Error(
+      `missing manifest property default for opencodecommit.${key}`,
+    )
   }
   return property.default as T
 }
@@ -428,35 +447,99 @@ export function getManifestDefaults(manifest: {
 }): MirroredSettings {
   const properties = manifest.contributes?.configuration?.properties
   if (!properties) {
-    throw new Error("extension manifest is missing contributes.configuration.properties")
+    throw new Error(
+      "extension manifest is missing contributes.configuration.properties",
+    )
   }
+
+  const backendDefaults = MODEL_CATALOG.backendDefaults
 
   return {
     codexCLIProvider: getPropertyDefault(properties, "codexCLIProvider"),
-    codexCLIModel: getPropertyDefault(properties, "codexCLIModel"),
+    codexCLIModel: backendModelDefault(
+      backendDefaults,
+      "codex",
+      "commit_model",
+      getPropertyDefault(properties, "codexCLIModel"),
+    ),
     codexCLIPath: getPropertyDefault(properties, "codexCLIPath"),
     opencodeCLIProvider: getPropertyDefault(properties, "opencodeCLIProvider"),
-    opencodeCLIModel: getPropertyDefault(properties, "opencodeCLIModel"),
+    opencodeCLIModel: backendModelDefault(
+      backendDefaults,
+      "opencode",
+      "commit_model",
+      getPropertyDefault(properties, "opencodeCLIModel"),
+    ),
     opencodeCLIPath: getPropertyDefault(properties, "opencodeCLIPath"),
-    claudeCodeCLIModel: getPropertyDefault(properties, "claudeCodeCLIModel"),
+    claudeCodeCLIModel: backendModelDefault(
+      backendDefaults,
+      "claude",
+      "commit_model",
+      getPropertyDefault(properties, "claudeCodeCLIModel"),
+    ),
     claudeCodeCLIPath: getPropertyDefault(properties, "claudeCodeCLIPath"),
-    geminiCLIModel: getPropertyDefault(properties, "geminiCLIModel"),
+    geminiCLIModel: backendModelDefault(
+      backendDefaults,
+      "gemini",
+      "commit_model",
+      getPropertyDefault(properties, "geminiCLIModel"),
+    ),
     geminiCLIPath: getPropertyDefault(properties, "geminiCLIPath"),
     opencodePRProvider: getPropertyDefault(properties, "opencodePRProvider"),
-    opencodePRModel: getPropertyDefault(properties, "opencodePRModel"),
+    opencodePRModel: backendModelDefault(
+      backendDefaults,
+      "opencode",
+      "pr_model",
+      getPropertyDefault(properties, "opencodePRModel"),
+    ),
     opencodeCheapProvider: getPropertyDefault(
       properties,
       "opencodeCheapProvider",
     ),
-    opencodeCheapModel: getPropertyDefault(properties, "opencodeCheapModel"),
-    claudePRModel: getPropertyDefault(properties, "claudePRModel"),
-    claudeCheapModel: getPropertyDefault(properties, "claudeCheapModel"),
+    opencodeCheapModel: backendModelDefault(
+      backendDefaults,
+      "opencode",
+      "cheap_model",
+      getPropertyDefault(properties, "opencodeCheapModel"),
+    ),
+    claudePRModel: backendModelDefault(
+      backendDefaults,
+      "claude",
+      "pr_model",
+      getPropertyDefault(properties, "claudePRModel"),
+    ),
+    claudeCheapModel: backendModelDefault(
+      backendDefaults,
+      "claude",
+      "cheap_model",
+      getPropertyDefault(properties, "claudeCheapModel"),
+    ),
     codexPRProvider: getPropertyDefault(properties, "codexPRProvider"),
-    codexPRModel: getPropertyDefault(properties, "codexPRModel"),
+    codexPRModel: backendModelDefault(
+      backendDefaults,
+      "codex",
+      "pr_model",
+      getPropertyDefault(properties, "codexPRModel"),
+    ),
     codexCheapProvider: getPropertyDefault(properties, "codexCheapProvider"),
-    codexCheapModel: getPropertyDefault(properties, "codexCheapModel"),
-    geminiPRModel: getPropertyDefault(properties, "geminiPRModel"),
-    geminiCheapModel: getPropertyDefault(properties, "geminiCheapModel"),
+    codexCheapModel: backendModelDefault(
+      backendDefaults,
+      "codex",
+      "cheap_model",
+      getPropertyDefault(properties, "codexCheapModel"),
+    ),
+    geminiPRModel: backendModelDefault(
+      backendDefaults,
+      "gemini",
+      "pr_model",
+      getPropertyDefault(properties, "geminiPRModel"),
+    ),
+    geminiCheapModel: backendModelDefault(
+      backendDefaults,
+      "gemini",
+      "cheap_model",
+      getPropertyDefault(properties, "geminiCheapModel"),
+    ),
     prBaseBranch: getPropertyDefault(properties, "prBaseBranch"),
     backendOrder: getPropertyDefault(properties, "backendOrder"),
     apiOpenai: getPropertyDefault(properties, "api.openai"),
@@ -469,7 +552,10 @@ export function getManifestDefaults(manifest: {
     apiCustom: getPropertyDefault(properties, "api.custom"),
     activeLanguage: getPropertyDefault(properties, "activeLanguage"),
     languages: getPropertyDefault(properties, "languages"),
-    showLanguageSelector: getPropertyDefault(properties, "showLanguageSelector"),
+    showLanguageSelector: getPropertyDefault(
+      properties,
+      "showLanguageSelector",
+    ),
     commitMode: getPropertyDefault(properties, "commitMode"),
     sparkleMode: getPropertyDefault(properties, "sparkleMode"),
     diffSource: getPropertyDefault(properties, "diffSource"),
@@ -496,7 +582,18 @@ export function getManifestDefaults(manifest: {
   }
 }
 
-export function buildDefaultTomlDocument(defaults: MirroredSettings): TomlConfig {
+function backendModelDefault(
+  defaults: typeof MODEL_CATALOG.backendDefaults,
+  backend: string,
+  tier: keyof (typeof MODEL_CATALOG.backendDefaults)[string],
+  fallback: string,
+): string {
+  return defaults[backend]?.[tier] ?? fallback
+}
+
+export function buildDefaultTomlDocument(
+  defaults: MirroredSettings,
+): TomlConfig {
   return {
     backend: "codex",
     "backend-order": defaults.backendOrder,
@@ -563,10 +660,7 @@ export function buildDefaultTomlDocument(defaults: MirroredSettings): TomlConfig
   }
 }
 
-function readBackendOrder(
-  value: unknown,
-  fallback: Backend[],
-): Backend[] {
+function readBackendOrder(value: unknown, fallback: Backend[]): Backend[] {
   if (value === undefined) return fallback
   if (!Array.isArray(value)) {
     throw new Error("backend-order must be an array")
@@ -703,13 +797,21 @@ export function readMirroredSettings(
       "pr-base-branch",
     ),
     backendOrder: readBackendOrder(doc["backend-order"], defaults.backendOrder),
-    apiOpenai: readApiProviderConfig(api.openai, defaults.apiOpenai, "api.openai"),
+    apiOpenai: readApiProviderConfig(
+      api.openai,
+      defaults.apiOpenai,
+      "api.openai",
+    ),
     apiAnthropic: readApiProviderConfig(
       api.anthropic,
       defaults.apiAnthropic,
       "api.anthropic",
     ),
-    apiGemini: readApiProviderConfig(api.gemini, defaults.apiGemini, "api.gemini"),
+    apiGemini: readApiProviderConfig(
+      api.gemini,
+      defaults.apiGemini,
+      "api.gemini",
+    ),
     apiOpenrouter: readApiProviderConfig(
       api.openrouter,
       defaults.apiOpenrouter,
@@ -720,13 +822,21 @@ export function readMirroredSettings(
       defaults.apiOpencode,
       "api.opencode",
     ),
-    apiOllama: readApiProviderConfig(api.ollama, defaults.apiOllama, "api.ollama"),
+    apiOllama: readApiProviderConfig(
+      api.ollama,
+      defaults.apiOllama,
+      "api.ollama",
+    ),
     apiLmStudio: readApiProviderConfig(
       api["lm-studio"],
       defaults.apiLmStudio,
       "api.lm-studio",
     ),
-    apiCustom: readApiProviderConfig(api.custom, defaults.apiCustom, "api.custom"),
+    apiCustom: readApiProviderConfig(
+      api.custom,
+      defaults.apiCustom,
+      "api.custom",
+    ),
     activeLanguage: readString(
       doc["active-language"],
       defaults.activeLanguage,
@@ -781,11 +891,7 @@ export function readMirroredSettings(
       sensitive.allowlist,
       defaults.sensitiveAllowlist,
     ),
-    useEmojis: readBoolean(
-      doc["use-emojis"],
-      defaults.useEmojis,
-      "use-emojis",
-    ),
+    useEmojis: readBoolean(doc["use-emojis"], defaults.useEmojis, "use-emojis"),
     useLowerCase: readBoolean(
       doc["use-lower-case"],
       defaults.useLowerCase,

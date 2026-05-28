@@ -1,0 +1,61 @@
+{
+  "assistedBy": {
+    "harnesses": [
+      "Codex CLI",
+      "Claude Code CLI",
+      "Codex-minimal CLI",
+      "OpenCode CLI",
+      "Cursor",
+      "Antigravity CLI",
+      "Grok Build CLI"
+    ],
+    "models": [
+      "claude-opus-4.7",
+      "claude-sonnet-4.6",
+      "gpt-5.5",
+      "kimi-k2.6",
+      "gemini-3.1-pro-preview",
+      "composer-2.5",
+      "grok-4.3",
+      "deepseek-v4-pro"
+    ],
+    "quick": [
+      {
+        "label": "Codex CLI GPT-5.5",
+        "agent": "Codex CLI",
+        "model": "gpt-5.5",
+        "versionCommand": "codex -V",
+        "versionPattern": "codex-cli (?<version>\\S+)"
+      },
+      {
+        "label": "Claude Code CLI Opus 4.7",
+        "agent": "Claude Code CLI",
+        "model": "claude-opus-4.7",
+        "versionCommand": "claude -v",
+        "versionPattern": "(?<version>\\S+) \\(Claude Code\\)"
+      }
+    ]
+  },
+  "backendDefaults": {
+    "opencode": {
+      "commit_model": "gpt-5.4-mini",
+      "pr_model": "gpt-5.4",
+      "cheap_model": "gpt-5.4-mini"
+    },
+    "claude": {
+      "commit_model": "claude-sonnet-4-6",
+      "pr_model": "claude-opus-4-6",
+      "cheap_model": "claude-haiku-4-5"
+    },
+    "codex": {
+      "commit_model": "gpt-5.4-mini",
+      "pr_model": "gpt-5.4",
+      "cheap_model": "gpt-5.4-mini"
+    },
+    "gemini": {
+      "commit_model": "gemini-2.5-flash",
+      "pr_model": "gemini-3-flash-preview",
+      "cheap_model": "gemini-3.1-flash-lite-preview"
+    }
+  }
+}

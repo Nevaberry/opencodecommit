@@ -173,6 +173,31 @@ pub struct AssistedByQuickOption {
     pub version_pattern: String,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ModelCatalog {
+    assisted_by: AssistedByCatalog,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct AssistedByCatalog {
+    harnesses: Vec<String>,
+    models: Vec<String>,
+    quick: Vec<AssistedByCatalogQuickOption>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AssistedByCatalogQuickOption {
+    label: String,
+    agent: String,
+    model: String,
+    #[serde(default)]
+    version_command: String,
+    #[serde(default)]
+    version_pattern: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct EvidenceConfig {
@@ -996,52 +1021,32 @@ fn stage_repo_sidecar(repo_root: &Path, repo_rel: &Path) -> Result<()> {
 }
 
 fn default_assisted_by_config() -> AssistedByConfig {
+    let catalog = model_catalog().assisted_by;
     AssistedByConfig {
         enabled: true,
         prompt: "ask".to_owned(),
         dedupe: true,
-        harnesses: [
-            "Codex CLI",
-            "Claude Code CLI",
-            "Codex-minimal CLI",
-            "OpenCode CLI",
-            "Cursor",
-            "Antigravity CLI",
-            "Grok Build",
-        ]
-        .iter()
-        .map(|value| (*value).to_owned())
-        .collect(),
-        models: [
-            "claude-opus-4-7",
-            "Sonnet-4.6",
-            "GPT-5.5",
-            "Kimi-2.6",
-            "Gemini-3.1-pro",
-            "Composer-2.0",
-            "Grok-4.3",
-            "deepseek-v4-pro",
-        ]
-        .iter()
-        .map(|value| (*value).to_owned())
-        .collect(),
-        quick: vec![
-            AssistedByQuickOption {
-                label: "Codex CLI GPT-5.5".to_owned(),
-                agent: "Codex CLI".to_owned(),
-                model: "GPT-5.5".to_owned(),
-                version_command: "codex -V".to_owned(),
-                version_pattern: "codex-cli (?P<version>\\S+)".to_owned(),
-            },
-            AssistedByQuickOption {
-                label: "Claude Code CLI Opus 4.7".to_owned(),
-                agent: "Claude Code CLI".to_owned(),
-                model: "claude-opus-4-7".to_owned(),
-                version_command: "claude -v".to_owned(),
-                version_pattern: "(?P<version>\\S+) \\(Claude Code\\)".to_owned(),
-            },
-        ],
+        harnesses: catalog.harnesses,
+        models: catalog.models,
+        quick: catalog
+            .quick
+            .into_iter()
+            .map(|option| AssistedByQuickOption {
+                label: option.label,
+                agent: option.agent,
+                model: option.model,
+                version_command: option.version_command,
+                version_pattern: option
+                    .version_pattern
+                    .replace("(?<version>", "(?P<version>"),
+            })
+            .collect(),
     }
+}
+
+fn model_catalog() -> ModelCatalog {
+    serde_json::from_str(include_str!("../../../model-catalog.json"))
+        .expect("model-catalog.json must be valid")
 }
 
 fn detect_version_for_option(option: &AssistedByQuickOption) -> std::result::Result<String, ()> {
@@ -1202,20 +1207,26 @@ mod tests {
     }
 
     #[test]
-    fn default_assisted_by_config_uses_official_opus_slug_and_codex_first() {
+    fn default_assisted_by_config_uses_catalog_slugs_and_codex_first() {
         let config = default_assisted_by_config();
 
         assert_eq!(config.harnesses[0], "Codex CLI");
         assert_eq!(config.harnesses[1], "Claude Code CLI");
-        assert!(config.models.contains(&"claude-opus-4-7".to_owned()));
+        assert!(config.models.contains(&"claude-opus-4.7".to_owned()));
+        assert!(config.models.contains(&"composer-2.5".to_owned()));
         assert!(!config.models.contains(&"Opus-4.7".to_owned()));
+        assert!(
+            !config
+                .models
+                .contains(&"anthropic/claude-opus-4.7".to_owned())
+        );
         assert_eq!(
             config
                 .quick
                 .iter()
                 .find(|option| option.agent == "Claude Code CLI")
                 .map(|option| option.model.as_str()),
-            Some("claude-opus-4-7")
+            Some("claude-opus-4.7")
         );
     }
 

@@ -10,10 +10,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEFAULTS_FILE="$SCRIPT_DIR/model_defaults.json"
+DEFAULTS_FILE="$SCRIPT_DIR/../model-catalog.json"
 
 if [[ ! -f "$DEFAULTS_FILE" ]]; then
-    echo "ERROR: model_defaults.json not found at $DEFAULTS_FILE" >&2
+    echo "ERROR: model-catalog.json not found at $DEFAULTS_FILE" >&2
     exit 2
 fi
 
@@ -22,10 +22,10 @@ if ! command -v jq &>/dev/null; then
     exit 2
 fi
 
-# Read a default value from model_defaults.json
+# Read a default value from model-catalog.json
 get_default() {
     local backend="$1" tier="$2"
-    jq -r --arg b "$backend" --arg t "$tier" '.[$b][$t] // ""' "$DEFAULTS_FILE"
+    jq -r --arg b "$backend" --arg t "$tier" '.backendDefaults[$b][$t] // ""' "$DEFAULTS_FILE"
 }
 
 changes=()

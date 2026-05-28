@@ -8,11 +8,11 @@ import { withBackendOverride } from "../inline/backends"
 import { buildInvocation, detectCli, execCli } from "../inline/cli"
 import type { CommitContext } from "../inline/context"
 import {
+  appendAssistedByTrailers,
+  assistedByTrailer,
   DEFAULT_ASSISTED_BY_QUICK_OPTIONS,
   DEFAULT_HARNESSES,
   DEFAULT_MODELS,
-  appendAssistedByTrailers,
-  assistedByTrailer,
   readAssistedByOptions,
   saveAssistedByQuickOption,
 } from "../inline/evidence"
@@ -328,18 +328,20 @@ describe("guard token", () => {
 })
 
 describe("evidence Assisted-by helpers", () => {
-  it("keeps Codex first and uses the official Claude Opus 4.7 slug", () => {
+  it("keeps Codex first and uses catalog model slugs", () => {
     assert.deepStrictEqual(DEFAULT_HARNESSES.slice(0, 2), [
       "Codex CLI",
       "Claude Code CLI",
     ])
-    assert.ok(DEFAULT_MODELS.includes("claude-opus-4-7"))
+    assert.ok(DEFAULT_MODELS.includes("claude-opus-4.7"))
+    assert.ok(DEFAULT_MODELS.includes("composer-2.5"))
     assert.ok(!DEFAULT_MODELS.includes("Opus-4.7"))
+    assert.ok(!DEFAULT_MODELS.includes("anthropic/claude-opus-4.7"))
     assert.strictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find(
         (option) => option.agent === "Claude Code CLI",
       )?.model,
-      "claude-opus-4-7",
+      "claude-opus-4.7",
     )
   })
 
@@ -347,9 +349,9 @@ describe("evidence Assisted-by helpers", () => {
     const trailer = assistedByTrailer({
       agent: "Codex CLI",
       version: "0.133.0",
-      model: "GPT-5.5",
+      model: "gpt-5.5",
     })
-    assert.strictEqual(trailer, "Assisted-by: Codex CLI 0.133.0:GPT-5.5")
+    assert.strictEqual(trailer, "Assisted-by: Codex CLI 0.133.0:gpt-5.5")
 
     const message = appendAssistedByTrailers("feat: add thing\n", [
       trailer,
@@ -357,7 +359,7 @@ describe("evidence Assisted-by helpers", () => {
     ])
     assert.strictEqual(
       message,
-      "feat: add thing\nAssisted-by: Codex CLI 0.133.0:GPT-5.5\n",
+      "feat: add thing\nAssisted-by: Codex CLI 0.133.0:gpt-5.5\n",
     )
   })
 

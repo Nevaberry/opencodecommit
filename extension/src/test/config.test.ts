@@ -11,10 +11,37 @@ import {
   toExtensionConfig,
 } from "../inline/config-schema"
 
-function loadManifest(relativePath: string): any {
+interface ManifestCommand {
+  command: string
+  title: string
+}
+
+interface ManifestSubmenu {
+  id: string
+  label: string
+}
+
+interface ManifestMenuItem {
+  command?: string
+  submenu?: string
+}
+
+interface ExtensionManifest {
+  [key: string]: unknown
+  contributes: {
+    commands: ManifestCommand[]
+    submenus: ManifestSubmenu[]
+    menus: Record<string, ManifestMenuItem[]>
+    configuration: {
+      properties: Record<string, { default: unknown; scope?: string }>
+    }
+  }
+}
+
+function loadManifest(relativePath: string): ExtensionManifest {
   return JSON.parse(
     fs.readFileSync(path.resolve(__dirname, relativePath), "utf8"),
-  )
+  ) as ExtensionManifest
 }
 
 describe("config schema", () => {
@@ -57,18 +84,24 @@ describe("config schema", () => {
       properties["opencodecommit.commitBranchTimeoutSeconds"].default,
       70,
     )
-    assert.strictEqual(properties["opencodecommit.prTimeoutSeconds"].scope, "machine")
-    assert.strictEqual(properties["opencodecommit.prTimeoutSeconds"].default, 180)
+    assert.strictEqual(
+      properties["opencodecommit.prTimeoutSeconds"].scope,
+      "machine",
+    )
+    assert.strictEqual(
+      properties["opencodecommit.prTimeoutSeconds"].default,
+      180,
+    )
     assert.ok(!("enum" in properties["opencodecommit.activeLanguage"]))
 
     const commandTitles = new Map(
-      rootManifest.contributes.commands.map((command: any) => [
+      rootManifest.contributes.commands.map((command) => [
         command.command,
         command.title,
       ]),
     )
     const submenuLabels = new Map(
-      rootManifest.contributes.submenus.map((submenu: any) => [
+      rootManifest.contributes.submenus.map((submenu) => [
         submenu.id,
         submenu.label,
       ]),
@@ -82,7 +115,9 @@ describe("config schema", () => {
       for (const item of rootManifest.contributes.menus[menuId] ?? []) {
         const title = item.command
           ? commandTitles.get(item.command)
-          : submenuLabels.get(item.submenu)
+          : item.submenu
+            ? submenuLabels.get(item.submenu)
+            : undefined
         assert.ok(
           typeof title !== "string" || !title.startsWith("occ: "),
           `${menuId} item ${item.command ?? item.submenu} should not include the occ: prefix`,
@@ -95,7 +130,9 @@ describe("config schema", () => {
     const manifest = loadManifest("../../../package.json")
     const defaults = getManifestDefaults(manifest)
     const defaultDoc = buildDefaultTomlDocument(defaults)
-    const serialized = TOML.stringify(defaultDoc as any)
+    const serialized = TOML.stringify(
+      defaultDoc as Parameters<typeof TOML.stringify>[0],
+    )
     const parsedDoc = TOML.parse(serialized) as Record<string, unknown>
     const mirrored = readMirroredSettings(parsedDoc, defaults)
     const runtimeConfig = toExtensionConfig(mirrored)
@@ -121,13 +158,16 @@ describe("config schema", () => {
         "expert at writing git commit messages",
       ),
     )
-    assert.deepStrictEqual((defaultDoc.api as Record<string, unknown> | undefined)?.openai, {
-      model: "gpt-5.4-mini",
-      endpoint: "https://api.openai.com/v1/chat/completions",
-      "key-env": "OPENAI_API_KEY",
-      "pr-model": "gpt-5.4",
-      "cheap-model": "gpt-5.4-mini",
-    })
+    assert.deepStrictEqual(
+      (defaultDoc.api as Record<string, unknown> | undefined)?.openai,
+      {
+        model: "gpt-5.4-mini",
+        endpoint: "https://api.openai.com/v1/chat/completions",
+        "key-env": "OPENAI_API_KEY",
+        "pr-model": "gpt-5.4",
+        "cheap-model": "gpt-5.4-mini",
+      },
+    )
     assert.strictEqual(runtimeConfig.activeLanguage, "English")
     assert.ok(
       runtimeConfig.prompt.baseModule.includes(

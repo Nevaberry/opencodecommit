@@ -468,19 +468,19 @@ fn default_provider() -> String {
 }
 
 fn default_model() -> String {
-    "gpt-5.4-mini".to_owned()
+    model_catalog_backend_default("opencode", "commit_model", "gpt-5.4-mini")
 }
 
 fn default_claude_model() -> String {
-    "claude-sonnet-4-6".to_owned()
+    model_catalog_backend_default("claude", "commit_model", "claude-sonnet-4-6")
 }
 
 fn default_codex_model() -> String {
-    "gpt-5.4-mini".to_owned()
+    model_catalog_backend_default("codex", "commit_model", "gpt-5.4-mini")
 }
 
 fn default_gemini_model() -> String {
-    "gemini-2.5-flash".to_owned()
+    model_catalog_backend_default("gemini", "commit_model", "gemini-2.5-flash")
 }
 
 fn default_diff_source() -> DiffSource {
@@ -520,7 +520,7 @@ fn default_opencode_pr_provider() -> String {
 }
 
 fn default_opencode_pr_model() -> String {
-    "gpt-5.4".to_owned()
+    model_catalog_backend_default("opencode", "pr_model", "gpt-5.4")
 }
 
 fn default_opencode_cheap_provider() -> String {
@@ -528,31 +528,45 @@ fn default_opencode_cheap_provider() -> String {
 }
 
 fn default_opencode_cheap_model() -> String {
-    "gpt-5.4-mini".to_owned()
+    model_catalog_backend_default("opencode", "cheap_model", "gpt-5.4-mini")
 }
 
 fn default_claude_pr_model() -> String {
-    "claude-opus-4-6".to_owned()
+    model_catalog_backend_default("claude", "pr_model", "claude-opus-4-6")
 }
 
 fn default_claude_cheap_model() -> String {
-    "claude-haiku-4-5".to_owned()
+    model_catalog_backend_default("claude", "cheap_model", "claude-haiku-4-5")
 }
 
 fn default_codex_pr_model() -> String {
-    "gpt-5.4".to_owned()
+    model_catalog_backend_default("codex", "pr_model", "gpt-5.4")
 }
 
 fn default_codex_cheap_model() -> String {
-    "gpt-5.4-mini".to_owned()
+    model_catalog_backend_default("codex", "cheap_model", "gpt-5.4-mini")
 }
 
 fn default_gemini_pr_model() -> String {
-    "gemini-3-flash-preview".to_owned()
+    model_catalog_backend_default("gemini", "pr_model", "gemini-3-flash-preview")
 }
 
 fn default_gemini_cheap_model() -> String {
-    "gemini-3.1-flash-lite-preview".to_owned()
+    model_catalog_backend_default("gemini", "cheap_model", "gemini-3.1-flash-lite-preview")
+}
+
+fn model_catalog_backend_default(backend: &str, tier: &str, fallback: &str) -> String {
+    serde_json::from_str::<serde_json::Value>(include_str!("../../../model-catalog.json"))
+        .ok()
+        .and_then(|catalog| {
+            catalog
+                .get("backendDefaults")?
+                .get(backend)?
+                .get(tier)?
+                .as_str()
+                .map(str::to_owned)
+        })
+        .unwrap_or_else(|| fallback.to_owned())
 }
 
 fn default_openai_api_config() -> ApiProviderConfig {

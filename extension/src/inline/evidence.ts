@@ -2,6 +2,7 @@ import { spawn } from "node:child_process"
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import * as TOML from "@iarna/toml"
+import { MODEL_CATALOG } from "./model-catalog"
 
 interface GitResult {
   stdout: string
@@ -25,43 +26,9 @@ export interface AssistedByInput {
 
 type TomlObject = Record<string, unknown>
 
-export const DEFAULT_HARNESSES = [
-  "Codex CLI",
-  "Claude Code CLI",
-  "Codex-minimal CLI",
-  "OpenCode CLI",
-  "Cursor",
-  "Antigravity CLI",
-  "Grok Build",
-]
-
-export const DEFAULT_MODELS = [
-  "claude-opus-4-7",
-  "Sonnet-4.6",
-  "GPT-5.5",
-  "Kimi-2.6",
-  "Gemini-3.1-pro",
-  "Composer-2.0",
-  "Grok-4.3",
-  "deepseek-v4-pro",
-]
-
-export const DEFAULT_ASSISTED_BY_QUICK_OPTIONS: AssistedByQuickOption[] = [
-  {
-    label: "Codex CLI GPT-5.5",
-    agent: "Codex CLI",
-    model: "GPT-5.5",
-    versionCommand: "codex -V",
-    versionPattern: "codex-cli (?<version>\\S+)",
-  },
-  {
-    label: "Claude Code CLI Opus 4.7",
-    agent: "Claude Code CLI",
-    model: "claude-opus-4-7",
-    versionCommand: "claude -v",
-    versionPattern: "(?<version>\\S+) \\(Claude Code\\)",
-  },
-]
+export const DEFAULT_HARNESSES = MODEL_CATALOG.assistedBy.harnesses
+export const DEFAULT_MODELS = MODEL_CATALOG.assistedBy.models
+export const DEFAULT_ASSISTED_BY_QUICK_OPTIONS = MODEL_CATALOG.assistedBy.quick
 
 function runGit(repoPath: string, args: string[]): Promise<GitResult> {
   return new Promise((resolve, reject) => {
