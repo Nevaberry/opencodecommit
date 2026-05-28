@@ -73,6 +73,10 @@ jobs:
   publish-npm:
     needs: [cross-compile]
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v6
 
@@ -103,14 +107,10 @@ jobs:
       - name: Publish opencodecommit (primary)
         working-directory: npm/opencodecommit
         run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @nevaberry/opencodecommit (redirect)
         working-directory: npm/nb-opencodecommit
         run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   # ── Publish crates.io ─────────────────────────────────────────────
   publish-cargo:
