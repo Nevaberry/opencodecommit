@@ -330,8 +330,8 @@ describe("guard token", () => {
 describe("evidence Assisted-by helpers", () => {
   it("keeps Codex first and uses catalog model slugs", () => {
     assert.deepStrictEqual(DEFAULT_HARNESSES.slice(0, 2), [
-      "Codex CLI",
-      "Claude Code CLI",
+      "Codex",
+      "Claude Code",
     ])
     assert.ok(DEFAULT_HARNESSES.includes("GitHub Copilot"))
     assert.ok(DEFAULT_MODELS.includes("claude-opus-4.8"))
@@ -341,11 +341,11 @@ describe("evidence Assisted-by helpers", () => {
     assert.ok(!DEFAULT_MODELS.includes("anthropic/claude-opus-4.8"))
     assert.deepStrictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.map((option) => option.label),
-      ["Codex CLI GPT-5.5", "Claude Code CLI Opus 4.7"],
+      ["Codex GPT-5.5", "Claude Code Opus 4.7"],
     )
     assert.strictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find(
-        (option) => option.agent === "Claude Code CLI",
+        (option) => option.agent === "Claude Code",
       )?.model,
       "claude-opus-4.8",
     )
@@ -353,11 +353,11 @@ describe("evidence Assisted-by helpers", () => {
 
   it("formats and deduplicates Assisted-by trailers", () => {
     const trailer = assistedByTrailer({
-      agent: "Codex CLI",
+      agent: "Codex",
       version: "0.133.0",
       model: "gpt-5.5",
     })
-    assert.strictEqual(trailer, "Assisted-by: Codex CLI 0.133.0:gpt-5.5")
+    assert.strictEqual(trailer, "Assisted-by: Codex 0.133.0:gpt-5.5")
 
     const message = appendAssistedByTrailers("feat: add thing\n", [
       trailer,
@@ -365,7 +365,7 @@ describe("evidence Assisted-by helpers", () => {
     ])
     assert.strictEqual(
       message,
-      "feat: add thing\nAssisted-by: Codex CLI 0.133.0:gpt-5.5",
+      "feat: add thing\nAssisted-by: Codex 0.133.0:gpt-5.5",
     )
     assert.ok(!message.endsWith("\n"))
   })

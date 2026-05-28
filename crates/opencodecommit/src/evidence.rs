@@ -1199,19 +1199,19 @@ mod tests {
     #[test]
     fn assisted_by_trailer_uses_requested_format() {
         let trailer = assisted_by_trailer(&AssistedByInput {
-            agent: "Codex CLI".to_owned(),
+            agent: "Codex".to_owned(),
             model: "GPT-5.5".to_owned(),
             version: Some("0.133.0".to_owned()),
         });
-        assert_eq!(trailer, "Assisted-by: Codex CLI 0.133.0:GPT-5.5");
+        assert_eq!(trailer, "Assisted-by: Codex 0.133.0:GPT-5.5");
     }
 
     #[test]
     fn default_assisted_by_config_uses_catalog_slugs_and_codex_first() {
         let config = default_assisted_by_config();
 
-        assert_eq!(config.harnesses[0], "Codex CLI");
-        assert_eq!(config.harnesses[1], "Claude Code CLI");
+        assert_eq!(config.harnesses[0], "Codex");
+        assert_eq!(config.harnesses[1], "Claude Code");
         assert!(config.harnesses.contains(&"GitHub Copilot".to_owned()));
         assert!(config.models.contains(&"claude-opus-4.8".to_owned()));
         assert!(config.models.contains(&"composer-2.5".to_owned()));
@@ -1228,13 +1228,13 @@ mod tests {
                 .iter()
                 .map(|option| option.label.as_str())
                 .collect::<Vec<_>>(),
-            vec!["Codex CLI GPT-5.5", "Claude Code CLI Opus 4.7"]
+            vec!["Codex GPT-5.5", "Claude Code Opus 4.7"]
         );
         assert_eq!(
             config
                 .quick
                 .iter()
-                .find(|option| option.agent == "Claude Code CLI")
+                .find(|option| option.agent == "Claude Code")
                 .map(|option| option.model.as_str()),
             Some("claude-opus-4.8")
         );
