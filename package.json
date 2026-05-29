@@ -2,7 +2,7 @@
   "name": "opencodecommit",
   "displayName": "OpenCodeCommit",
   "description": "AI commit, branch, PR, changelog, and CI scan tooling with local secret checks",
-  "version": "1.9.5",
+  "version": "1.9.6",
   "publisher": "Nevaberry",
   "license": "MIT",
   "repository": {
@@ -68,20 +68,20 @@
         "icon": "$(check)"
       },
       {
-        "command": "opencodecommit.assistedByCodexGpt55",
-        "title": "Assisted-by Codex CLI GPT-5.5"
+        "command": "opencodecommit.assistedByCodexGpt",
+        "title": "Assisted-by: Codex:GPT"
       },
       {
-        "command": "opencodecommit.assistedByClaudeOpus47",
-        "title": "Assisted-by Claude Code CLI Opus 4.7"
+        "command": "opencodecommit.assistedByClaudeOpus",
+        "title": "Assisted-by: Claude Code:Opus"
       },
       {
         "command": "opencodecommit.assistedByPick",
-        "title": "Assisted-by Pick Harness + Model"
+        "title": "Assisted-by: Pick Harness + Model"
       },
       {
         "command": "opencodecommit.assistedByCustom",
-        "title": "Assisted-by Add Custom"
+        "title": "Assisted-by: Add Custom"
       },
       {
         "command": "opencodecommit.generatePr",
@@ -349,11 +349,11 @@
       ],
       "opencodecommit.assistedByMenu": [
         {
-          "command": "opencodecommit.assistedByCodexGpt55",
+          "command": "opencodecommit.assistedByCodexGpt",
           "group": "1_quick@1"
         },
         {
-          "command": "opencodecommit.assistedByClaudeOpus47",
+          "command": "opencodecommit.assistedByClaudeOpus",
           "group": "1_quick@2"
         },
         {

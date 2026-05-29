@@ -537,7 +537,7 @@ async function appendAssistedByRows(
 }
 
 async function appendAssistedByQuick(
-  label: string,
+  harness: string,
   arg?: { rootUri?: vscode.Uri },
 ) {
   const repo = resolveRepository(arg)
@@ -548,10 +548,10 @@ async function appendAssistedByQuick(
 
   try {
     const options = await readAssistedByOptions(repo.rootUri.fsPath)
-    const quick = options.quick.find((option) => option.label === label)
+    const quick = options.quick.find((option) => option.agent === harness)
     if (!quick) {
       vscode.window.showErrorMessage(
-        `OpenCodeCommit: Assisted-by option not found: ${label}`,
+        `OpenCodeCommit: Assisted-by option not found for harness: ${harness}`,
       )
       return
     }
@@ -869,12 +869,12 @@ export async function activate(context: vscode.ExtensionContext) {
       manualCommitOnce(arg),
     ),
     vscode.commands.registerCommand(
-      "opencodecommit.assistedByCodexGpt55",
-      (arg) => appendAssistedByQuick("Codex CLI GPT-5.5", arg),
+      "opencodecommit.assistedByCodexGpt",
+      (arg) => appendAssistedByQuick("Codex", arg),
     ),
     vscode.commands.registerCommand(
-      "opencodecommit.assistedByClaudeOpus47",
-      (arg) => appendAssistedByQuick("Claude Code CLI Opus 4.7", arg),
+      "opencodecommit.assistedByClaudeOpus",
+      (arg) => appendAssistedByQuick("Claude Code", arg),
     ),
     vscode.commands.registerCommand("opencodecommit.assistedByPick", (arg) =>
       appendAssistedByPicked(arg),

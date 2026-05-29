@@ -23,14 +23,14 @@
     ],
     "quick": [
       {
-        "label": "Codex GPT-5.5",
+        "label": "Codex GPT",
         "agent": "Codex",
         "model": "gpt-5.5",
         "versionCommand": "codex -V",
         "versionPattern": "codex-cli (?<version>\\S+)"
       },
       {
-        "label": "Claude Code Opus 4.7",
+        "label": "Claude Code Opus",
         "agent": "Claude Code",
         "model": "claude-opus-4.8",
         "versionCommand": "claude -v",

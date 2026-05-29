@@ -341,7 +341,7 @@ describe("evidence Assisted-by helpers", () => {
     assert.ok(!DEFAULT_MODELS.includes("anthropic/claude-opus-4.8"))
     assert.deepStrictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.map((option) => option.label),
-      ["Codex GPT-5.5", "Claude Code Opus 4.7"],
+      ["Codex GPT", "Claude Code Opus"],
     )
     assert.strictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find(

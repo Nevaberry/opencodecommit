@@ -1228,7 +1228,7 @@ mod tests {
                 .iter()
                 .map(|option| option.label.as_str())
                 .collect::<Vec<_>>(),
-            vec!["Codex GPT-5.5", "Claude Code Opus 4.7"]
+            vec!["Codex GPT", "Claude Code Opus"]
         );
         assert_eq!(
             config
