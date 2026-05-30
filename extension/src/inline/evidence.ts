@@ -2,6 +2,7 @@ import { spawn } from "node:child_process"
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import * as TOML from "@iarna/toml"
+import { isFlatpak } from "./host-io"
 import { MODEL_CATALOG } from "./model-catalog"
 
 interface GitResult {
@@ -65,9 +66,25 @@ async function gitStdout(repoPath: string, args: string[]): Promise<string> {
 
 function commandStdout(command: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      stdio: ["ignore", "pipe", "pipe"],
-    })
+    // In a Flatpak sandbox (e.g. VSCodium from Flathub) host CLIs such as
+    // `claude`/`codex` are not on the sandbox PATH, so probing their version
+    // with a bare spawn fails and the Assisted-by trailer silently loses the
+    // harness version. Escape to the host through the user's shell, mirroring
+    // the backend CLI resolution in cli.ts (runShellSourceWhich).
+    const child = isFlatpak()
+      ? spawn(
+          "flatpak-spawn",
+          [
+            "--host",
+            "bash",
+            "-c",
+            `source ~/.zshrc 2>/dev/null || source ~/.bashrc 2>/dev/null || true; ${[command, ...args].join(" ")}`,
+          ],
+          { stdio: ["ignore", "pipe", "pipe"] },
+        )
+      : spawn(command, args, {
+          stdio: ["ignore", "pipe", "pipe"],
+        })
     let stdout = ""
     let stderr = ""
     child.stdout?.on("data", (chunk: Buffer) => {

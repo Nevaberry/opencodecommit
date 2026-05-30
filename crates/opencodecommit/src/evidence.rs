@@ -1056,7 +1056,7 @@ fn detect_version_for_option(option: &AssistedByQuickOption) -> std::result::Res
     let mut parts = option.version_command.split_whitespace();
     let command = parts.next().ok_or(())?;
     let args = parts.collect::<Vec<_>>();
-    let output = command_stdout(command, &args).ok_or(())?;
+    let output = command_stdout_maybe_host(command, &args).ok_or(())?;
     if option.version_pattern.trim().is_empty() {
         return Ok(output);
     }
@@ -1139,6 +1139,27 @@ fn command_stdout_in(cwd: &Path, command: &str, args: &[&str]) -> Option<String>
     }
     let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
     (!stderr.is_empty()).then_some(stderr)
+}
+
+fn is_flatpak() -> bool {
+    Path::new("/.flatpak-info").exists()
+}
+
+/// Run a version command, escaping to the host under a Flatpak sandbox so host
+/// CLIs (e.g. `claude`/`codex`) resolve via the user's shell PATH. Mirrors the
+/// VS Code extension's flatpak-spawn handling (evidence.ts) so the Assisted-by
+/// trailer keeps the harness version inside sandboxed editors.
+fn command_stdout_maybe_host(command: &str, args: &[&str]) -> Option<String> {
+    if is_flatpak() {
+        let script = format!(
+            "source ~/.zshrc 2>/dev/null || source ~/.bashrc 2>/dev/null || true; {} {}",
+            command,
+            args.join(" ")
+        );
+        command_stdout("flatpak-spawn", &["--host", "bash", "-c", script.as_str()])
+    } else {
+        command_stdout(command, args)
+    }
 }
 
 fn configured_label(var: &str) -> Option<String> {
