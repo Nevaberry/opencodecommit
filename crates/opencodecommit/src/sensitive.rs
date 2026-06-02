@@ -1328,8 +1328,8 @@ fn dedupe_findings(findings: Vec<SensitiveFinding>) -> Vec<SensitiveFinding> {
 fn clean_value(value: &str) -> String {
     value
         .trim()
-        .trim_start_matches(|ch| matches!(ch, '"' | '\'' | '`'))
-        .trim_end_matches(|ch| matches!(ch, '"' | '\'' | '`' | ';' | ','))
+        .trim_start_matches(['"', '\'', '`'])
+        .trim_end_matches(['"', '\'', '`', ';', ','])
         .to_owned()
 }
 
@@ -1446,13 +1446,8 @@ fn passes_generic_secret_heuristics(value: &str) -> bool {
         return false;
     }
 
-    let hex_like = regex::Regex::new(r"^[0-9a-f]+$").unwrap().is_match(value);
     let entropy = shannon_entropy(value);
-    if hex_like {
-        entropy >= 3.0
-    } else {
-        entropy >= 3.0
-    }
+    entropy >= 3.0
 }
 
 fn shannon_entropy(value: &str) -> f64 {

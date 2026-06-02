@@ -84,7 +84,8 @@ const CONNECTION_STRING_RE =
   /\b((?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|rediss|amqp|amqps|mssql|sqlserver):\/\/)([^/\s:@]+):([^@\s]+)@([^\s'"]+)/gi
 const BEARER_RE =
   /\b(?:authorization|bearer)\b\s*[:=]\s*["']?bearer\s+([A-Za-z0-9._~+/-]{20,})/gi
-const JWT_RE = /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_.+/=-]{10,}\b/g
+const JWT_RE =
+  /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_.+/=-]{10,}\b/g
 const DOCKER_AUTH_RE = /"auth"\s*:\s*"([^"]+)"/gi
 const KUBECONFIG_AUTH_RE = /\b(token|client-key-data)\b\s*:\s*("?[^"\s]+"?)/gi
 const NPM_LITERAL_AUTH_RE =
@@ -104,7 +105,8 @@ const REAL_ENV_RE =
   /(?:^|\/)\.env(?:\.[^/]+)?$|(?:^|\/)\.envrc$|(?:^|\/)\.direnv\//
 const LOW_CONFIDENCE_PATH_RE =
   /(?:^|\/)(?:test|tests|__tests__|spec|__spec__|docs|documentation|example|examples|sample|samples|fixture|fixtures|__fixtures__|testdata|test-data|mock|mocks|__mocks__|stubs?)(?:\/|$)/
-const LOW_CONFIDENCE_EXT_RE = /\.(?:md|rst|adoc|txt|d\.ts|schema\.json|schema\.ya?ml)$/
+const LOW_CONFIDENCE_EXT_RE =
+  /\.(?:md|rst|adoc|txt|d\.ts|schema\.json|schema\.ya?ml)$/
 const SKIP_CONTENT_PATH_RE =
   /(?:^|\/)(?:vendor|node_modules|third_party|\.git)(?:\/|$)|(?:^|\/)(?:package-lock\.json|yarn\.lock|pnpm-lock\.yaml|Gemfile\.lock|Cargo\.lock|poetry\.lock|composer\.lock|go\.sum|Pipfile\.lock)$|\.(?:png|jpe?g|gif|bmp|ico|svg|tiff|webp|mp[34]|avi|mov|wav|flac|ogg|woff2?|eot|otf|ttf|exe|dll|so|dylib|bin|o|a|class|pyc|pyo|wasm|zip|tar|gz|bz2|xz|rar|7z|jar|war|ear)$/i
 
@@ -357,7 +359,11 @@ function isBlockingFinding(
 export function allowsSensitiveBypass(
   enforcement: SensitiveEnforcement,
 ): boolean {
-  return enforcement === "warn" || enforcement === "block-high" || enforcement === "block-all"
+  return (
+    enforcement === "warn" ||
+    enforcement === "block-high" ||
+    enforcement === "block-all"
+  )
 }
 
 export function isStrictSensitiveMode(
@@ -413,7 +419,8 @@ function classifyPath(filePath: string): PathContext {
     lowerPath,
     skipContent: SKIP_CONTENT_PATH_RE.test(lowerPath),
     lowConfidence:
-      LOW_CONFIDENCE_PATH_RE.test(lowerPath) || LOW_CONFIDENCE_EXT_RE.test(lowerPath),
+      LOW_CONFIDENCE_PATH_RE.test(lowerPath) ||
+      LOW_CONFIDENCE_EXT_RE.test(lowerPath),
     envTemplate,
     envFile,
     dockerConfig:
@@ -431,7 +438,6 @@ function classifyPath(filePath: string): PathContext {
 }
 
 function scanFilePath(
-  filePath: string,
   info: PathContext,
   allowlist: SensitiveAllowlistEntry[],
 ): SensitiveFinding[] {
@@ -472,7 +478,12 @@ function scanFilePath(
     /(?:^|\/)\.gem\/credentials$/.test(info.lowerPath) ||
     /(?:^|\/)\.cargo\/credentials(?:\.toml)?$/.test(info.lowerPath)
   ) {
-    push("artifact", "package-manager-credential-file", "sensitive-artifact", "block")
+    push(
+      "artifact",
+      "package-manager-credential-file",
+      "sensitive-artifact",
+      "block",
+    )
   } else if (
     /terraform\.tfstate(?:\.backup)?$/.test(info.lowerPath) ||
     /(?:^|\/)\.terraform\//.test(info.lowerPath)
@@ -728,9 +739,7 @@ function scanStructuralLine(
 
   if (info.npmrc) {
     for (const match of line.matchAll(NPM_LITERAL_AUTH_RE)) {
-      const value = cleanValue(
-        match[1] ?? match[2] ?? "",
-      )
+      const value = cleanValue(match[1] ?? match[2] ?? "")
       if (!value || isPlaceholderValue(value)) continue
       pushCandidate(
         findings,
@@ -872,7 +881,13 @@ function scanAddedLine(
   const providerMatched = hasProviderMatch(line)
   const structuralMatched = hasStructuralMatch(info, line)
   const providers = scanProviderLine(filePath, line, lineNumber, allowlist)
-  const structural = scanStructuralLine(filePath, info, line, lineNumber, allowlist)
+  const structural = scanStructuralLine(
+    filePath,
+    info,
+    line,
+    lineNumber,
+    allowlist,
+  )
 
   if (providerMatched || structuralMatched) {
     return dedupeFindings([...providers, ...structural])
@@ -880,7 +895,13 @@ function scanAddedLine(
 
   if (COMMENT_ONLY_RE.test(line)) return []
 
-  const generic = scanGenericAssignment(filePath, info, line, lineNumber, allowlist)
+  const generic = scanGenericAssignment(
+    filePath,
+    info,
+    line,
+    lineNumber,
+    allowlist,
+  )
   const network = scanIpLine(filePath, line, lineNumber, allowlist)
   return dedupeFindings([...generic, ...network])
 }
@@ -956,8 +977,12 @@ function isPlaceholderValue(value: string): boolean {
   if (exactPlaceholders.has(lower)) return true
 
   if (
-    /your[_-]?(?:api[_-]?key|token|secret|password|key)[_-]?here/i.test(trimmed) ||
-    /(?:replace|change|insert|fill|update|put|add)[_-]?(?:me|your)/i.test(trimmed)
+    /your[_-]?(?:api[_-]?key|token|secret|password|key)[_-]?here/i.test(
+      trimmed,
+    ) ||
+    /(?:replace|change|insert|fill|update|put|add)[_-]?(?:me|your)/i.test(
+      trimmed,
+    )
   ) {
     return true
   }
@@ -1000,9 +1025,8 @@ function passesGenericSecretHeuristics(value: string): boolean {
   const uniqueChars = new Set(value).size
   if (uniqueChars < 6) return false
 
-  const hexLike = /^[0-9a-f]+$/i.test(value)
   const entropy = shannonEntropy(value)
-  return hexLike ? entropy >= 3.0 : entropy >= 3.0
+  return entropy >= 3.0
 }
 
 function shannonEntropy(value: string): number {
@@ -1068,7 +1092,10 @@ export function detectSensitiveReport(
 ): SensitiveReport {
   const resolved = resolveOptions(options)
   const deletionState = new Map(
-    parseDiffFileEntries(diff).map((entry) => [normalizePath(entry.path), entry.deleted]),
+    parseDiffFileEntries(diff).map((entry) => [
+      normalizePath(entry.path),
+      entry.deleted,
+    ]),
   )
 
   const findings: SensitiveFinding[] = []
@@ -1076,12 +1103,13 @@ export function detectSensitiveReport(
     const info = classifyPath(file)
     if (deletionState.get(info.normalizedPath)) continue
 
-    for (const finding of scanFilePath(file, info, resolved.allowlist)) {
+    for (const finding of scanFilePath(info, resolved.allowlist)) {
       findings.push(finding)
     }
   }
 
-  const fallbackFile = changedFiles.length === 1 ? normalizePath(changedFiles[0]) : undefined
+  const fallbackFile =
+    changedFiles.length === 1 ? normalizePath(changedFiles[0]) : undefined
   let currentFile = fallbackFile
   let currentInfo = currentFile ? classifyPath(currentFile) : undefined
   let currentLine: number | undefined
@@ -1176,12 +1204,18 @@ export function formatSensitiveWarningReport(report: SensitiveReport): string {
 
   if (report.hasBlockingFindings) {
     if (allowsSensitiveBypass(report.enforcement)) {
-      lines.push('Resolve the findings above or choose "Bypass Once" to continue.')
+      lines.push(
+        'Resolve the findings above or choose "Bypass Once" to continue.',
+      )
     } else {
-      lines.push("Strict sensitive mode is active. Adjust the sensitive enforcement setting to continue.")
+      lines.push(
+        "Strict sensitive mode is active. Adjust the sensitive enforcement setting to continue.",
+      )
     }
   } else {
-    lines.push('Warnings only. You can continue, inspect the report, or cancel.')
+    lines.push(
+      "Warnings only. You can continue, inspect the report, or cancel.",
+    )
   }
 
   return lines.join("\n")

@@ -116,11 +116,7 @@ fn build_api_request(
     })
 }
 
-fn provider_override<'a>(
-    config: &'a Config,
-    backend: Backend,
-    task: DispatchTask,
-) -> Option<&'a str> {
+fn provider_override(config: &Config, backend: Backend, task: DispatchTask) -> Option<&str> {
     match task {
         DispatchTask::PrSummary => {
             let provider = config.backend_cheap_provider_for(backend);

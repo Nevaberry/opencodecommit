@@ -1,8 +1,8 @@
 import * as assert from "node:assert/strict"
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
-import * as vscode from "vscode"
 import * as sinon from "sinon"
+import * as vscode from "vscode"
 
 import {
   activeBackends,
@@ -79,7 +79,9 @@ function extractPrResponse(document: string): string {
   const normalized = document.replace(/\r\n/g, "\n")
   const titleMatch = normalized.match(/^Title:\s*(.+)$/m)
   const title = titleMatch?.[1]?.trim() ?? ""
-  const bodyStart = titleMatch ? normalized.indexOf(titleMatch[0]) + titleMatch[0].length : 0
+  const bodyStart = titleMatch
+    ? normalized.indexOf(titleMatch[0]) + titleMatch[0].length
+    : 0
   const afterTitle = normalized.slice(bodyStart).replace(/^\n+/, "")
   const body = afterTitle.split("\n\n---\n", 1)[0]?.trim() ?? ""
   return [title, body].filter(Boolean).join("\n\n")
@@ -95,7 +97,9 @@ function extractBranchName(terminalCommand: string): string {
 
 function extractChangelogEntry(content: string, version: string): string {
   const normalized = content.replace(/\r\n/g, "\n")
-  const pattern = new RegExp(`## ${version}\\n\\n([\\s\\S]*?)(?:\\n\\n---\\n|\\n## |$)`)
+  const pattern = new RegExp(
+    `## ${version}\\n\\n([\\s\\S]*?)(?:\\n\\n---\\n|\\n## |$)`,
+  )
   const match = normalized.match(pattern)
   return match?.[1]?.trim() ?? normalized
 }
@@ -208,7 +212,13 @@ function launchCommand(
 }
 
 describe("Extension Commands E2E", function () {
-  this.timeout(suite === "artifacts" ? 15 * 60_000 : mode === "staging" ? 20 * 60_000 : 5 * 60_000)
+  this.timeout(
+    suite === "artifacts"
+      ? 15 * 60_000
+      : mode === "staging"
+        ? 20 * 60_000
+        : 5 * 60_000,
+  )
 
   before(async () => {
     await getRepository()
@@ -244,10 +254,13 @@ describe("Extension Commands E2E", function () {
             const repo = await getRepository()
             const invocation = launchCommand(originalExecuteCommand, command)
             await invocation.check()
-            const value = await waitFor("generated commit message", async () => {
-              const current = repo.inputBox.value.trim()
-              return current.length > 0 ? current : undefined
-            })
+            const value = await waitFor(
+              "generated commit message",
+              async () => {
+                const current = repo.inputBox.value.trim()
+                return current.length > 0 ? current : undefined
+              },
+            )
             await invocation.check()
             if (scenario.conventional) {
               assertConventionalCommit(value)
@@ -265,9 +278,9 @@ describe("Extension Commands E2E", function () {
           case "refine": {
             const repo = await getRepository()
             repo.inputBox.value = "feat: improve helper"
-            sandbox.stub(vscode.window, "showInputBox").resolves(
-              "make it shorter and mention subtraction",
-            )
+            sandbox
+              .stub(vscode.window, "showInputBox")
+              .resolves("make it shorter and mention subtraction")
             const invocation = launchCommand(originalExecuteCommand, command)
             await invocation.check()
             const value = await waitFor("refined commit message", async () => {
@@ -304,20 +317,23 @@ describe("Extension Commands E2E", function () {
 
           case "branch": {
             const sent = createTerminalStub(sandbox)
-            sandbox.stub(vscode.window, "showInputBox").callsFake(async (options) => {
-              const prompt = options?.prompt ?? ""
-              if (prompt.startsWith("Branch name")) {
-                return options?.value ?? "feat/fallback-branch"
-              }
-              if (prompt.startsWith("Describe")) {
-                return "document extension e2e"
-              }
-              return undefined
-            })
+            sandbox
+              .stub(vscode.window, "showInputBox")
+              .callsFake(async (options) => {
+                const prompt = options?.prompt ?? ""
+                if (prompt.startsWith("Branch name")) {
+                  return options?.value ?? "feat/fallback-branch"
+                }
+                if (prompt.startsWith("Describe")) {
+                  return "document extension e2e"
+                }
+                return undefined
+              })
             const invocation = launchCommand(originalExecuteCommand, command)
             await invocation.check()
-            const terminalCommand = await waitFor("branch terminal command", async () =>
-              sent[0] ? sent[0] : undefined,
+            const terminalCommand = await waitFor(
+              "branch terminal command",
+              async () => (sent[0] ? sent[0] : undefined),
             )
             await invocation.check()
             assert.match(terminalCommand, /git checkout -b/)
@@ -360,17 +376,22 @@ describe("Extension Commands E2E", function () {
           }
 
           case "language": {
-            sandbox.stub(vscode.window, "showQuickPick").callsFake(async (items) => {
-              const list = Array.isArray(items) ? items : []
-              return (list[1] ?? list[0]) as never
-            })
+            sandbox
+              .stub(vscode.window, "showQuickPick")
+              .callsFake(async (items) => {
+                const list = Array.isArray(items) ? items : []
+                return (list[1] ?? list[0]) as never
+              })
             await originalExecuteCommand(command)
-            const current = await waitFor("language setting update", async () => {
-              const value = vscode.workspace
-                .getConfiguration("opencodecommit")
-                .get<string>("activeLanguage")
-              return value && value !== "English" ? value : undefined
-            })
+            const current = await waitFor(
+              "language setting update",
+              async () => {
+                const value = vscode.workspace
+                  .getConfiguration("opencodecommit")
+                  .get<string>("activeLanguage")
+                return value && value !== "English" ? value : undefined
+              },
+            )
             assert.notEqual(current, "English")
             break
           }

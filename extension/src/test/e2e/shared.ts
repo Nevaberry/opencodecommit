@@ -1,10 +1,10 @@
+import { execFileSync } from "node:child_process"
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
-import { execFileSync } from "node:child_process"
+import type * as sinon from "sinon"
 import * as vscode from "vscode"
-import * as sinon from "sinon"
-import type { GitExtension, Repository } from "../../inline/types"
 import { getConfig } from "../../inline/config"
+import type { GitExtension, Repository } from "../../inline/types"
 
 const modeValue = process.env.OCC_E2E_MODE ?? "dev-local"
 const suiteValue = process.env.OCC_E2E_SUITE ?? "full"
@@ -34,7 +34,9 @@ export function extensionRoot(): string {
 
 export function contributedCommands(): string[] {
   const manifestPath = path.join(extensionRoot(), "package.json")
-  const manifest = JSON.parse(require("node:fs").readFileSync(manifestPath, "utf8")) as {
+  const manifest = JSON.parse(
+    require("node:fs").readFileSync(manifestPath, "utf8"),
+  ) as {
     contributes?: { commands?: Array<{ command?: string }> }
   }
   return (manifest.contributes?.commands ?? [])
@@ -45,7 +47,9 @@ export function contributedCommands(): string[] {
 export async function waitFor<T>(
   label: string,
   fn: () => Promise<T | undefined>,
-  timeoutMs = suite === "artifacts" || mode === "staging" ? 10 * 60_000 : 90_000,
+  timeoutMs = suite === "artifacts" || mode === "staging"
+    ? 10 * 60_000
+    : 90_000,
 ): Promise<T> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
@@ -136,34 +140,39 @@ export function stubExecuteCommand(
   >,
 ): sinon.SinonStub {
   const original = vscode.commands.executeCommand.bind(vscode.commands)
-  return sandbox.stub(vscode.commands, "executeCommand").callsFake((command, ...args) => {
-    const handler = handlers[command]
-    if (handler) {
-      return Promise.resolve(handler(...args))
-    }
-    return original(command, ...args)
-  })
+  return sandbox
+    .stub(vscode.commands, "executeCommand")
+    .callsFake((command, ...args) => {
+      const handler = handlers[command]
+      if (handler) {
+        return Promise.resolve(handler(...args))
+      }
+      return original(command, ...args)
+    })
 }
 
 export function createTerminalStub(sandbox: sinon.SinonSandbox) {
   const sent: string[] = []
-  sandbox.stub(vscode.window, "createTerminal").callsFake(() => ({
-    sendText(text: string) {
-      sent.push(text)
-    },
-    show() {},
-    dispose() {},
-    name: "OpenCodeCommit Test Terminal",
-    processId: Promise.resolve(undefined),
-    creationOptions: {},
-    exitStatus: undefined,
-    state: { isInteractedWith: true },
-    onDidCloseTerminal: () => ({ dispose() {} }),
-    onDidOpenTerminal: () => ({ dispose() {} }),
-    onDidWriteTerminalData: () => ({ dispose() {} }),
-    onDidChangeTerminalState: () => ({ dispose() {} }),
-    hide() {},
-  }) as unknown as vscode.Terminal)
+  sandbox.stub(vscode.window, "createTerminal").callsFake(
+    () =>
+      ({
+        sendText(text: string) {
+          sent.push(text)
+        },
+        show() {},
+        dispose() {},
+        name: "OpenCodeCommit Test Terminal",
+        processId: Promise.resolve(undefined),
+        creationOptions: {},
+        exitStatus: undefined,
+        state: { isInteractedWith: true },
+        onDidCloseTerminal: () => ({ dispose() {} }),
+        onDidOpenTerminal: () => ({ dispose() {} }),
+        onDidWriteTerminalData: () => ({ dispose() {} }),
+        onDidChangeTerminalState: () => ({ dispose() {} }),
+        hide() {},
+      }) as unknown as vscode.Terminal,
+  )
   return sent
 }
 

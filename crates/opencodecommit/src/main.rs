@@ -288,7 +288,7 @@ enum BackendArg {
 }
 
 impl BackendArg {
-    fn to_config(&self) -> Backend {
+    fn to_config(self) -> Backend {
         match self {
             BackendArg::Opencode => Backend::Opencode,
             BackendArg::Claude => Backend::Claude,
@@ -991,6 +991,7 @@ fn handle_changelog(config: &Config, text: bool) {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn handle_scan(
     diff_file: Option<String>,
     use_stdin: bool,
@@ -1444,8 +1445,10 @@ mod tests {
 
     #[test]
     fn backend_override_locks_backend_order() {
-        let mut config = Config::default();
-        config.backend_order = vec![Backend::Codex, Backend::Opencode];
+        let mut config = Config {
+            backend_order: vec![Backend::Codex, Backend::Opencode],
+            ..Default::default()
+        };
 
         apply_backend_overrides(&mut config, &Some(BackendArg::Claude), &None, &None, &None);
 
@@ -1455,9 +1458,11 @@ mod tests {
 
     #[test]
     fn omitted_backend_preserves_config_backend_and_order() {
-        let mut config = Config::default();
-        config.backend = Backend::Codex;
-        config.backend_order = vec![Backend::Codex, Backend::Opencode, Backend::Claude];
+        let mut config = Config {
+            backend: Backend::Codex,
+            backend_order: vec![Backend::Codex, Backend::Opencode, Backend::Claude],
+            ..Default::default()
+        };
 
         // No `--backend` flag: config.toml's backend and fallback chain must be honored.
         apply_backend_overrides(&mut config, &None, &None, &None, &None);

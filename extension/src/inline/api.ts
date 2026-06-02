@@ -131,7 +131,8 @@ async function execOpenAiCompatible(
   const text =
     payload.choices
       ?.map((choice) => {
-        if (typeof choice.message?.content === "string") return choice.message.content
+        if (typeof choice.message?.content === "string")
+          return choice.message.content
         if (Array.isArray(choice.message?.content)) {
           return choice.message.content
             .map((part) =>
@@ -156,7 +157,8 @@ async function execOpenAiCompatible(
 
 async function execAnthropic(request: ApiRequest): Promise<string> {
   if (!request.apiKey) throw new Error("Anthropic API key is not configured")
-  if (!request.model.trim()) throw new Error("Anthropic model is not configured")
+  if (!request.model.trim())
+    throw new Error("Anthropic model is not configured")
 
   const response = await fetchWithTimeout(
     anthropicEndpoint(request.endpoint),
@@ -255,7 +257,9 @@ async function fetchWithTimeout(
     if (!response.ok) {
       const detail = (await response.text()).trim()
       throw new Error(
-        detail ? `${response.status} ${response.statusText}: ${detail}` : `${response.status} ${response.statusText}`,
+        detail
+          ? `${response.status} ${response.statusText}: ${detail}`
+          : `${response.status} ${response.statusText}`,
       )
     }
     return response

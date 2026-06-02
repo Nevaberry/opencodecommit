@@ -906,15 +906,12 @@ pub fn run(config: Config, config_path: Option<PathBuf>) -> Result<(), ActionErr
             let (needs_check, cached) = crate::update::should_check();
             if needs_check {
                 let source = crate::update::detect_install_source();
-                match crate::update::check_latest_version(source) {
-                    Ok(latest) => {
-                        crate::update::write_cache(&latest);
-                        let current = env!("CARGO_PKG_VERSION");
-                        if crate::update::is_newer(current, &latest) {
-                            let _ = tx.send(WorkerMessage::UpdateAvailable(Some(latest)));
-                        }
+                if let Ok(latest) = crate::update::check_latest_version(source) {
+                    crate::update::write_cache(&latest);
+                    let current = env!("CARGO_PKG_VERSION");
+                    if crate::update::is_newer(current, &latest) {
+                        let _ = tx.send(WorkerMessage::UpdateAvailable(Some(latest)));
                     }
-                    Err(_) => {}
                 }
             } else if let Some(latest) = cached {
                 let current = env!("CARGO_PKG_VERSION");
@@ -1273,13 +1270,12 @@ fn handle_panel_shortcut(app: &mut App, ch: char, tx: &Sender<WorkerMessage>) {
             _ => {}
         },
         OutputContent::SensitiveWarning { report } => {
-            let continue_key = if !report.has_blocking_findings() {
-                Some('c')
-            } else if allows_sensitive_bypass(report.enforcement) {
-                Some('c')
-            } else {
-                None
-            };
+            let continue_key =
+                if !report.has_blocking_findings() || allows_sensitive_bypass(report.enforcement) {
+                    Some('c')
+                } else {
+                    None
+                };
             if continue_key.is_some_and(|key| ch == key) {
                 app.sensitive_blocked = false;
                 app.clear_output();

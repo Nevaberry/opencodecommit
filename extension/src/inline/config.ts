@@ -4,13 +4,13 @@ import * as path from "node:path"
 import * as TOML from "@iarna/toml"
 import * as vscode from "vscode"
 import {
-  MIRRORED_SETTING_FIELDS,
   applyMirroredSettingsToToml,
   buildDefaultTomlDocument,
   getManifestDefaults,
+  MIRRORED_SETTING_FIELDS,
+  type MirroredSettings,
   readMirroredSettings,
   toExtensionConfig,
-  type MirroredSettings,
 } from "./config-schema"
 import {
   canAccessDirectly,
@@ -99,7 +99,10 @@ function defaultConfigPath(): string {
 }
 
 function hasDirectAccess(candidatePath: string): boolean {
-  return canAccessDirectly(candidatePath) || canAccessDirectly(path.dirname(candidatePath))
+  return (
+    canAccessDirectly(candidatePath) ||
+    canAccessDirectly(path.dirname(candidatePath))
+  )
 }
 
 function resolveConfigDetails(): ConfigDetails {
@@ -115,7 +118,9 @@ function resolveConfigDetails(): ConfigDetails {
   }
 
   const config = vscode.workspace.getConfiguration("opencodecommit")
-  const configuredPath = config.inspect<string>(CONFIG_PATH_SETTING)?.globalValue?.trim()
+  const configuredPath = config
+    .inspect<string>(CONFIG_PATH_SETTING)
+    ?.globalValue?.trim()
   if (configuredPath) {
     const resolvedPath = normalizeConfigPath(configuredPath)
     return {
@@ -148,7 +153,9 @@ function parseToml(content: string, filePath: string): Record<string, unknown> {
     throw new Error(`failed to parse ${filePath}: ${message}`)
   }
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new Error(`failed to parse ${filePath}: root TOML document must be a table`)
+    throw new Error(
+      `failed to parse ${filePath}: root TOML document must be a table`,
+    )
   }
   return parsed as Record<string, unknown>
 }
@@ -163,7 +170,9 @@ async function ensureConfigDocument(
     const migratedDoc = applyMirroredSettingsToToml(baseDoc, existingSettings)
     await ensureDirectory(path.dirname(details.path))
     await writeTextFile(details.path, stringifyToml(migratedDoc))
-    state.log(`Created config.toml at ${details.path} (migrated from VS Code settings)`)
+    state.log(
+      `Created config.toml at ${details.path} (migrated from VS Code settings)`,
+    )
   }
 
   const content = await readTextFile(details.path)
@@ -337,13 +346,21 @@ function readMirroredSettingsFromGlobalSettings(): MirroredSettings {
       "backendOrder",
       defaults.backendOrder,
     ),
-    apiOpenai: readGlobalSetting(configuration, "api.openai", defaults.apiOpenai),
+    apiOpenai: readGlobalSetting(
+      configuration,
+      "api.openai",
+      defaults.apiOpenai,
+    ),
     apiAnthropic: readGlobalSetting(
       configuration,
       "api.anthropic",
       defaults.apiAnthropic,
     ),
-    apiGemini: readGlobalSetting(configuration, "api.gemini", defaults.apiGemini),
+    apiGemini: readGlobalSetting(
+      configuration,
+      "api.gemini",
+      defaults.apiGemini,
+    ),
     apiOpenrouter: readGlobalSetting(
       configuration,
       "api.openrouter",
@@ -354,31 +371,51 @@ function readMirroredSettingsFromGlobalSettings(): MirroredSettings {
       "api.opencode",
       defaults.apiOpencode,
     ),
-    apiOllama: readGlobalSetting(configuration, "api.ollama", defaults.apiOllama),
+    apiOllama: readGlobalSetting(
+      configuration,
+      "api.ollama",
+      defaults.apiOllama,
+    ),
     apiLmStudio: readGlobalSetting(
       configuration,
       "api.lmStudio",
       defaults.apiLmStudio,
     ),
-    apiCustom: readGlobalSetting(configuration, "api.custom", defaults.apiCustom),
+    apiCustom: readGlobalSetting(
+      configuration,
+      "api.custom",
+      defaults.apiCustom,
+    ),
     activeLanguage: readGlobalSetting(
       configuration,
       "activeLanguage",
       defaults.activeLanguage,
     ),
-    languages: readGlobalSetting(configuration, "languages", defaults.languages),
+    languages: readGlobalSetting(
+      configuration,
+      "languages",
+      defaults.languages,
+    ),
     showLanguageSelector: readGlobalSetting(
       configuration,
       "showLanguageSelector",
       defaults.showLanguageSelector,
     ),
-    commitMode: readGlobalSetting(configuration, "commitMode", defaults.commitMode),
+    commitMode: readGlobalSetting(
+      configuration,
+      "commitMode",
+      defaults.commitMode,
+    ),
     sparkleMode: readGlobalSetting(
       configuration,
       "sparkleMode",
       defaults.sparkleMode,
     ),
-    diffSource: readGlobalSetting(configuration, "diffSource", defaults.diffSource),
+    diffSource: readGlobalSetting(
+      configuration,
+      "diffSource",
+      defaults.diffSource,
+    ),
     maxDiffLength: readGlobalSetting(
       configuration,
       "maxDiffLength",
@@ -404,7 +441,11 @@ function readMirroredSettingsFromGlobalSettings(): MirroredSettings {
       "sensitive.allowlist",
       defaults.sensitiveAllowlist,
     ),
-    useEmojis: readGlobalSetting(configuration, "useEmojis", defaults.useEmojis),
+    useEmojis: readGlobalSetting(
+      configuration,
+      "useEmojis",
+      defaults.useEmojis,
+    ),
     useLowerCase: readGlobalSetting(
       configuration,
       "useLowerCase",
@@ -425,11 +466,17 @@ function readMirroredSettingsFromGlobalSettings(): MirroredSettings {
       "refine.defaultFeedback",
       defaults.refineDefaultFeedback,
     ),
-    branchMode: readGlobalSetting(configuration, "branchMode", defaults.branchMode),
+    branchMode: readGlobalSetting(
+      configuration,
+      "branchMode",
+      defaults.branchMode,
+    ),
   }
 }
 
-async function loadConfigFromToml(syncSettings = false): Promise<ExtensionConfig> {
+async function loadConfigFromToml(
+  syncSettings = false,
+): Promise<ExtensionConfig> {
   const details = resolveConfigDetails()
   const doc = await ensureConfigDocument(details)
   const settings = readMirroredSettings(doc, loadManifestDefaults())
@@ -556,7 +603,9 @@ export async function openConfigFile(): Promise<void> {
     )
   }
 
-  const document = await vscode.workspace.openTextDocument(vscode.Uri.file(details.path))
+  const document = await vscode.workspace.openTextDocument(
+    vscode.Uri.file(details.path),
+  )
   await vscode.window.showTextDocument(document, { preview: false })
 }
 

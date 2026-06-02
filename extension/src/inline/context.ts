@@ -62,7 +62,8 @@ export function detectSensitiveContent(
   changedFiles: string[],
   config?: Pick<ExtensionConfig, "sensitive">,
 ): boolean {
-  return detectSensitiveReport(diff, changedFiles, config?.sensitive).hasFindings
+  return detectSensitiveReport(diff, changedFiles, config?.sensitive)
+    .hasFindings
 }
 
 export function filterDiff(diff: string): string {
@@ -149,7 +150,9 @@ export async function getRecentCommits(repoRoot: string): Promise<string[]> {
   }
 }
 
-export async function getRecentBranchNames(repoRoot: string): Promise<string[]> {
+export async function getRecentBranchNames(
+  repoRoot: string,
+): Promise<string[]> {
   try {
     const stdout = await runGit(repoRoot, [
       "branch",
@@ -182,7 +185,11 @@ export async function detectBaseBranch(
     if (branch) return branch
   }
 
-  const main = await runGitWithStatus(repoRoot, ["rev-parse", "--verify", "main"])
+  const main = await runGitWithStatus(repoRoot, [
+    "rev-parse",
+    "--verify",
+    "main",
+  ])
   if (main.code === 0) return "main"
 
   const master = await runGitWithStatus(repoRoot, [
@@ -192,7 +199,9 @@ export async function detectBaseBranch(
   ])
   if (master.code === 0) return "master"
 
-  throw new Error("could not detect base branch; set opencodecommit.prBaseBranch")
+  throw new Error(
+    "could not detect base branch; set opencodecommit.prBaseBranch",
+  )
 }
 
 export async function getBranchDiff(
@@ -400,7 +409,11 @@ export async function gatherContext(
   const changedFiles = extractChangedFilePaths(diff)
   const recentCommits = await getRecentCommits(repoRoot)
   const fileContents = getFileContents(changedFiles, repoRoot, diff)
-  const sensitiveReport = detectSensitiveReport(diff, changedFiles, config.sensitive)
+  const sensitiveReport = detectSensitiveReport(
+    diff,
+    changedFiles,
+    config.sensitive,
+  )
   const hasSensitiveContent = sensitiveReport.hasFindings
 
   return {

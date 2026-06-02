@@ -37,11 +37,9 @@ async function runHostCommand(
   stdin?: string,
 ): Promise<HostCommandResult> {
   return await new Promise((resolve, reject) => {
-    const child = spawn(
-      "flatpak-spawn",
-      ["--host", command, ...args],
-      { stdio: [stdin ? "pipe" : "ignore", "pipe", "pipe"] },
-    )
+    const child = spawn("flatpak-spawn", ["--host", command, ...args], {
+      stdio: [stdin ? "pipe" : "ignore", "pipe", "pipe"],
+    })
 
     let stdout = ""
     let stderr = ""
@@ -72,7 +70,11 @@ async function runHostCommand(
   })
 }
 
-function hostError(action: string, targetPath: string, result: HostCommandResult) {
+function hostError(
+  action: string,
+  targetPath: string,
+  result: HostCommandResult,
+) {
   const detail = result.stderr.trim() || `exit ${result.code}`
   return new Error(`${action} ${targetPath} failed: ${detail}`)
 }

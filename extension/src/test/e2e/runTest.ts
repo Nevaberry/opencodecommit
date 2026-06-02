@@ -1,7 +1,7 @@
+import { execFileSync } from "node:child_process"
 import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
-import { execFileSync } from "node:child_process"
 import { runTests } from "@vscode/test-electron"
 
 const STAGING_BACKENDS = [
@@ -94,30 +94,39 @@ async function createWorkspace(root: string): Promise<string> {
 
   await fs.writeFile(
     path.join(workspacePath, "src", "app.ts"),
-    'export function add(left: number, right: number): number {\n  return left + right\n}\n',
+    "export function add(left: number, right: number): number {\n  return left + right\n}\n",
     "utf8",
   )
-  await fs.writeFile(path.join(workspacePath, "README.md"), "# Extension E2E\n", "utf8")
+  await fs.writeFile(
+    path.join(workspacePath, "README.md"),
+    "# Extension E2E\n",
+    "utf8",
+  )
 
   git(workspacePath, ["add", "README.md", "src/app.ts"])
-  git(workspacePath, ["commit", "-q", "-m", "chore: seed extension e2e fixture"])
+  git(workspacePath, [
+    "commit",
+    "-q",
+    "-m",
+    "chore: seed extension e2e fixture",
+  ])
   git(workspacePath, ["checkout", "-q", "-b", "feature/extension-e2e"])
 
   await fs.writeFile(
     path.join(workspacePath, "src", "app.ts"),
-    'export function add(left: number, right: number): number {\n  return left + right\n}\n\nexport function subtract(left: number, right: number): number {\n  return left - right\n}\n',
+    "export function add(left: number, right: number): number {\n  return left + right\n}\n\nexport function subtract(left: number, right: number): number {\n  return left - right\n}\n",
     "utf8",
   )
   await fs.writeFile(
     path.join(workspacePath, "docs", "notes.md"),
-    '- add subtract helper\n- prepare extension e2e coverage\n',
+    "- add subtract helper\n- prepare extension e2e coverage\n",
     "utf8",
   )
   git(workspacePath, ["add", "src/app.ts", "docs/notes.md"])
 
   await fs.writeFile(
     path.join(workspacePath, "src", "app.ts"),
-    'export function add(left: number, right: number): number {\n  return left + right\n}\n\nexport function subtract(left: number, right: number): number {\n  return left - right\n}\n\nexport function multiply(left: number, right: number): number {\n  return left * right\n}\n',
+    "export function add(left: number, right: number): number {\n  return left + right\n}\n\nexport function subtract(left: number, right: number): number {\n  return left - right\n}\n\nexport function multiply(left: number, right: number): number {\n  return left * right\n}\n",
     "utf8",
   )
 
@@ -136,11 +145,15 @@ async function createRunRoot(): Promise<string> {
 }
 
 function buildSettings(activeBackends: string[]) {
-  const llamaBaseUrl = requireEnv("OCC_E2E_LLAMA_BASE_URL", "http://127.0.0.1:8080")
+  const llamaBaseUrl = requireEnv(
+    "OCC_E2E_LLAMA_BASE_URL",
+    "http://127.0.0.1:8080",
+  )
   const llamaModel =
     process.env.OCC_E2E_LLAMA_MODEL_ID ??
     `${process.env.OCC_E2E_LLAMA_MODEL_REPO ?? "unsloth/Qwen3.5-2B-GGUF"}:${process.env.OCC_E2E_LLAMA_MODEL_QUANT ?? "Q4_K_M"}`
-  const ollamaBaseUrl = process.env.OCC_E2E_OLLAMA_BASE_URL ?? "http://127.0.0.1:11434"
+  const ollamaBaseUrl =
+    process.env.OCC_E2E_OLLAMA_BASE_URL ?? "http://127.0.0.1:11434"
   const ollamaModel = process.env.OCC_E2E_OLLAMA_MODEL ?? "qwen3.5:latest"
 
   return {
@@ -196,8 +209,7 @@ function buildSettings(activeBackends: string[]) {
     "opencodecommit.geminiPRModel":
       process.env.OCC_E2E_GEMINI_PR_MODEL ?? "gemini-3-flash-preview",
     "opencodecommit.geminiCheapModel":
-      process.env.OCC_E2E_GEMINI_CHEAP_MODEL ??
-      "gemini-3.1-flash-lite-preview",
+      process.env.OCC_E2E_GEMINI_CHEAP_MODEL ?? "gemini-3.1-flash-lite-preview",
     "opencodecommit.api.custom": {
       model: llamaModel,
       endpoint: llamaBaseUrl,

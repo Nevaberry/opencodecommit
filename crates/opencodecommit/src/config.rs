@@ -979,10 +979,10 @@ impl Config {
             return Self::load(path);
         }
 
-        if let Some(path) = Self::resolved_config_path() {
-            if path.exists() {
-                return Self::load(&path);
-            }
+        if let Some(path) = Self::resolved_config_path()
+            && path.exists()
+        {
+            return Self::load(&path);
         }
 
         if Self::materialize_default_config_path()?.is_some() {
@@ -1063,9 +1063,6 @@ pub const DEFAULT_EMOJIS: &[(&str, &str)] = &[
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{LazyLock, Mutex};
-
-    static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
     use std::io::Write;
 
     #[test]
@@ -1406,7 +1403,7 @@ endpoint = "http://127.0.0.1:11434"
 
     #[test]
     fn env_config_path_overrides_default_location() {
-        let _env_guard = ENV_LOCK.lock().unwrap();
+        let _env_guard = crate::TEST_CWD_LOCK.lock().unwrap();
         let temp_root = std::env::temp_dir().join(format!(
             "occ-env-config-{}-{}",
             std::process::id(),
@@ -1455,7 +1452,7 @@ endpoint = "http://127.0.0.1:11434"
 
     #[test]
     fn load_or_default_with_no_file() {
-        let _env_guard = ENV_LOCK.lock().unwrap();
+        let _env_guard = crate::TEST_CWD_LOCK.lock().unwrap();
         let temp_root = std::env::temp_dir().join(format!(
             "occ-load-or-default-{}-{}",
             std::process::id(),

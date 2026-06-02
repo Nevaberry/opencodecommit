@@ -26,7 +26,7 @@ impl fmt::Display for InstallSource {
 }
 
 pub fn detect_install_source() -> InstallSource {
-    let exe = match std::env::current_exe().and_then(|p| std::fs::canonicalize(p)) {
+    let exe = match std::env::current_exe().and_then(std::fs::canonicalize) {
         Ok(p) => p,
         Err(_) => return InstallSource::Unknown,
     };
@@ -42,10 +42,10 @@ pub fn detect_install_source() -> InstallSource {
         .map(|h| PathBuf::from(h).join("bin"))
         .or_else(|_| std::env::var("HOME").map(|h| PathBuf::from(h).join(".cargo").join("bin")));
     if let Ok(bin_dir) = cargo_bin {
-        if let Ok(canon) = std::fs::canonicalize(&bin_dir) {
-            if exe.starts_with(&canon) {
-                return InstallSource::Cargo;
-            }
+        if let Ok(canon) = std::fs::canonicalize(&bin_dir)
+            && exe.starts_with(&canon)
+        {
+            return InstallSource::Cargo;
         }
         // fallback: compare without canonicalize in case of symlink differences
         if exe.starts_with(&bin_dir) {
@@ -102,12 +102,11 @@ fn check_cargo_latest() -> Result<String, String> {
     let text = String::from_utf8_lossy(&output.stdout);
     // Output format: opencodecommit = "1.2.3"    # description
     for line in text.lines() {
-        if line.starts_with("opencodecommit") {
-            if let Some(start) = line.find('"') {
-                if let Some(end) = line[start + 1..].find('"') {
-                    return Ok(line[start + 1..start + 1 + end].to_owned());
-                }
-            }
+        if line.starts_with("opencodecommit")
+            && let Some(start) = line.find('"')
+            && let Some(end) = line[start + 1..].find('"')
+        {
+            return Ok(line[start + 1..start + 1 + end].to_owned());
         }
     }
     Err("could not parse cargo search output".to_owned())

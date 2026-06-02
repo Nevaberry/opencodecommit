@@ -1,3 +1,4 @@
+import { execApi } from "./api"
 import {
   backendCheapModel,
   backendCheapProvider,
@@ -8,7 +9,6 @@ import {
   isCliBackend,
   withModelProviderOverride,
 } from "./backends"
-import { execApi } from "./api"
 import {
   buildInvocation,
   detectCli,

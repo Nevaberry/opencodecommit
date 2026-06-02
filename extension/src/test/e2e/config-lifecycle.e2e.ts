@@ -7,8 +7,8 @@ import {
   configPath,
   mode,
   readConfigFile,
-  suite,
   restoreInitialConfig,
+  suite,
   waitFor,
 } from "./shared"
 

@@ -197,9 +197,7 @@ export function apiConfigFor(
   return api[apiConfigKey(backend)]
 }
 
-function apiConfigKey(
-  backend: Exclude<Backend, CliBackend>,
-): keyof ApiConfig {
+function apiConfigKey(backend: Exclude<Backend, CliBackend>): keyof ApiConfig {
   switch (backend) {
     case "openai-api":
       return "openai"

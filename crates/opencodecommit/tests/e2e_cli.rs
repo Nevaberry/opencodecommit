@@ -10,7 +10,7 @@ use common::{
     assert_commit_shape, assert_pr_shape, load_env, run_occ, stderr, stdout,
 };
 
-fn config_arg(config_path: &PathBuf) -> [&str; 2] {
+fn config_arg(config_path: &Path) -> [&str; 2] {
     ["--config", config_path.to_str().expect("utf8 config path")]
 }
 

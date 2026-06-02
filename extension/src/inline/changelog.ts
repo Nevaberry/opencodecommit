@@ -1,5 +1,5 @@
-import { backendLabel, isCliBackend } from "./backends"
 import { execApi } from "./api"
+import { backendLabel, isCliBackend } from "./backends"
 import {
   buildInvocation,
   detectCli,
@@ -167,7 +167,9 @@ export function mergeChangelogContent(
   )
 
   if (versionPattern.test(content)) {
-    throw new Error(`CHANGELOG.md already contains version ${normalizedVersion}.`)
+    throw new Error(
+      `CHANGELOG.md already contains version ${normalizedVersion}.`,
+    )
   }
 
   if (!content.trim()) {

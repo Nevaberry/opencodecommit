@@ -113,11 +113,8 @@ pub fn format_github_annotations(report: &SensitiveReport) -> String {
             };
             let file = finding.file_path.replace(',', "%2C");
             let message = format!(
-                "{} [{} / {}] {}",
-                finding.category,
-                format!("{:?}", finding.tier),
-                finding.rule,
-                finding.preview
+                "{} [{:?} / {}] {}",
+                finding.category, finding.tier, finding.rule, finding.preview
             )
             .replace('\n', " ");
             match finding.line_number {

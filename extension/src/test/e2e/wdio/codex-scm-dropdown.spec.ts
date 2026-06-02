@@ -82,7 +82,11 @@ async function readCommitInputValue(): Promise<string> {
     const gitExt = vs.extensions.getExtension("vscode.git")
     if (!gitExt?.isActive) return ""
     const api = (
-      gitExt.exports as { getAPI: (version: 1) => { repositories: Array<{ inputBox: { value: string } }> } }
+      gitExt.exports as {
+        getAPI: (version: 1) => {
+          repositories: Array<{ inputBox: { value: string } }>
+        }
+      }
     ).getAPI(1)
     return api.repositories[0]?.inputBox.value ?? ""
   })

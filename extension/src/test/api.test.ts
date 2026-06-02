@@ -4,12 +4,17 @@ import { detectOllamaModel, execApi } from "../inline/api"
 
 type FetchCall = {
   url: string
-  init: any
+  init: RequestInit
 }
 
 const originalFetch = globalThis.fetch
 
-function jsonResponse(body: unknown, ok = true, status = 200, statusText = "OK"): any {
+function jsonResponse(
+  body: unknown,
+  ok = true,
+  status = 200,
+  statusText = "OK",
+): Response {
   return {
     ok,
     status,
@@ -20,12 +25,14 @@ function jsonResponse(body: unknown, ok = true, status = 200, statusText = "OK")
     async text() {
       return typeof body === "string" ? body : JSON.stringify(body)
     },
-  }
+  } as unknown as Response
 }
 
-function installFetchMock(handler: (url: string, init: any) => any): FetchCall[] {
+function installFetchMock(
+  handler: (url: string, init: RequestInit) => Response,
+): FetchCall[] {
   const calls: FetchCall[] = []
-  globalThis.fetch = (async (input: unknown, init?: unknown) => {
+  globalThis.fetch = (async (input: unknown, init?: RequestInit) => {
     const url = String(input)
     const normalizedInit = init ?? {}
     calls.push({ url, init: normalizedInit })
@@ -59,8 +66,15 @@ describe("API execution", () => {
     )
 
     assert.strictEqual(text, "feat: add api backend")
-    assert.strictEqual(calls[0]?.url, "https://api.openai.com/v1/chat/completions")
-    assert.strictEqual(calls[0]?.init.headers.Authorization, "Bearer sk-test")
+    assert.strictEqual(
+      calls[0]?.url,
+      "https://api.openai.com/v1/chat/completions",
+    )
+    assert.strictEqual(
+      (calls[0]?.init.headers as Record<string, string> | undefined)
+        ?.Authorization,
+      "Bearer sk-test",
+    )
     assert.match(String(calls[0]?.init.body), /"model":"gpt-5\.4-mini"/)
   })
 
@@ -121,7 +135,10 @@ describe("API execution", () => {
 
     assert.strictEqual(text, "docs: explain ci scan")
     assert.strictEqual(calls[0]?.url, "http://localhost:1234/v1/models")
-    assert.strictEqual(calls[1]?.url, "http://localhost:1234/v1/chat/completions")
+    assert.strictEqual(
+      calls[1]?.url,
+      "http://localhost:1234/v1/chat/completions",
+    )
     assert.match(String(calls[1]?.init.body), /"model":"alpha"/)
   })
 

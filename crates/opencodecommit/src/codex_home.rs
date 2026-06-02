@@ -132,12 +132,10 @@ fn ensure_empty_config(path: &Path) -> Option<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     static COUNTER: AtomicU64 = AtomicU64::new(0);
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     struct TestDirs {
         root: PathBuf,
@@ -233,7 +231,7 @@ mod tests {
 
     #[test]
     fn resolve_cache_dir_prefers_xdg_when_absolute() {
-        let _env_guard = ENV_LOCK.lock().unwrap();
+        let _env_guard = crate::TEST_CWD_LOCK.lock().unwrap();
         let prev = std::env::var_os("XDG_CACHE_HOME");
         // SAFETY: tests in this module mutate process env; Rust 2024 requires
         // `unsafe` around `set_var`, and we accept the risk because these test
@@ -259,7 +257,7 @@ mod tests {
 
     #[test]
     fn resolve_cache_dir_falls_back_to_home_cache() {
-        let _env_guard = ENV_LOCK.lock().unwrap();
+        let _env_guard = crate::TEST_CWD_LOCK.lock().unwrap();
         let prev = std::env::var_os("XDG_CACHE_HOME");
         unsafe {
             std::env::remove_var("XDG_CACHE_HOME");
