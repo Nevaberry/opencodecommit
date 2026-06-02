@@ -24,7 +24,9 @@ import {
   appendAssistedByTrailers,
   assistedByTrailer,
   detectQuickOptionVersion,
+  extractAssistedByTrailers,
   readAssistedByOptions,
+  stripAssistedByTrailers,
 } from "./inline/evidence"
 import {
   generateBranchName,
@@ -272,7 +274,8 @@ async function generateMessageInline(
     onProgress,
   )
   log(`Generated message: "${message}"`)
-  repo.inputBox.value = message
+  const preserved = extractAssistedByTrailers(repo.inputBox.value)
+  repo.inputBox.value = appendAssistedByTrailers(message, preserved)
   const tokenPath = await writePreserveMessageToken(repo.rootUri.fsPath)
   log(`Wrote guard preserve token: ${tokenPath}`)
 }
@@ -299,14 +302,15 @@ async function refineMessageInline(repo: Repository) {
   }
   const diff = await getDiff(repo, config.diffSource)
   const message = await refineCommitMessage(
-    currentMessage,
+    stripAssistedByTrailers(currentMessage),
     feedback,
     diff,
     config,
     log,
     onProgress,
   )
-  repo.inputBox.value = message
+  const preserved = extractAssistedByTrailers(repo.inputBox.value)
+  repo.inputBox.value = appendAssistedByTrailers(message, preserved)
   const tokenPath = await writePreserveMessageToken(repo.rootUri.fsPath)
   log(`Wrote guard preserve token: ${tokenPath}`)
 }

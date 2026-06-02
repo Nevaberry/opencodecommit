@@ -847,7 +847,7 @@ fn append_trailers(message: &str, trailers: &[String]) -> String {
     trailers
         .iter()
         .fold(message.to_owned(), |current, trailer| {
-            append_trailer(&current, trailer, false)
+            append_trailer(&current, trailer, true)
         })
 }
 
@@ -859,7 +859,7 @@ fn append_trailer(message: &str, trailer: &str, blank_before_first: bool) -> Str
     if result.is_empty() {
         return format!("{trailer}\n");
     }
-    if blank_before_first && !has_any_trailer(&result) {
+    if blank_before_first && !ends_with_trailer(&result) {
         result.push_str("\n\n");
     } else {
         result.push('\n');
@@ -869,12 +869,19 @@ fn append_trailer(message: &str, trailer: &str, blank_before_first: bool) -> Str
     result
 }
 
-fn has_any_trailer(message: &str) -> bool {
+fn ends_with_trailer(message: &str) -> bool {
+    const TRAILER_PREFIXES: [&str; 3] = ["Assisted-by:", "OCC-Evidence:", "Co-authored-by:"];
     message
         .lines()
         .rev()
-        .take_while(|line| !line.trim().is_empty())
-        .any(|line| line.contains(": "))
+        .find(|line| !line.trim().is_empty())
+        .map(|line| {
+            let trimmed = line.trim_start();
+            TRAILER_PREFIXES
+                .iter()
+                .any(|prefix| trimmed.starts_with(prefix))
+        })
+        .unwrap_or(false)
 }
 
 fn has_trailer(message: &str, prefix: &str) -> bool {
@@ -1272,6 +1279,33 @@ mod tests {
         assert!(next.contains("\n\nOCC-Evidence:"));
         let again = append_trailer(&next, "OCC-Evidence: local:.git/occ/evidence/x.toml", true);
         assert_eq!(next, again);
+    }
+
+    #[test]
+    fn assisted_by_trailers_get_one_blank_line_before_block() {
+        let out = append_trailers(
+            "feat: x\n\nBody.",
+            &[
+                "Assisted-by: Codex 0.133.0:gpt-5.5".to_owned(),
+                "Assisted-by: Claude Code 2.1.0:claude-opus-4.8".to_owned(),
+            ],
+        );
+        assert_eq!(
+            out,
+            "feat: x\n\nBody.\n\nAssisted-by: Codex 0.133.0:gpt-5.5\nAssisted-by: Claude Code 2.1.0:claude-opus-4.8\n"
+        );
+    }
+
+    #[test]
+    fn assisted_by_blank_line_after_oneliner_subject() {
+        let out = append_trailers(
+            "fix: rename foo",
+            &["Assisted-by: Codex 0.133.0:gpt-5.5".to_owned()],
+        );
+        assert_eq!(
+            out,
+            "fix: rename foo\n\nAssisted-by: Codex 0.133.0:gpt-5.5\n"
+        );
     }
 
     #[test]

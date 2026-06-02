@@ -13,8 +13,10 @@ import {
   DEFAULT_ASSISTED_BY_QUICK_OPTIONS,
   DEFAULT_HARNESSES,
   DEFAULT_MODELS,
+  extractAssistedByTrailers,
   readAssistedByOptions,
   saveAssistedByQuickOption,
+  stripAssistedByTrailers,
 } from "../inline/evidence"
 import {
   buildBranchPrompt,
@@ -365,9 +367,60 @@ describe("evidence Assisted-by helpers", () => {
     ])
     assert.strictEqual(
       message,
-      "feat: add thing\nAssisted-by: Codex 0.133.0:gpt-5.5",
+      "feat: add thing\n\nAssisted-by: Codex 0.133.0:gpt-5.5",
     )
     assert.ok(!message.endsWith("\n"))
+  })
+
+  it("spaces Assisted-by trailers: one blank line before, none between", () => {
+    const t1 = "Assisted-by: Codex 0.133.0:gpt-5.5"
+    const t2 = "Assisted-by: Claude Code 2.1.0:claude-opus-4.8"
+
+    // Body -> one blank line -> first trailer; subsequent trailers stay contiguous.
+    assert.strictEqual(
+      appendAssistedByTrailers("feat: x\n\nBody.", [t1, t2]),
+      "feat: x\n\nBody.\n\nAssisted-by: Codex 0.133.0:gpt-5.5\nAssisted-by: Claude Code 2.1.0:claude-opus-4.8",
+    )
+
+    // One-liner conventional subject still gets a blank line (no ": " false positive).
+    assert.strictEqual(
+      appendAssistedByTrailers("fix: rename foo", [t1]),
+      "fix: rename foo\n\nAssisted-by: Codex 0.133.0:gpt-5.5",
+    )
+
+    // Adding to a message already ending in a trailer stays contiguous.
+    assert.strictEqual(
+      appendAssistedByTrailers(
+        "feat: x\n\nAssisted-by: Codex 0.133.0:gpt-5.5",
+        [t2],
+      ),
+      "feat: x\n\nAssisted-by: Codex 0.133.0:gpt-5.5\nAssisted-by: Claude Code 2.1.0:claude-opus-4.8",
+    )
+
+    // Empty message -> trailer only, no leading blank line.
+    assert.strictEqual(appendAssistedByTrailers("", [t1]), t1)
+  })
+
+  it("extracts and strips Assisted-by trailers for overwrite preservation", () => {
+    const box = "Assisted-by: Codex 0.133.0:gpt-5.5"
+    assert.deepStrictEqual(extractAssistedByTrailers(box), [
+      "Assisted-by: Codex 0.133.0:gpt-5.5",
+    ])
+
+    // Generation completes: preserve a trailer the user added during the wait.
+    const generated = "feat: add thing\n\nDetails."
+    assert.strictEqual(
+      appendAssistedByTrailers(generated, extractAssistedByTrailers(box)),
+      "feat: add thing\n\nDetails.\n\nAssisted-by: Codex 0.133.0:gpt-5.5",
+    )
+
+    // stripAssistedByTrailers leaves only the body (kept out of the refine prompt).
+    assert.strictEqual(
+      stripAssistedByTrailers(
+        "feat: add thing\n\nDetails.\n\nAssisted-by: Codex 0.133.0:gpt-5.5",
+      ),
+      "feat: add thing\n\nDetails.",
+    )
   })
 
   it("stores custom quick options in repo-local evidence TOML", async () => {

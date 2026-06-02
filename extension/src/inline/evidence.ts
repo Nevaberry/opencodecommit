@@ -249,6 +249,33 @@ export async function detectQuickOptionVersion(
   return match?.groups?.version ?? undefined
 }
 
+const TRAILER_PREFIXES = ["Assisted-by:", "OCC-Evidence:", "Co-authored-by:"]
+
+function endsWithTrailer(message: string): boolean {
+  const lines = message.split(/\r?\n/)
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i].trim()
+    if (line === "") continue
+    return TRAILER_PREFIXES.some((prefix) => line.startsWith(prefix))
+  }
+  return false
+}
+
+export function extractAssistedByTrailers(message: string): string[] {
+  return message
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("Assisted-by:"))
+}
+
+export function stripAssistedByTrailers(message: string): string {
+  return message
+    .split(/\r?\n/)
+    .filter((line) => !line.trim().startsWith("Assisted-by:"))
+    .join("\n")
+    .trimEnd()
+}
+
 export function assistedByTrailer(input: AssistedByInput): string {
   const agent = input.agent.trim()
   const model = input.model.trim()
@@ -277,6 +304,7 @@ export function appendAssistedByTrailers(
   if (unique.length === 0) return message
 
   const trimmed = message.trimEnd()
-  const separator = trimmed.length === 0 ? "" : "\n"
+  if (trimmed.length === 0) return unique.join("\n")
+  const separator = endsWithTrailer(trimmed) ? "\n" : "\n\n"
   return `${trimmed}${separator}${unique.join("\n")}`
 }
