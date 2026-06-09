@@ -11,6 +11,7 @@
       "Grok Build"
     ],
     "models": [
+      "claude-fable-5.0",
       "claude-opus-4.8",
       "claude-sonnet-4.6",
       "gpt-5.5",
@@ -33,6 +34,13 @@
         "label": "Claude Code Opus",
         "agent": "Claude Code",
         "model": "claude-opus-4.8",
+        "versionCommand": "claude -v",
+        "versionPattern": "(?<version>\\S+) \\(Claude Code\\)"
+      },
+      {
+        "label": "Claude Code Fable",
+        "agent": "Claude Code",
+        "model": "claude-fable-5.0",
         "versionCommand": "claude -v",
         "versionPattern": "(?<version>\\S+) \\(Claude Code\\)"
       }

@@ -1,6 +1,6 @@
 {
   "name": "@nevaberry/opencodecommit",
-  "version": "1.9.8",
+  "version": "1.9.9",
   "description": "Scoped alias for opencodecommit, which now supports CLI backends, direct provider APIs, and CI scanning",
   "license": "MIT",
   "repository": {
@@ -28,6 +28,6 @@
     "node": ">=18"
   },
   "dependencies": {
-    "opencodecommit": "1.9.8"
+    "opencodecommit": "1.9.9"
   }
 }
