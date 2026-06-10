@@ -337,19 +337,27 @@ describe("evidence Assisted-by helpers", () => {
     ])
     assert.ok(DEFAULT_HARNESSES.includes("GitHub Copilot"))
     assert.ok(DEFAULT_MODELS.includes("claude-opus-4.8"))
+    assert.ok(DEFAULT_MODELS.includes("gpt-5.5-pro"))
+    assert.ok(DEFAULT_MODELS.includes("openai/gpt-5.5-pro"))
     assert.ok(DEFAULT_MODELS.includes("composer-2.5"))
     assert.ok(DEFAULT_MODELS.includes("big-pickle"))
     assert.ok(!DEFAULT_MODELS.includes("opus-4.8"))
     assert.ok(!DEFAULT_MODELS.includes("anthropic/claude-opus-4.8"))
     assert.deepStrictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.map((option) => option.label),
-      ["Codex GPT", "Claude Code Opus"],
+      ["GPT", "Opus", "Fable"],
     )
     assert.strictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find(
-        (option) => option.agent === "Claude Code",
+        (option) => option.label === "Opus",
       )?.model,
       "claude-opus-4.8",
+    )
+    assert.strictEqual(
+      DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find(
+        (option) => option.label === "Fable",
+      )?.model,
+      "claude-fable-5.0",
     )
   })
 

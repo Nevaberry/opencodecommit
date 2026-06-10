@@ -541,7 +541,7 @@ async function appendAssistedByRows(
 }
 
 async function appendAssistedByQuick(
-  harness: string,
+  label: string,
   arg?: { rootUri?: vscode.Uri },
 ) {
   const repo = resolveRepository(arg)
@@ -552,10 +552,10 @@ async function appendAssistedByQuick(
 
   try {
     const options = await readAssistedByOptions(repo.rootUri.fsPath)
-    const quick = options.quick.find((option) => option.agent === harness)
+    const quick = findAssistedByQuickOption(options.quick, label)
     if (!quick) {
       vscode.window.showErrorMessage(
-        `OpenCodeCommit: Assisted-by option not found for harness: ${harness}`,
+        `OpenCodeCommit: Assisted-by option not found: ${label}`,
       )
       return
     }
@@ -574,18 +574,27 @@ async function appendAssistedByQuick(
   }
 }
 
-async function pickModelForHarness(
-  harness: string,
-  models: string[],
-): Promise<string | undefined> {
-  const picked = await vscode.window.showQuickPick(
-    models.map((model) => ({ label: model })),
-    {
-      placeHolder: `Select model for ${harness}`,
-    },
+function findAssistedByQuickOption(
+  options: AssistedByQuickOption[],
+  label: string,
+): AssistedByQuickOption | undefined {
+  return options.find(
+    (option) =>
+      option.label === label || quickOptionDisplayLabel(option) === label,
   )
-  if (!picked) return undefined
-  return picked.label
+}
+
+function quickOptionDisplayLabel(option: AssistedByQuickOption): string {
+  switch (option.label) {
+    case "Codex GPT":
+      return "GPT"
+    case "Claude Code Opus":
+      return "Opus"
+    case "Claude Code Fable":
+      return "Fable"
+    default:
+      return option.label
+  }
 }
 
 async function appendAssistedByPicked(arg?: { rootUri?: vscode.Uri }) {
@@ -597,32 +606,33 @@ async function appendAssistedByPicked(arg?: { rootUri?: vscode.Uri }) {
 
   try {
     const options = await readAssistedByOptions(repo.rootUri.fsPath)
-    const harness = await vscode.window.showQuickPick(
-      options.harnesses.map((harness) => ({ label: harness })),
+    const picked = await vscode.window.showQuickPick(
+      options.quick.map((option) => ({
+        label: quickOptionDisplayLabel(option),
+        description: `${option.agent}:${option.model}`,
+        option,
+      })),
       {
-        placeHolder: "Select AI harness",
+        placeHolder: "Select Assisted-by",
       },
     )
-    if (!harness) return
-    const model = await pickModelForHarness(harness.label, options.models)
-    if (!model) return
-    const version = await detectHarnessVersion(harness.label, options.quick)
+    if (!picked) return
+    const version = await detectQuickOptionVersion(picked.option).catch(
+      () => undefined,
+    )
 
-    await appendAssistedByRows(repo, [{ agent: harness.label, model, version }])
+    await appendAssistedByRows(repo, [
+      {
+        agent: picked.option.agent,
+        model: picked.option.model,
+        version,
+      },
+    ])
     vscode.commands.executeCommand("workbench.view.scm")
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     vscode.window.showErrorMessage(`OpenCodeCommit: ${msg}`)
   }
-}
-
-async function detectHarnessVersion(
-  harness: string,
-  quickOptions: AssistedByQuickOption[],
-): Promise<string | undefined> {
-  const option = quickOptions.find((item) => item.agent === harness)
-  if (!option) return undefined
-  return detectQuickOptionVersion(option).catch(() => undefined)
 }
 
 async function appendAssistedByCustom(arg?: { rootUri?: vscode.Uri }) {
@@ -874,11 +884,15 @@ export async function activate(context: vscode.ExtensionContext) {
     ),
     vscode.commands.registerCommand(
       "opencodecommit.assistedByCodexGpt",
-      (arg) => appendAssistedByQuick("Codex", arg),
+      (arg) => appendAssistedByQuick("GPT", arg),
     ),
     vscode.commands.registerCommand(
       "opencodecommit.assistedByClaudeOpus",
-      (arg) => appendAssistedByQuick("Claude Code", arg),
+      (arg) => appendAssistedByQuick("Opus", arg),
+    ),
+    vscode.commands.registerCommand(
+      "opencodecommit.assistedByClaudeFable",
+      (arg) => appendAssistedByQuick("Fable", arg),
     ),
     vscode.commands.registerCommand("opencodecommit.assistedByPick", (arg) =>
       appendAssistedByPicked(arg),

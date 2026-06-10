@@ -517,7 +517,7 @@ pub fn add_assisted_by_quick(label: &str) -> Result<String> {
         .assisted_by
         .quick
         .iter()
-        .find(|option| option.label == label)
+        .find(|option| quick_option_label_matches(&option.label, label))
     else {
         return Err(EvidenceError::Invalid(format!(
             "unknown Assisted-by quick option '{label}'"
@@ -529,6 +529,20 @@ pub fn add_assisted_by_quick(label: &str) -> Result<String> {
         model: option.model.clone(),
         version,
     })
+}
+
+fn quick_option_label_matches(option_label: &str, requested: &str) -> bool {
+    option_label == requested
+        || normalized_quick_option_label(option_label) == normalized_quick_option_label(requested)
+}
+
+fn normalized_quick_option_label(label: &str) -> &str {
+    match label {
+        "Codex GPT" => "GPT",
+        "Claude Code Opus" => "Opus",
+        "Claude Code Fable" => "Fable",
+        _ => label,
+    }
 }
 
 pub fn assist_status() -> Result<String> {
@@ -1242,6 +1256,8 @@ mod tests {
         assert_eq!(config.harnesses[1], "Claude Code");
         assert!(config.harnesses.contains(&"GitHub Copilot".to_owned()));
         assert!(config.models.contains(&"claude-opus-4.8".to_owned()));
+        assert!(config.models.contains(&"gpt-5.5-pro".to_owned()));
+        assert!(config.models.contains(&"openai/gpt-5.5-pro".to_owned()));
         assert!(config.models.contains(&"composer-2.5".to_owned()));
         assert!(config.models.contains(&"big-pickle".to_owned()));
         assert!(!config.models.contains(&"opus-4.8".to_owned()));
@@ -1256,16 +1272,32 @@ mod tests {
                 .iter()
                 .map(|option| option.label.as_str())
                 .collect::<Vec<_>>(),
-            vec!["Codex GPT", "Claude Code Opus"]
+            vec!["GPT", "Opus", "Fable"]
         );
         assert_eq!(
             config
                 .quick
                 .iter()
-                .find(|option| option.agent == "Claude Code")
+                .find(|option| option.label == "Opus")
                 .map(|option| option.model.as_str()),
             Some("claude-opus-4.8")
         );
+        assert_eq!(
+            config
+                .quick
+                .iter()
+                .find(|option| option.label == "Fable")
+                .map(|option| option.model.as_str()),
+            Some("claude-fable-5.0")
+        );
+    }
+
+    #[test]
+    fn quick_option_label_matching_accepts_legacy_labels() {
+        assert!(quick_option_label_matches("GPT", "Codex GPT"));
+        assert!(quick_option_label_matches("Claude Code Opus", "Opus"));
+        assert!(quick_option_label_matches("Fable", "Claude Code Fable"));
+        assert!(!quick_option_label_matches("Fable", "Opus"));
     }
 
     #[test]

@@ -69,15 +69,19 @@
       },
       {
         "command": "opencodecommit.assistedByCodexGpt",
-        "title": "Assisted-by: Codex:GPT"
+        "title": "Assisted-by: GPT"
       },
       {
         "command": "opencodecommit.assistedByClaudeOpus",
-        "title": "Assisted-by: Claude Code:Opus"
+        "title": "Assisted-by: Opus"
+      },
+      {
+        "command": "opencodecommit.assistedByClaudeFable",
+        "title": "Assisted-by: Fable"
       },
       {
         "command": "opencodecommit.assistedByPick",
-        "title": "Assisted-by: Pick Harness + Model"
+        "title": "Assisted-by: Pick Quick Option"
       },
       {
         "command": "opencodecommit.assistedByCustom",
@@ -355,6 +359,10 @@
         {
           "command": "opencodecommit.assistedByClaudeOpus",
           "group": "1_quick@2"
+        },
+        {
+          "command": "opencodecommit.assistedByClaudeFable",
+          "group": "1_quick@3"
         },
         {
           "command": "opencodecommit.assistedByPick",
