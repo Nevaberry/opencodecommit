@@ -83,7 +83,7 @@ occ evidence snapshot
 - A terminal TUI with backend picks, diff view, output panels, and file staging.
 - Local sensitive-content scanning with `warn`, `block-*`, and `strict-*` enforcement modes.
 - A repo-local Git guard that routes raw `git commit` messages through OCC using `prepare-commit-msg`.
-- Optional repo-local evidence sidecars for `samd` and all-in `defence` profiles, referenced by compact `OCC-Evidence` trailers.
+- Optional repo-local evidence sidecars and `Assisted-by` AI attribution for `samd` and all-in `defence` profiles, linked by compact `OCC-Evidence` trailers.
 - CI output as text, JSON, SARIF, or GitHub annotations.
 - Built-in language templates for English, Finnish, Japanese, Chinese, Spanish, Portuguese, French, Korean, Russian, Vietnamese, and German.
 
@@ -94,6 +94,35 @@ OpenCodeCommit has no hosted service and no telemetry. Diffs and file context ar
 The scanner can block provider tokens, webhooks, credential-bearing connection strings, `.env*` files, key stores, private keys, source maps, and other high-risk artifacts before generation runs.
 
 See [SECURITY.md](SECURITY.md) for vulnerability reporting and data-flow details.
+
+## Evidence And Audit Trails
+
+For regulated work — Software as a Medical Device (SaMD) and defence software — OpenCodeCommit can keep an optional, repo-local audit trail. It is off by default and enabled per repository with `occ evidence install`.
+
+Each commit records a snapshot of the repository and build environment — branch, HEAD, index-tree hash, staged files, tool and AI-agent versions, and (by profile) network and security state. The snapshot is written as a versioned sidecar, scanned for secrets before it lands, and linked from the commit by a compact `OCC-Evidence` trailer.
+
+- `samd` — strict redaction; safe to commit into the repository.
+- `defence` — all-in cleartext machine and network state for private, access-controlled stores, gated behind an explicit acknowledgement before it can land in a repo.
+
+Storage is `local` (uncommitted), `repo` (committed sidecars), or `artifact` (referenced by SHA-256 digest).
+
+Commits can also carry `Assisted-by` trailers that attribute the AI harness and model — picked from the editor's Source Control menu or queued from the CLI.
+
+![OpenCodeCommit Assisted-by menu in the VS Code Source Control panel](https://raw.githubusercontent.com/Nevaberry/opencodecommit/HEAD/.github/screenshots/assistedby-menu-options.png)
+
+```
+feat(monitor): clamp ECG sampling window
+
+OCC-Evidence: repo:.occ/evidence/2026/06/20260623T091205Z-a1b2c3d.toml
+Assisted-by: Codex 0.133.0:gpt-5.5
+Assisted-by: Claude Code 2.1.0:claude-opus-4.8
+```
+
+```bash
+occ evidence install --profile samd
+occ evidence snapshot
+occ evidence assist add --quick Opus
+```
 
 ## Configuration
 
