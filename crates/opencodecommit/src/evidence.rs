@@ -1258,6 +1258,9 @@ mod tests {
         assert!(config.models.contains(&"claude-opus-4.8".to_owned()));
         assert!(config.models.contains(&"gpt-5.5-pro".to_owned()));
         assert!(config.models.contains(&"openai/gpt-5.5-pro".to_owned()));
+        assert!(config.models.contains(&"gpt-5.6-sol".to_owned()));
+        assert!(config.models.contains(&"gpt-5.6-terra".to_owned()));
+        assert!(config.models.contains(&"gpt-5.6-luna".to_owned()));
         assert!(config.models.contains(&"composer-2.5".to_owned()));
         assert!(config.models.contains(&"big-pickle".to_owned()));
         assert!(!config.models.contains(&"opus-4.8".to_owned()));
@@ -1272,7 +1275,23 @@ mod tests {
                 .iter()
                 .map(|option| option.label.as_str())
                 .collect::<Vec<_>>(),
-            vec!["GPT", "Opus", "Fable"]
+            vec!["GPT", "Sol", "Terra", "Opus", "Fable"]
+        );
+        assert_eq!(
+            config
+                .quick
+                .iter()
+                .find(|option| option.label == "Sol")
+                .map(|option| option.model.as_str()),
+            Some("gpt-5.6-sol")
+        );
+        assert_eq!(
+            config
+                .quick
+                .iter()
+                .find(|option| option.label == "Terra")
+                .map(|option| option.model.as_str()),
+            Some("gpt-5.6-terra")
         );
         assert_eq!(
             config

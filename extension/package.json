@@ -69,23 +69,38 @@
       },
       {
         "command": "opencodecommit.assistedByCodexGpt",
-        "title": "Assisted-by: GPT"
+        "title": "Codex GPT-5.5",
+        "category": "Assisted-by"
+      },
+      {
+        "command": "opencodecommit.assistedByCodexSol",
+        "title": "Codex Sol",
+        "category": "Assisted-by"
+      },
+      {
+        "command": "opencodecommit.assistedByCodexTerra",
+        "title": "Codex Terra",
+        "category": "Assisted-by"
       },
       {
         "command": "opencodecommit.assistedByClaudeOpus",
-        "title": "Assisted-by: Opus"
+        "title": "Claude Opus",
+        "category": "Assisted-by"
       },
       {
         "command": "opencodecommit.assistedByClaudeFable",
-        "title": "Assisted-by: Fable"
+        "title": "Claude Fable",
+        "category": "Assisted-by"
       },
       {
         "command": "opencodecommit.assistedByPick",
-        "title": "Assisted-by: Pick Quick Option"
+        "title": "Pick Quick Option",
+        "category": "Assisted-by"
       },
       {
         "command": "opencodecommit.assistedByCustom",
-        "title": "Assisted-by: Add Custom"
+        "title": "Add Custom",
+        "category": "Assisted-by"
       },
       {
         "command": "opencodecommit.generatePr",
@@ -357,12 +372,20 @@
           "group": "1_quick@1"
         },
         {
-          "command": "opencodecommit.assistedByClaudeOpus",
+          "command": "opencodecommit.assistedByCodexSol",
           "group": "1_quick@2"
         },
         {
-          "command": "opencodecommit.assistedByClaudeFable",
+          "command": "opencodecommit.assistedByCodexTerra",
           "group": "1_quick@3"
+        },
+        {
+          "command": "opencodecommit.assistedByClaudeOpus",
+          "group": "1_quick@4"
+        },
+        {
+          "command": "opencodecommit.assistedByClaudeFable",
+          "group": "1_quick@5"
         },
         {
           "command": "opencodecommit.assistedByPick",

@@ -339,13 +339,27 @@ describe("evidence Assisted-by helpers", () => {
     assert.ok(DEFAULT_MODELS.includes("claude-opus-4.8"))
     assert.ok(DEFAULT_MODELS.includes("gpt-5.5-pro"))
     assert.ok(DEFAULT_MODELS.includes("openai/gpt-5.5-pro"))
+    assert.ok(DEFAULT_MODELS.includes("gpt-5.6-sol"))
+    assert.ok(DEFAULT_MODELS.includes("gpt-5.6-terra"))
+    assert.ok(DEFAULT_MODELS.includes("gpt-5.6-luna"))
     assert.ok(DEFAULT_MODELS.includes("composer-2.5"))
     assert.ok(DEFAULT_MODELS.includes("big-pickle"))
     assert.ok(!DEFAULT_MODELS.includes("opus-4.8"))
     assert.ok(!DEFAULT_MODELS.includes("anthropic/claude-opus-4.8"))
     assert.deepStrictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.map((option) => option.label),
-      ["GPT", "Opus", "Fable"],
+      ["GPT", "Sol", "Terra", "Opus", "Fable"],
+    )
+    assert.strictEqual(
+      DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find((option) => option.label === "Sol")
+        ?.model,
+      "gpt-5.6-sol",
+    )
+    assert.strictEqual(
+      DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find(
+        (option) => option.label === "Terra",
+      )?.model,
+      "gpt-5.6-terra",
     )
     assert.strictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find(

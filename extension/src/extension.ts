@@ -887,6 +887,14 @@ export async function activate(context: vscode.ExtensionContext) {
       (arg) => appendAssistedByQuick("GPT", arg),
     ),
     vscode.commands.registerCommand(
+      "opencodecommit.assistedByCodexSol",
+      (arg) => appendAssistedByQuick("Sol", arg),
+    ),
+    vscode.commands.registerCommand(
+      "opencodecommit.assistedByCodexTerra",
+      (arg) => appendAssistedByQuick("Terra", arg),
+    ),
+    vscode.commands.registerCommand(
       "opencodecommit.assistedByClaudeOpus",
       (arg) => appendAssistedByQuick("Opus", arg),
     ),
