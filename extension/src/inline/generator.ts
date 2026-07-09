@@ -564,7 +564,10 @@ export async function refineCommitMessage(
 
 function apiConfigFor(
   config: ExtensionConfig,
-  backend: Exclude<Backend, "opencode" | "claude" | "codex" | "gemini">,
+  backend: Exclude<
+    Backend,
+    "opencode" | "claude" | "codex" | "gemini" | "grok"
+  >,
 ) {
   switch (backend) {
     case "openai-api":

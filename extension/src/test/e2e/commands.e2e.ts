@@ -42,6 +42,7 @@ const backendSuffixes = new Map<string, string>([
   ["opencode", "Opencode"],
   ["claude", "Claude"],
   ["gemini", "Gemini"],
+  ["grok", "Grok"],
   ["openai-api", "OpenaiApi"],
   ["anthropic-api", "AnthropicApi"],
   ["gemini-api", "GeminiApi"],
@@ -106,14 +107,14 @@ function extractChangelogEntry(content: string, version: string): string {
 
 function classify(command: string): Scenario {
   if (
-    /^opencodecommit\.generateAdaptive(?:Codex|Opencode|Claude|Gemini|OpenaiApi|AnthropicApi|GeminiApi|OpenrouterApi|OpencodeApi|OllamaApi|LmStudioApi|CustomApi)$/.test(
+    /^opencodecommit\.generateAdaptive(?:Codex|Opencode|Claude|Gemini|Grok|OpenaiApi|AnthropicApi|GeminiApi|OpenrouterApi|OpencodeApi|OllamaApi|LmStudioApi|CustomApi)$/.test(
       command,
     )
   ) {
     return { kind: "commit", conventional: false }
   }
   if (
-    /^opencodecommit\.generatePr(?:Codex|Opencode|Claude|Gemini|OpenaiApi|AnthropicApi|GeminiApi|OpenrouterApi|OpencodeApi|OllamaApi|LmStudioApi|CustomApi)$/.test(
+    /^opencodecommit\.generatePr(?:Codex|Opencode|Claude|Gemini|Grok|OpenaiApi|AnthropicApi|GeminiApi|OpenrouterApi|OpencodeApi|OllamaApi|LmStudioApi|CustomApi)$/.test(
       command,
     )
   ) {
@@ -168,14 +169,14 @@ function shouldRun(command: string): boolean {
     return true
   }
   if (
-    /^opencodecommit.generateAdaptive(?:Codex|Opencode|Claude|Gemini|OpenaiApi|AnthropicApi|GeminiApi|OpenrouterApi|OpencodeApi|OllamaApi|LmStudioApi|CustomApi)$/.test(
+    /^opencodecommit.generateAdaptive(?:Codex|Opencode|Claude|Gemini|Grok|OpenaiApi|AnthropicApi|GeminiApi|OpenrouterApi|OpencodeApi|OllamaApi|LmStudioApi|CustomApi)$/.test(
       command,
     )
   ) {
     return activeSuffixes.some((suffix) => command.endsWith(suffix))
   }
   if (
-    /^opencodecommit.generatePr(?:Codex|Opencode|Claude|Gemini|OpenaiApi|AnthropicApi|GeminiApi|OpenrouterApi|OpencodeApi|OllamaApi|LmStudioApi|CustomApi)$/.test(
+    /^opencodecommit.generatePr(?:Codex|Opencode|Claude|Gemini|Grok|OpenaiApi|AnthropicApi|GeminiApi|OpenrouterApi|OpencodeApi|OllamaApi|LmStudioApi|CustomApi)$/.test(
       command,
     )
   ) {

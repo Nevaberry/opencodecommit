@@ -4,6 +4,7 @@ backend-order = [
   "opencode",
   "claude",
   "gemini",
+  "grok",
   "openai-api",
   "anthropic-api",
   "gemini-api",
@@ -21,16 +22,20 @@ pr-base-branch = "main"
 active-language = "English"
 commit-branch-timeout-seconds = 90
 pr-timeout-seconds = 240
+grok-path = ""
+grok-model = "grok-build"
+grok-pr-model = "grok-build"
+grok-cheap-model = "grok-build"
 
 [sensitive]
 enforcement = "warn"
 
 [api.openai]
-model = "gpt-5.4-mini"
+model = "gpt-5.6-terra"
 endpoint = "https://api.openai.com/v1/chat/completions"
 key-env = "OPENAI_API_KEY"
 pr-model = "gpt-5.4"
-cheap-model = "gpt-5.4-mini"
+cheap-model = "gpt-5.6-terra"
 
 [api.anthropic]
 model = "claude-sonnet-4-6"
@@ -51,14 +56,14 @@ model = "anthropic/claude-sonnet-4"
 endpoint = "https://openrouter.ai/api/v1/chat/completions"
 key-env = "OPENROUTER_API_KEY"
 pr-model = "openai/gpt-5.4"
-cheap-model = "openai/gpt-5.4-mini"
+cheap-model = "openai/gpt-5.6-terra"
 
 [api.opencode]
-model = "gpt-5.4-mini"
+model = "gpt-5.6-terra"
 endpoint = "https://opencode.ai/zen/v1/chat/completions"
 key-env = "OPENCODE_API_KEY"
 pr-model = "gpt-5.4"
-cheap-model = "gpt-5.4-mini"
+cheap-model = "gpt-5.6-terra"
 
 [api.ollama]
 model = "__OLLAMA_MODEL__"

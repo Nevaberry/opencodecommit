@@ -117,7 +117,7 @@ function loadSharedCommitFormattingScenarios(): SharedCommitFormattingScenario[]
 function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
   return {
     provider: "openai",
-    model: "gpt-5.4-mini",
+    model: "gpt-5.6-terra",
     cliPath: "",
     diffSource: "auto",
     maxDiffLength: 10000,
@@ -153,32 +153,36 @@ function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
     claudePath: "",
     codexPath: "",
     geminiPath: "",
+    grokPath: "",
     claudeModel: "claude-sonnet-4-6",
-    codexModel: "gpt-5.4-mini",
+    codexModel: "gpt-5.6-terra",
     codexProvider: "",
     geminiModel: "",
+    grokModel: "grok-build",
     opencodePrProvider: "openai",
     opencodePrModel: "gpt-5.4",
     opencodeCheapProvider: "openai",
-    opencodeCheapModel: "gpt-5.4-mini",
+    opencodeCheapModel: "gpt-5.6-terra",
     claudePrModel: "claude-opus-4-6",
     claudeCheapModel: "claude-haiku-4-5",
     codexPrProvider: "",
     codexPrModel: "gpt-5.4",
     codexCheapProvider: "",
-    codexCheapModel: "gpt-5.4-mini",
+    codexCheapModel: "gpt-5.6-terra",
     geminiPrModel: "gemini-3-flash-preview",
     geminiCheapModel: "gemini-3.1-flash-lite-preview",
+    grokPrModel: "grok-build",
+    grokCheapModel: "grok-build",
     prBaseBranch: "",
-    backendOrder: ["codex", "opencode", "claude", "gemini"],
+    backendOrder: ["codex", "opencode", "claude", "gemini", "grok"],
     branchMode: "conventional" as BranchMode,
     api: {
       openai: {
-        model: "gpt-5.4-mini",
+        model: "gpt-5.6-terra",
         endpoint: "https://api.openai.com/v1/chat/completions",
         keyEnv: "OPENAI_API_KEY",
         prModel: "gpt-5.4",
-        cheapModel: "gpt-5.4-mini",
+        cheapModel: "gpt-5.6-terra",
       },
       anthropic: {
         model: "claude-sonnet-4-6",
@@ -199,14 +203,14 @@ function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
         endpoint: "https://openrouter.ai/api/v1/chat/completions",
         keyEnv: "OPENROUTER_API_KEY",
         prModel: "openai/gpt-5.4",
-        cheapModel: "openai/gpt-5.4-mini",
+        cheapModel: "openai/gpt-5.6-terra",
       },
       opencode: {
-        model: "gpt-5.4-mini",
+        model: "gpt-5.6-terra",
         endpoint: "https://opencode.ai/zen/v1/chat/completions",
         keyEnv: "OPENCODE_API_KEY",
         prModel: "gpt-5.4",
-        cheapModel: "gpt-5.4-mini",
+        cheapModel: "gpt-5.6-terra",
       },
       ollama: {
         model: "",
@@ -337,29 +341,22 @@ describe("evidence Assisted-by helpers", () => {
     ])
     assert.ok(DEFAULT_HARNESSES.includes("GitHub Copilot"))
     assert.ok(DEFAULT_MODELS.includes("claude-opus-4.8"))
-    assert.ok(DEFAULT_MODELS.includes("gpt-5.5-pro"))
-    assert.ok(DEFAULT_MODELS.includes("openai/gpt-5.5-pro"))
     assert.ok(DEFAULT_MODELS.includes("gpt-5.6-sol"))
     assert.ok(DEFAULT_MODELS.includes("gpt-5.6-terra"))
     assert.ok(DEFAULT_MODELS.includes("gpt-5.6-luna"))
+    assert.ok(DEFAULT_MODELS.includes("grok-build"))
     assert.ok(DEFAULT_MODELS.includes("composer-2.5"))
     assert.ok(DEFAULT_MODELS.includes("big-pickle"))
     assert.ok(!DEFAULT_MODELS.includes("opus-4.8"))
     assert.ok(!DEFAULT_MODELS.includes("anthropic/claude-opus-4.8"))
     assert.deepStrictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.map((option) => option.label),
-      ["GPT", "Sol", "Terra", "Opus", "Fable"],
+      ["Sol", "Opus", "Fable", "Build Grok"],
     )
     assert.strictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find((option) => option.label === "Sol")
         ?.model,
       "gpt-5.6-sol",
-    )
-    assert.strictEqual(
-      DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find(
-        (option) => option.label === "Terra",
-      )?.model,
-      "gpt-5.6-terra",
     )
     assert.strictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find(
@@ -373,15 +370,27 @@ describe("evidence Assisted-by helpers", () => {
       )?.model,
       "claude-fable-5.0",
     )
+    assert.deepStrictEqual(
+      DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find(
+        (option) => option.label === "Build Grok",
+      ),
+      {
+        label: "Build Grok",
+        agent: "Grok Build",
+        model: "grok-build",
+        versionCommand: "grok --version",
+        versionPattern: "grok (?<version>\\S+)",
+      },
+    )
   })
 
   it("formats and deduplicates Assisted-by trailers", () => {
     const trailer = assistedByTrailer({
       agent: "Codex",
       version: "0.133.0",
-      model: "gpt-5.5",
+      model: "gpt-5.6-sol",
     })
-    assert.strictEqual(trailer, "Assisted-by: Codex 0.133.0:gpt-5.5")
+    assert.strictEqual(trailer, "Assisted-by: Codex 0.133.0:gpt-5.6-sol")
 
     const message = appendAssistedByTrailers("feat: add thing\n", [
       trailer,
@@ -389,34 +398,34 @@ describe("evidence Assisted-by helpers", () => {
     ])
     assert.strictEqual(
       message,
-      "feat: add thing\n\nAssisted-by: Codex 0.133.0:gpt-5.5",
+      "feat: add thing\n\nAssisted-by: Codex 0.133.0:gpt-5.6-sol",
     )
     assert.ok(!message.endsWith("\n"))
   })
 
   it("spaces Assisted-by trailers: one blank line before, none between", () => {
-    const t1 = "Assisted-by: Codex 0.133.0:gpt-5.5"
+    const t1 = "Assisted-by: Codex 0.133.0:gpt-5.6-sol"
     const t2 = "Assisted-by: Claude Code 2.1.0:claude-opus-4.8"
 
     // Body -> one blank line -> first trailer; subsequent trailers stay contiguous.
     assert.strictEqual(
       appendAssistedByTrailers("feat: x\n\nBody.", [t1, t2]),
-      "feat: x\n\nBody.\n\nAssisted-by: Codex 0.133.0:gpt-5.5\nAssisted-by: Claude Code 2.1.0:claude-opus-4.8",
+      "feat: x\n\nBody.\n\nAssisted-by: Codex 0.133.0:gpt-5.6-sol\nAssisted-by: Claude Code 2.1.0:claude-opus-4.8",
     )
 
     // One-liner conventional subject still gets a blank line (no ": " false positive).
     assert.strictEqual(
       appendAssistedByTrailers("fix: rename foo", [t1]),
-      "fix: rename foo\n\nAssisted-by: Codex 0.133.0:gpt-5.5",
+      "fix: rename foo\n\nAssisted-by: Codex 0.133.0:gpt-5.6-sol",
     )
 
     // Adding to a message already ending in a trailer stays contiguous.
     assert.strictEqual(
       appendAssistedByTrailers(
-        "feat: x\n\nAssisted-by: Codex 0.133.0:gpt-5.5",
+        "feat: x\n\nAssisted-by: Codex 0.133.0:gpt-5.6-sol",
         [t2],
       ),
-      "feat: x\n\nAssisted-by: Codex 0.133.0:gpt-5.5\nAssisted-by: Claude Code 2.1.0:claude-opus-4.8",
+      "feat: x\n\nAssisted-by: Codex 0.133.0:gpt-5.6-sol\nAssisted-by: Claude Code 2.1.0:claude-opus-4.8",
     )
 
     // Empty message -> trailer only, no leading blank line.
@@ -424,22 +433,22 @@ describe("evidence Assisted-by helpers", () => {
   })
 
   it("extracts and strips Assisted-by trailers for overwrite preservation", () => {
-    const box = "Assisted-by: Codex 0.133.0:gpt-5.5"
+    const box = "Assisted-by: Codex 0.133.0:gpt-5.6-sol"
     assert.deepStrictEqual(extractAssistedByTrailers(box), [
-      "Assisted-by: Codex 0.133.0:gpt-5.5",
+      "Assisted-by: Codex 0.133.0:gpt-5.6-sol",
     ])
 
     // Generation completes: preserve a trailer the user added during the wait.
     const generated = "feat: add thing\n\nDetails."
     assert.strictEqual(
       appendAssistedByTrailers(generated, extractAssistedByTrailers(box)),
-      "feat: add thing\n\nDetails.\n\nAssisted-by: Codex 0.133.0:gpt-5.5",
+      "feat: add thing\n\nDetails.\n\nAssisted-by: Codex 0.133.0:gpt-5.6-sol",
     )
 
     // stripAssistedByTrailers leaves only the body (kept out of the refine prompt).
     assert.strictEqual(
       stripAssistedByTrailers(
-        "feat: add thing\n\nDetails.\n\nAssisted-by: Codex 0.133.0:gpt-5.5",
+        "feat: add thing\n\nDetails.\n\nAssisted-by: Codex 0.133.0:gpt-5.6-sol",
       ),
       "feat: add thing\n\nDetails.",
     )
@@ -491,6 +500,38 @@ describe("backend helpers", () => {
     assert.strictEqual(stdin, undefined)
   })
 
+  it("runs Grok Build headlessly without tools", () => {
+    const config = makeConfig({ grokModel: "grok-build" })
+    const { invocation, stdin } = buildInvocation(
+      "/usr/bin/grok",
+      "summarize the diff",
+      config,
+      "grok",
+    )
+
+    assert.ok(invocation.args.includes("--no-auto-update"))
+    assert.ok(invocation.args.includes("--no-memory"))
+    assert.ok(invocation.args.includes("--no-subagents"))
+    assert.ok(invocation.args.includes("--no-plan"))
+    assert.ok(invocation.args.includes("--disable-web-search"))
+    const toolsIndex = invocation.args.indexOf("--tools")
+    assert.deepStrictEqual(invocation.args.slice(toolsIndex, toolsIndex + 6), [
+      "--tools",
+      "",
+      "--max-turns",
+      "1",
+      "--output-format",
+      "plain",
+    ])
+    assert.deepStrictEqual(invocation.args.slice(-4), [
+      "--model",
+      "grok-build",
+      "--single",
+      "summarize the diff",
+    ])
+    assert.strictEqual(stdin, undefined)
+  })
+
   it("uses the configured timeout for each operation", () => {
     const config = makeConfig({
       commitBranchTimeoutSeconds: 75,
@@ -532,7 +573,7 @@ describe("backend helpers", () => {
     assert.strictEqual(changelog.invocation.timeout, 75_000)
   })
 
-  it("uses the fast Codex profile for prompt-only operations", () => {
+  it("uses gpt-5.6-terra with no reasoning for prompt-only operations", () => {
     const config = makeConfig({ codexProvider: "openrouter" })
 
     for (const operation of ["commit", "branch", "changelog"] as const) {
@@ -549,6 +590,7 @@ describe("backend helpers", () => {
 
       assert.ok(disables.includes("plugins"))
       assert.ok(disables.includes("apps"))
+      assert.ok(invocation.args.includes("gpt-5.6-terra"))
       assert.ok(invocation.args.includes('model_reasoning_effort="none"'))
       assert.ok(invocation.args.includes('web_search="disabled"'))
       assert.ok(invocation.args.includes("--output-schema"))
@@ -768,9 +810,11 @@ describe("extension manifest", () => {
     assert.ok(commands.includes("opencodecommit.generatePrOpencode"))
     assert.ok(commands.includes("opencodecommit.generatePrClaude"))
     assert.ok(commands.includes("opencodecommit.generatePrGemini"))
+    assert.ok(commands.includes("opencodecommit.generatePrGrok"))
     assert.ok(commands.includes("opencodecommit.generatePrOpenaiApi"))
     assert.ok(commands.includes("opencodecommit.generatePrCustomApi"))
     assert.ok(commands.includes("opencodecommit.generateAdaptiveOpenaiApi"))
+    assert.ok(commands.includes("opencodecommit.generateAdaptiveGrok"))
     assert.ok(commands.includes("opencodecommit.generateAdaptiveCustomApi"))
 
     const submenus = manifest.contributes.submenus.map(
@@ -780,7 +824,7 @@ describe("extension manifest", () => {
 
     const prBackendMenu =
       manifest.contributes.menus["opencodecommit.prBackendMenu"]
-    assert.strictEqual(prBackendMenu.length, 12)
+    assert.strictEqual(prBackendMenu.length, 13)
   })
 })
 

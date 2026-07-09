@@ -118,6 +118,7 @@ function getCommonPaths(binary: string): string[] {
     `/usr/local/bin/${binary}`,
     `/usr/bin/${binary}`,
     path.join(home, ".local", "bin", binary),
+    path.join(home, ".grok", "bin", binary),
     path.join(home, "bin", binary),
     `/opt/homebrew/bin/${binary}`,
   ]
@@ -235,6 +236,7 @@ const BACKEND_LABELS: Record<CliBackend, string> = {
   claude: "Claude Code CLI",
   codex: "Codex CLI",
   gemini: "Gemini CLI",
+  grok: "Grok Build CLI",
 }
 
 export async function detectCli(
@@ -311,6 +313,8 @@ export function getConfigPath(
       return config.codexPath
     case "gemini":
       return config.geminiPath
+    case "grok":
+      return config.grokPath
   }
 }
 
@@ -412,6 +416,26 @@ function addCodexProvider(args: string[], provider: string): void {
   if (provider) args.push("-c", `model_provider="${provider}"`)
 }
 
+function grokArgs(model: string, prompt: string): string[] {
+  const args = [
+    "--no-auto-update",
+    "--no-memory",
+    "--no-subagents",
+    "--no-plan",
+    "--disable-web-search",
+    "--tools",
+    "",
+    "--max-turns",
+    "1",
+    "--output-format",
+    "plain",
+    "--verbatim",
+  ]
+  if (model) args.push("--model", model)
+  args.push("--single", prompt)
+  return args
+}
+
 export function buildInvocation(
   cliPath: string,
   prompt: string,
@@ -505,6 +529,15 @@ export function buildInvocation(
         },
       }
     }
+
+    case "grok":
+      return {
+        invocation: {
+          command: cliPath,
+          args: grokArgs(config.grokModel, prompt),
+          timeout,
+        },
+      }
   }
 }
 

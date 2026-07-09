@@ -27,7 +27,7 @@ occ_e2e_default_backends_for_profile() {
       echo "custom-api,lm-studio-api"
       ;;
     staging)
-      echo "codex,opencode,claude,gemini,openai-api,anthropic-api,gemini-api,openrouter-api,opencode-api,ollama-api,lm-studio-api,custom-api"
+      echo "codex,opencode,claude,gemini,grok,openai-api,anthropic-api,gemini-api,openrouter-api,opencode-api,ollama-api,lm-studio-api,custom-api"
       ;;
     *)
       echo "unknown profile: $1" >&2
@@ -49,7 +49,7 @@ occ_e2e_trim() {
 
 occ_e2e_is_known_backend() {
   case "${1:-}" in
-    codex|opencode|claude|gemini|openai-api|anthropic-api|gemini-api|openrouter-api|opencode-api|ollama-api|lm-studio-api|custom-api)
+    codex|opencode|claude|gemini|grok|openai-api|anthropic-api|gemini-api|openrouter-api|opencode-api|ollama-api|lm-studio-api|custom-api)
       return 0
       ;;
     *)
@@ -167,28 +167,32 @@ occ_e2e_render_config_for_backends() {
   local ollama_model=${OCC_E2E_OLLAMA_MODEL:-qwen3.5:latest}
 
   local opencode_provider=${OCC_E2E_OPENCODE_PROVIDER:-openai}
-  local opencode_model=${OCC_E2E_OPENCODE_MODEL:-gpt-5.4-mini}
+  local opencode_model=${OCC_E2E_OPENCODE_MODEL:-gpt-5.6-terra}
   local opencode_path=${OCC_E2E_OPENCODE_PATH:-}
   local claude_model=${OCC_E2E_CLAUDE_MODEL:-claude-sonnet-4-6}
   local claude_path=${OCC_E2E_CLAUDE_PATH:-}
-  local codex_model=${OCC_E2E_CODEX_MODEL:-gpt-5.4-mini}
+  local codex_model=${OCC_E2E_CODEX_MODEL:-gpt-5.6-terra}
   local codex_provider=${OCC_E2E_CODEX_PROVIDER:-}
   local codex_path=${OCC_E2E_CODEX_PATH:-}
   local gemini_model=${OCC_E2E_GEMINI_MODEL:-gemini-2.5-flash}
   local gemini_path=${OCC_E2E_GEMINI_PATH:-}
+  local grok_model=${OCC_E2E_GROK_MODEL:-grok-build}
+  local grok_path=${OCC_E2E_GROK_PATH:-}
 
   local opencode_pr_provider=${OCC_E2E_OPENCODE_PR_PROVIDER:-$opencode_provider}
   local opencode_pr_model=${OCC_E2E_OPENCODE_PR_MODEL:-gpt-5.4}
   local opencode_cheap_provider=${OCC_E2E_OPENCODE_CHEAP_PROVIDER:-$opencode_provider}
-  local opencode_cheap_model=${OCC_E2E_OPENCODE_CHEAP_MODEL:-gpt-5.4-mini}
+  local opencode_cheap_model=${OCC_E2E_OPENCODE_CHEAP_MODEL:-gpt-5.6-terra}
   local claude_pr_model=${OCC_E2E_CLAUDE_PR_MODEL:-claude-opus-4-6}
   local claude_cheap_model=${OCC_E2E_CLAUDE_CHEAP_MODEL:-claude-haiku-4-5}
   local codex_pr_provider=${OCC_E2E_CODEX_PR_PROVIDER:-$codex_provider}
   local codex_pr_model=${OCC_E2E_CODEX_PR_MODEL:-gpt-5.4}
   local codex_cheap_provider=${OCC_E2E_CODEX_CHEAP_PROVIDER:-$codex_provider}
-  local codex_cheap_model=${OCC_E2E_CODEX_CHEAP_MODEL:-gpt-5.4-mini}
+  local codex_cheap_model=${OCC_E2E_CODEX_CHEAP_MODEL:-gpt-5.6-terra}
   local gemini_pr_model=${OCC_E2E_GEMINI_PR_MODEL:-gemini-3-flash-preview}
   local gemini_cheap_model=${OCC_E2E_GEMINI_CHEAP_MODEL:-gemini-3.1-flash-lite-preview}
+  local grok_pr_model=${OCC_E2E_GROK_PR_MODEL:-grok-build}
+  local grok_cheap_model=${OCC_E2E_GROK_CHEAP_MODEL:-grok-build}
   local commit_timeout=${OCC_E2E_COMMIT_TIMEOUT_SECONDS:-120}
   local pr_timeout=${OCC_E2E_PR_TIMEOUT_SECONDS:-300}
 
@@ -217,6 +221,8 @@ codex-model = "${codex_model}"
 codex-provider = "${codex_provider}"
 gemini-path = "${gemini_path}"
 gemini-model = "${gemini_model}"
+grok-path = "${grok_path}"
+grok-model = "${grok_model}"
 opencode-pr-provider = "${opencode_pr_provider}"
 opencode-pr-model = "${opencode_pr_model}"
 opencode-cheap-provider = "${opencode_cheap_provider}"
@@ -229,13 +235,15 @@ codex-cheap-provider = "${codex_cheap_provider}"
 codex-cheap-model = "${codex_cheap_model}"
 gemini-pr-model = "${gemini_pr_model}"
 gemini-cheap-model = "${gemini_cheap_model}"
+grok-pr-model = "${grok_pr_model}"
+grok-cheap-model = "${grok_cheap_model}"
 
 [api.openai]
-model = "gpt-5.4-mini"
+model = "gpt-5.6-terra"
 endpoint = "https://api.openai.com/v1/chat/completions"
 key-env = "OPENAI_API_KEY"
 pr-model = "gpt-5.4"
-cheap-model = "gpt-5.4-mini"
+cheap-model = "gpt-5.6-terra"
 
 [api.anthropic]
 model = "claude-sonnet-4-6"
@@ -256,14 +264,14 @@ model = "anthropic/claude-sonnet-4"
 endpoint = "https://openrouter.ai/api/v1/chat/completions"
 key-env = "OPENROUTER_API_KEY"
 pr-model = "openai/gpt-5.4"
-cheap-model = "openai/gpt-5.4-mini"
+cheap-model = "openai/gpt-5.6-terra"
 
 [api.opencode]
-model = "gpt-5.4-mini"
+model = "gpt-5.6-terra"
 endpoint = "https://opencode.ai/zen/v1/chat/completions"
 key-env = "OPENCODE_API_KEY"
 pr-model = "gpt-5.4"
-cheap-model = "gpt-5.4-mini"
+cheap-model = "gpt-5.6-terra"
 
 [api.ollama]
 model = "${ollama_model}"

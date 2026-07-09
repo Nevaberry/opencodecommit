@@ -9,6 +9,7 @@ const STAGING_BACKENDS = [
   "opencode",
   "claude",
   "gemini",
+  "grok",
   "openai-api",
   "anthropic-api",
   "gemini-api",
@@ -166,18 +167,21 @@ function buildSettings(activeBackends: string[]) {
     "opencodecommit.opencodeCLIProvider":
       process.env.OCC_E2E_OPENCODE_PROVIDER ?? "openai",
     "opencodecommit.opencodeCLIModel":
-      process.env.OCC_E2E_OPENCODE_MODEL ?? "gpt-5.4-mini",
+      process.env.OCC_E2E_OPENCODE_MODEL ?? "gpt-5.6-terra",
     "opencodecommit.opencodeCLIPath": process.env.OCC_E2E_OPENCODE_PATH ?? "",
     "opencodecommit.claudeCodeCLIModel":
       process.env.OCC_E2E_CLAUDE_MODEL ?? "claude-sonnet-4-6",
     "opencodecommit.claudeCodeCLIPath": process.env.OCC_E2E_CLAUDE_PATH ?? "",
     "opencodecommit.codexCLIProvider": process.env.OCC_E2E_CODEX_PROVIDER ?? "",
     "opencodecommit.codexCLIModel":
-      process.env.OCC_E2E_CODEX_MODEL ?? "gpt-5.4-mini",
+      process.env.OCC_E2E_CODEX_MODEL ?? "gpt-5.6-terra",
     "opencodecommit.codexCLIPath": process.env.OCC_E2E_CODEX_PATH ?? "",
     "opencodecommit.geminiCLIModel":
       process.env.OCC_E2E_GEMINI_MODEL ?? "gemini-2.5-flash",
     "opencodecommit.geminiCLIPath": process.env.OCC_E2E_GEMINI_PATH ?? "",
+    "opencodecommit.grokCLIModel":
+      process.env.OCC_E2E_GROK_MODEL ?? "grok-build",
+    "opencodecommit.grokCLIPath": process.env.OCC_E2E_GROK_PATH ?? "",
     "opencodecommit.opencodePRProvider":
       process.env.OCC_E2E_OPENCODE_PR_PROVIDER ??
       process.env.OCC_E2E_OPENCODE_PROVIDER ??
@@ -189,7 +193,7 @@ function buildSettings(activeBackends: string[]) {
       process.env.OCC_E2E_OPENCODE_PROVIDER ??
       "openai",
     "opencodecommit.opencodeCheapModel":
-      process.env.OCC_E2E_OPENCODE_CHEAP_MODEL ?? "gpt-5.4-mini",
+      process.env.OCC_E2E_OPENCODE_CHEAP_MODEL ?? "gpt-5.6-terra",
     "opencodecommit.claudePRModel":
       process.env.OCC_E2E_CLAUDE_PR_MODEL ?? "claude-opus-4-6",
     "opencodecommit.claudeCheapModel":
@@ -205,11 +209,15 @@ function buildSettings(activeBackends: string[]) {
       process.env.OCC_E2E_CODEX_PROVIDER ??
       "",
     "opencodecommit.codexCheapModel":
-      process.env.OCC_E2E_CODEX_CHEAP_MODEL ?? "gpt-5.4-mini",
+      process.env.OCC_E2E_CODEX_CHEAP_MODEL ?? "gpt-5.6-terra",
     "opencodecommit.geminiPRModel":
       process.env.OCC_E2E_GEMINI_PR_MODEL ?? "gemini-3-flash-preview",
     "opencodecommit.geminiCheapModel":
       process.env.OCC_E2E_GEMINI_CHEAP_MODEL ?? "gemini-3.1-flash-lite-preview",
+    "opencodecommit.grokPRModel":
+      process.env.OCC_E2E_GROK_PR_MODEL ?? "grok-build",
+    "opencodecommit.grokCheapModel":
+      process.env.OCC_E2E_GROK_CHEAP_MODEL ?? "grok-build",
     "opencodecommit.api.custom": {
       model: llamaModel,
       endpoint: llamaBaseUrl,

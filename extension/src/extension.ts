@@ -71,6 +71,7 @@ const ONE_SHOT_BACKENDS: Array<{ backend: Backend; suffix: string }> = [
   { backend: "opencode", suffix: "Opencode" },
   { backend: "claude", suffix: "Claude" },
   { backend: "gemini", suffix: "Gemini" },
+  { backend: "grok", suffix: "Grok" },
   { backend: "openai-api", suffix: "OpenaiApi" },
   { backend: "anthropic-api", suffix: "AnthropicApi" },
   { backend: "gemini-api", suffix: "GeminiApi" },
@@ -650,7 +651,7 @@ async function appendAssistedByCustom(arg?: { rootUri?: vscode.Uri }) {
     if (!agent?.trim()) return
     const model = await vscode.window.showInputBox({
       prompt: "User-confirmed model",
-      placeHolder: "gpt-5.5",
+      placeHolder: "gpt-5.6-sol",
     })
     if (!model?.trim()) return
     await appendAssistedByRows(repo, [
@@ -883,16 +884,12 @@ export async function activate(context: vscode.ExtensionContext) {
       manualCommitOnce(arg),
     ),
     vscode.commands.registerCommand(
-      "opencodecommit.assistedByCodexGpt",
-      (arg) => appendAssistedByQuick("GPT", arg),
-    ),
-    vscode.commands.registerCommand(
       "opencodecommit.assistedByCodexSol",
       (arg) => appendAssistedByQuick("Sol", arg),
     ),
     vscode.commands.registerCommand(
-      "opencodecommit.assistedByCodexTerra",
-      (arg) => appendAssistedByQuick("Terra", arg),
+      "opencodecommit.assistedByGrokBuild",
+      (arg) => appendAssistedByQuick("Build Grok", arg),
     ),
     vscode.commands.registerCommand(
       "opencodecommit.assistedByClaudeOpus",

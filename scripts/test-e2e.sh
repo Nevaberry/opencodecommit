@@ -91,6 +91,10 @@ prepare_backend_requirements() {
         occ_e2e_require_cmd gemini
         export OCC_E2E_GEMINI_PATH=${OCC_E2E_GEMINI_PATH:-$(command -v gemini)}
         ;;
+      grok)
+        occ_e2e_require_cmd grok
+        export OCC_E2E_GROK_PATH=${OCC_E2E_GROK_PATH:-$(command -v grok)}
+        ;;
       openai-api)
         occ_e2e_require_env OPENAI_API_KEY
         ;;

@@ -15,7 +15,7 @@ const lastSpawnEnvPath = path.join(fixtureWorkspacePath, ".occ-last-spawn.json")
 process.env.OCC_E2E_LAST_SPAWN_ENV_PATH = lastSpawnEnvPath
 
 const codexPath = process.env.OCC_E2E_CODEX_PATH ?? ""
-const codexModel = process.env.OCC_E2E_CODEX_MODEL ?? "gpt-5.4-mini"
+const codexModel = process.env.OCC_E2E_CODEX_MODEL ?? "gpt-5.6-terra"
 const codexProvider = process.env.OCC_E2E_CODEX_PROVIDER ?? ""
 
 const headless = process.env.HEADLESS === "1"

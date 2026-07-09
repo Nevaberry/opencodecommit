@@ -180,6 +180,7 @@ fn backend_short_label(backend: Backend) -> &'static str {
         Backend::Claude => "Claude",
         Backend::Codex => "Codex",
         Backend::Gemini => "Gemini",
+        Backend::Grok => "Grok Build",
         Backend::OpenaiApi => "OpenAI API",
         Backend::AnthropicApi => "Anthropic API",
         Backend::GeminiApi => "Gemini API",
@@ -197,6 +198,7 @@ fn backend_menu_shortcut(index: usize) -> char {
         9 => 'a',
         10 => 'b',
         11 => 'c',
+        12 => 'd',
         _ => '?',
     }
 }

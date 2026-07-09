@@ -1,6 +1,6 @@
 import type { Event, Uri } from "vscode"
 
-export type CliBackend = "opencode" | "claude" | "codex" | "gemini"
+export type CliBackend = "opencode" | "claude" | "codex" | "gemini" | "grok"
 export type ApiBackend =
   | "openai-api"
   | "anthropic-api"
@@ -96,10 +96,12 @@ export interface ExtensionConfig {
   claudePath: string
   codexPath: string
   geminiPath: string
+  grokPath: string
   claudeModel: string
   codexModel: string
   codexProvider: string
   geminiModel: string
+  grokModel: string
   opencodePrProvider: string
   opencodePrModel: string
   opencodeCheapProvider: string
@@ -112,6 +114,8 @@ export interface ExtensionConfig {
   codexCheapModel: string
   geminiPrModel: string
   geminiCheapModel: string
+  grokPrModel: string
+  grokCheapModel: string
   prBaseBranch: string
   backendOrder: Backend[]
   branchMode: BranchMode

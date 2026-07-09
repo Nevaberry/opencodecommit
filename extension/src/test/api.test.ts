@@ -57,7 +57,7 @@ describe("API execution", () => {
       {
         endpoint: "https://api.openai.com",
         apiKey: "sk-test",
-        model: "gpt-5.4-mini",
+        model: "gpt-5.6-terra",
         prompt: "summarize the diff",
         maxTokens: 128,
         timeoutMs: 5_000,
@@ -75,7 +75,7 @@ describe("API execution", () => {
         ?.Authorization,
       "Bearer sk-test",
     )
-    assert.match(String(calls[0]?.init.body), /"model":"gpt-5\.4-mini"/)
+    assert.match(String(calls[0]?.init.body), /"model":"gpt-5\.6-terra"/)
   })
 
   it("executes Gemini with the API key in the query string", async () => {

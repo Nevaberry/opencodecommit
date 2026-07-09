@@ -21,7 +21,7 @@ OpenCodeCommit is for teams and solo developers who want:
 - PR drafts and changelog entries without another browser round trip
 - local-first safety checks before any diff reaches an AI provider
 - one config shared by the extension, CLI, TUI, and CI scanner
-- fallback across Codex, OpenCode, Claude, Gemini, hosted APIs, and local OpenAI-compatible endpoints
+- fallback across Codex, OpenCode, Claude, Gemini, Grok Build, hosted APIs, and local OpenAI-compatible endpoints
 
 ## Install
 
@@ -114,7 +114,7 @@ Commits can also carry `Assisted-by` trailers that attribute the AI harness and 
 feat(monitor): clamp ECG sampling window
 
 OCC-Evidence: repo:.occ/evidence/2026/06/20260623T091205Z-a1b2c3d.toml
-Assisted-by: Codex 0.133.0:gpt-5.5
+Assisted-by: Codex 0.133.0:gpt-5.6-sol
 Assisted-by: Claude Code 2.1.0:claude-opus-4.8
 ```
 

@@ -1119,6 +1119,7 @@ const AGENT_COMMANDS: &[(&str, &str, &[&str])] = &[
     ("claude", "claude", &["-v"]),
     ("opencode", "opencode", &["--version"]),
     ("gemini", "gemini", &["--version"]),
+    ("grok", "grok", &["--version"]),
     ("antigravity", "antigravity", &["--version"]),
 ];
 
@@ -1242,10 +1243,10 @@ mod tests {
     fn assisted_by_trailer_uses_requested_format() {
         let trailer = assisted_by_trailer(&AssistedByInput {
             agent: "Codex".to_owned(),
-            model: "GPT-5.5".to_owned(),
+            model: "GPT-5.6-sol".to_owned(),
             version: Some("0.133.0".to_owned()),
         });
-        assert_eq!(trailer, "Assisted-by: Codex 0.133.0:GPT-5.5");
+        assert_eq!(trailer, "Assisted-by: Codex 0.133.0:GPT-5.6-sol");
     }
 
     #[test]
@@ -1256,11 +1257,10 @@ mod tests {
         assert_eq!(config.harnesses[1], "Claude Code");
         assert!(config.harnesses.contains(&"GitHub Copilot".to_owned()));
         assert!(config.models.contains(&"claude-opus-4.8".to_owned()));
-        assert!(config.models.contains(&"gpt-5.5-pro".to_owned()));
-        assert!(config.models.contains(&"openai/gpt-5.5-pro".to_owned()));
         assert!(config.models.contains(&"gpt-5.6-sol".to_owned()));
         assert!(config.models.contains(&"gpt-5.6-terra".to_owned()));
         assert!(config.models.contains(&"gpt-5.6-luna".to_owned()));
+        assert!(config.models.contains(&"grok-build".to_owned()));
         assert!(config.models.contains(&"composer-2.5".to_owned()));
         assert!(config.models.contains(&"big-pickle".to_owned()));
         assert!(!config.models.contains(&"opus-4.8".to_owned()));
@@ -1275,7 +1275,7 @@ mod tests {
                 .iter()
                 .map(|option| option.label.as_str())
                 .collect::<Vec<_>>(),
-            vec!["GPT", "Sol", "Terra", "Opus", "Fable"]
+            vec!["Sol", "Opus", "Fable", "Build Grok"]
         );
         assert_eq!(
             config
@@ -1284,14 +1284,6 @@ mod tests {
                 .find(|option| option.label == "Sol")
                 .map(|option| option.model.as_str()),
             Some("gpt-5.6-sol")
-        );
-        assert_eq!(
-            config
-                .quick
-                .iter()
-                .find(|option| option.label == "Terra")
-                .map(|option| option.model.as_str()),
-            Some("gpt-5.6-terra")
         );
         assert_eq!(
             config
@@ -1308,6 +1300,14 @@ mod tests {
                 .find(|option| option.label == "Fable")
                 .map(|option| option.model.as_str()),
             Some("claude-fable-5.0")
+        );
+        assert_eq!(
+            config
+                .quick
+                .iter()
+                .find(|option| option.label == "Build Grok")
+                .map(|option| (option.agent.as_str(), option.model.as_str())),
+            Some(("Grok Build", "grok-build"))
         );
     }
 
@@ -1337,13 +1337,13 @@ mod tests {
         let out = append_trailers(
             "feat: x\n\nBody.",
             &[
-                "Assisted-by: Codex 0.133.0:gpt-5.5".to_owned(),
+                "Assisted-by: Codex 0.133.0:gpt-5.6-sol".to_owned(),
                 "Assisted-by: Claude Code 2.1.0:claude-opus-4.8".to_owned(),
             ],
         );
         assert_eq!(
             out,
-            "feat: x\n\nBody.\n\nAssisted-by: Codex 0.133.0:gpt-5.5\nAssisted-by: Claude Code 2.1.0:claude-opus-4.8\n"
+            "feat: x\n\nBody.\n\nAssisted-by: Codex 0.133.0:gpt-5.6-sol\nAssisted-by: Claude Code 2.1.0:claude-opus-4.8\n"
         );
     }
 
@@ -1351,11 +1351,11 @@ mod tests {
     fn assisted_by_blank_line_after_oneliner_subject() {
         let out = append_trailers(
             "fix: rename foo",
-            &["Assisted-by: Codex 0.133.0:gpt-5.5".to_owned()],
+            &["Assisted-by: Codex 0.133.0:gpt-5.6-sol".to_owned()],
         );
         assert_eq!(
             out,
-            "fix: rename foo\n\nAssisted-by: Codex 0.133.0:gpt-5.5\n"
+            "fix: rename foo\n\nAssisted-by: Codex 0.133.0:gpt-5.6-sol\n"
         );
     }
 

@@ -68,18 +68,13 @@
         "icon": "$(check)"
       },
       {
-        "command": "opencodecommit.assistedByCodexGpt",
-        "title": "Codex GPT-5.5",
-        "category": "Assisted-by"
-      },
-      {
         "command": "opencodecommit.assistedByCodexSol",
         "title": "Codex Sol",
         "category": "Assisted-by"
       },
       {
-        "command": "opencodecommit.assistedByCodexTerra",
-        "title": "Codex Terra",
+        "command": "opencodecommit.assistedByGrokBuild",
+        "title": "Build Grok",
         "category": "Assisted-by"
       },
       {
@@ -186,6 +181,14 @@
       {
         "command": "opencodecommit.generatePrGemini",
         "title": "Generate PR via Gemini"
+      },
+      {
+        "command": "opencodecommit.generateAdaptiveGrok",
+        "title": "Generate Adaptive via Grok Build"
+      },
+      {
+        "command": "opencodecommit.generatePrGrok",
+        "title": "Generate PR via Grok Build"
       },
       {
         "command": "opencodecommit.generateAdaptiveOpenaiApi",
@@ -368,24 +371,20 @@
       ],
       "opencodecommit.assistedByMenu": [
         {
-          "command": "opencodecommit.assistedByCodexGpt",
+          "command": "opencodecommit.assistedByCodexSol",
           "group": "1_quick@1"
         },
         {
-          "command": "opencodecommit.assistedByCodexSol",
+          "command": "opencodecommit.assistedByClaudeOpus",
           "group": "1_quick@2"
         },
         {
-          "command": "opencodecommit.assistedByCodexTerra",
+          "command": "opencodecommit.assistedByClaudeFable",
           "group": "1_quick@3"
         },
         {
-          "command": "opencodecommit.assistedByClaudeOpus",
+          "command": "opencodecommit.assistedByGrokBuild",
           "group": "1_quick@4"
-        },
-        {
-          "command": "opencodecommit.assistedByClaudeFable",
-          "group": "1_quick@5"
         },
         {
           "command": "opencodecommit.assistedByPick",
@@ -411,6 +410,10 @@
         },
         {
           "command": "opencodecommit.generateAdaptiveGemini",
+          "group": "1_backend"
+        },
+        {
+          "command": "opencodecommit.generateAdaptiveGrok",
           "group": "1_backend"
         },
         {
@@ -461,6 +464,10 @@
         },
         {
           "command": "opencodecommit.generatePrGemini",
+          "group": "1_backend"
+        },
+        {
+          "command": "opencodecommit.generatePrGrok",
           "group": "1_backend"
         },
         {
@@ -517,8 +524,8 @@
         "opencodecommit.codexCLIModel": {
           "order": 21,
           "type": "string",
-          "default": "gpt-5.4-mini",
-          "description": "Codex CLI model (e.g. gpt-5.4-mini). Passed as -m to codex CLI.",
+          "default": "gpt-5.6-terra",
+          "description": "Codex CLI model (e.g. gpt-5.6-terra). Passed as -m to codex CLI.",
           "scope": "machine"
         },
         "opencodecommit.codexCLIPath": {
@@ -538,8 +545,8 @@
         "opencodecommit.opencodeCLIModel": {
           "order": 24,
           "type": "string",
-          "default": "gpt-5.4-mini",
-          "description": "OpenCode CLI model (e.g. gpt-5.4-mini, claude-sonnet-4-6). Used as provider/model with the provider setting.",
+          "default": "gpt-5.6-terra",
+          "description": "OpenCode CLI model (e.g. gpt-5.6-terra, claude-sonnet-4-6). Used as provider/model with the provider setting.",
           "scope": "machine"
         },
         "opencodecommit.opencodeCLIPath": {
@@ -601,7 +608,7 @@
         "opencodecommit.opencodeCheapModel": {
           "order": 33,
           "type": "string",
-          "default": "gpt-5.4-mini",
+          "default": "gpt-5.6-terra",
           "description": "OpenCode model for the cheap PR summarization step.",
           "scope": "machine"
         },
@@ -643,7 +650,7 @@
         "opencodecommit.codexCheapModel": {
           "order": 39,
           "type": "string",
-          "default": "gpt-5.4-mini",
+          "default": "gpt-5.6-terra",
           "description": "Codex model for the cheap PR summarization step.",
           "scope": "machine"
         },
@@ -668,6 +675,34 @@
           "description": "Optional base branch override for PR generation. Leave empty to auto-detect.",
           "scope": "machine"
         },
+        "opencodecommit.grokCLIModel": {
+          "order": 43,
+          "type": "string",
+          "default": "grok-build",
+          "description": "Grok Build CLI model key. Passed as --model to grok CLI.",
+          "scope": "machine"
+        },
+        "opencodecommit.grokCLIPath": {
+          "order": 44,
+          "type": "string",
+          "default": "",
+          "description": "Grok Build CLI path. Auto-detected if empty.",
+          "scope": "machine"
+        },
+        "opencodecommit.grokPRModel": {
+          "order": 45,
+          "type": "string",
+          "default": "grok-build",
+          "description": "Grok Build model for the final PR generation step.",
+          "scope": "machine"
+        },
+        "opencodecommit.grokCheapModel": {
+          "order": 46,
+          "type": "string",
+          "default": "grok-build",
+          "description": "Grok Build model for the cheap PR summarization step.",
+          "scope": "machine"
+        },
         "opencodecommit.backendOrder": {
           "order": 4,
           "type": "array",
@@ -678,6 +713,7 @@
               "opencode",
               "claude",
               "gemini",
+              "grok",
               "openai-api",
               "anthropic-api",
               "gemini-api",
@@ -692,6 +728,7 @@
               "OpenCode CLI",
               "Claude Code CLI",
               "Gemini CLI",
+              "Grok Build CLI",
               "OpenAI API",
               "Anthropic API",
               "Gemini API",
@@ -706,7 +743,8 @@
             "codex",
             "opencode",
             "claude",
-            "gemini"
+            "gemini",
+            "grok"
           ],
           "description": "Backend fallback order. Tries each CLI or direct API backend in sequence until one succeeds. The first entry is the primary default.",
           "scope": "machine"
@@ -1040,21 +1078,21 @@
           "scope": "machine"
         },
         "opencodecommit.api.openai": {
-          "order": 43,
+          "order": 47,
           "type": "object",
           "scope": "machine",
           "additionalProperties": false,
           "default": {
-            "model": "gpt-5.4-mini",
+            "model": "gpt-5.6-terra",
             "endpoint": "https://api.openai.com/v1/chat/completions",
             "keyEnv": "OPENAI_API_KEY",
             "prModel": "gpt-5.4",
-            "cheapModel": "gpt-5.4-mini"
+            "cheapModel": "gpt-5.6-terra"
           },
           "properties": {
             "model": {
               "type": "string",
-              "default": "gpt-5.4-mini",
+              "default": "gpt-5.6-terra",
               "description": "Primary model for commit, refine, branch, and changelog generation."
             },
             "endpoint": {
@@ -1074,14 +1112,14 @@
             },
             "cheapModel": {
               "type": "string",
-              "default": "gpt-5.4-mini",
+              "default": "gpt-5.6-terra",
               "description": "Model for the cheap PR summarization step. Falls back to model when empty."
             }
           },
           "markdownDescription": "OpenAI API backend configuration. Mirrors `[api.openai]` in `config.toml`."
         },
         "opencodecommit.api.anthropic": {
-          "order": 44,
+          "order": 48,
           "type": "object",
           "scope": "machine",
           "additionalProperties": false,
@@ -1122,7 +1160,7 @@
           "markdownDescription": "Anthropic API backend configuration. Mirrors `[api.anthropic]` in `config.toml`."
         },
         "opencodecommit.api.gemini": {
-          "order": 45,
+          "order": 49,
           "type": "object",
           "scope": "machine",
           "additionalProperties": false,
@@ -1163,7 +1201,7 @@
           "markdownDescription": "Google Gemini API backend configuration. Mirrors `[api.gemini]` in `config.toml`."
         },
         "opencodecommit.api.openrouter": {
-          "order": 46,
+          "order": 50,
           "type": "object",
           "scope": "machine",
           "additionalProperties": false,
@@ -1172,7 +1210,7 @@
             "endpoint": "https://openrouter.ai/api/v1/chat/completions",
             "keyEnv": "OPENROUTER_API_KEY",
             "prModel": "openai/gpt-5.4",
-            "cheapModel": "openai/gpt-5.4-mini"
+            "cheapModel": "openai/gpt-5.6-terra"
           },
           "properties": {
             "model": {
@@ -1197,28 +1235,28 @@
             },
             "cheapModel": {
               "type": "string",
-              "default": "openai/gpt-5.4-mini",
+              "default": "openai/gpt-5.6-terra",
               "description": "Model for the cheap PR summarization step. Falls back to model when empty."
             }
           },
           "markdownDescription": "OpenRouter API backend configuration. Mirrors `[api.openrouter]` in `config.toml`."
         },
         "opencodecommit.api.opencode": {
-          "order": 47,
+          "order": 51,
           "type": "object",
           "scope": "machine",
           "additionalProperties": false,
           "default": {
-            "model": "gpt-5.4-mini",
+            "model": "gpt-5.6-terra",
             "endpoint": "https://opencode.ai/zen/v1/chat/completions",
             "keyEnv": "OPENCODE_API_KEY",
             "prModel": "gpt-5.4",
-            "cheapModel": "gpt-5.4-mini"
+            "cheapModel": "gpt-5.6-terra"
           },
           "properties": {
             "model": {
               "type": "string",
-              "default": "gpt-5.4-mini",
+              "default": "gpt-5.6-terra",
               "description": "Primary model for commit, refine, branch, and changelog generation."
             },
             "endpoint": {
@@ -1238,14 +1276,14 @@
             },
             "cheapModel": {
               "type": "string",
-              "default": "gpt-5.4-mini",
+              "default": "gpt-5.6-terra",
               "description": "Model for the cheap PR summarization step. Falls back to model when empty."
             }
           },
           "markdownDescription": "OpenCode Zen API backend configuration. Mirrors `[api.opencode]` in `config.toml`."
         },
         "opencodecommit.api.ollama": {
-          "order": 48,
+          "order": 52,
           "type": "object",
           "scope": "machine",
           "additionalProperties": false,
@@ -1286,7 +1324,7 @@
           "markdownDescription": "Ollama API backend configuration. Leave model empty to auto-detect the first available local model."
         },
         "opencodecommit.api.lmStudio": {
-          "order": 49,
+          "order": 53,
           "type": "object",
           "scope": "machine",
           "additionalProperties": false,
@@ -1327,7 +1365,7 @@
           "markdownDescription": "LM Studio API backend configuration. Leave model empty to auto-detect the first available local model."
         },
         "opencodecommit.api.custom": {
-          "order": 50,
+          "order": 54,
           "type": "object",
           "scope": "machine",
           "additionalProperties": false,

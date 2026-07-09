@@ -870,8 +870,8 @@ mod tests {
             let cfg = Config {
                 backend: Backend::Codex,
                 codex_path: cli.to_string_lossy().to_string(),
-                codex_model: "gpt-5.4-mini".to_owned(),
-                codex_pr_model: "gpt-5.4-mini".to_owned(),
+                codex_model: "gpt-5.6-terra".to_owned(),
+                codex_pr_model: "gpt-5.6-terra".to_owned(),
                 backend_order: vec![Backend::Codex],
                 ..Config::default()
             };

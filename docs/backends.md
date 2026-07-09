@@ -11,6 +11,7 @@ npm i -g @openai/codex
 npm i -g opencode
 npm i -g @anthropic-ai/claude-code
 npm i -g @google/gemini-cli
+curl -fsSL https://x.ai/cli/install.sh | bash
 ```
 
 Supported CLI backends:
@@ -18,11 +19,12 @@ Supported CLI backends:
 - OpenCode CLI
 - Claude Code CLI
 - Gemini CLI
+- Grok Build CLI
 
 The default backend order is:
 
 ```toml
-backend-order = ["codex", "opencode", "claude", "gemini"]
+backend-order = ["codex", "opencode", "claude", "gemini", "grok"]
 ```
 
 OpenCodeCommit tries each backend in order until one succeeds.
@@ -48,11 +50,11 @@ backend = "openai-api"
 backend-order = ["codex", "openai-api", "ollama-api"]
 
 [api.openai]
-model = "gpt-5.4-mini"
+model = "gpt-5.6-terra"
 endpoint = "https://api.openai.com/v1/chat/completions"
 key-env = "OPENAI_API_KEY"
 pr-model = "gpt-5.4"
-cheap-model = "gpt-5.4-mini"
+cheap-model = "gpt-5.6-terra"
 
 [api.ollama]
 model = ""
@@ -66,4 +68,6 @@ Commit, refine, branch, and changelog generation use the primary backend model.
 
 PR generation can use a stronger model for final writing and a cheaper model for summarization. Configure `pr-model` and `cheap-model` in the relevant backend section.
 
-Codex one-shot tasks use a fast, prompt-only profile. PR generation keeps the more conservative quality profile.
+Codex one-shot tasks use a fast, prompt-only profile. The default `gpt-5.6-terra` commit model runs with reasoning effort `none`; PR generation keeps the more conservative quality profile.
+
+Grok Build uses its `grok-build` model key in headless single-prompt mode. OpenCodeCommit disables auto-updates, tools, memory, subagents, planning, and web search for these runs because all required diff context is already in the prompt.

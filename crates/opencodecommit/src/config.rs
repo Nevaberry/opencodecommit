@@ -18,6 +18,7 @@ pub enum CliBackend {
     Claude,
     Codex,
     Gemini,
+    Grok,
 }
 
 impl fmt::Display for CliBackend {
@@ -27,6 +28,7 @@ impl fmt::Display for CliBackend {
             CliBackend::Claude => write!(f, "claude"),
             CliBackend::Codex => write!(f, "codex"),
             CliBackend::Gemini => write!(f, "gemini"),
+            CliBackend::Grok => write!(f, "grok"),
         }
     }
 }
@@ -39,6 +41,7 @@ pub enum Backend {
     Claude,
     Codex,
     Gemini,
+    Grok,
     OpenaiApi,
     AnthropicApi,
     GeminiApi,
@@ -50,11 +53,12 @@ pub enum Backend {
 }
 
 impl Backend {
-    pub const ALL: [Backend; 12] = [
+    pub const ALL: [Backend; 13] = [
         Backend::Opencode,
         Backend::Claude,
         Backend::Codex,
         Backend::Gemini,
+        Backend::Grok,
         Backend::OpenaiApi,
         Backend::AnthropicApi,
         Backend::GeminiApi,
@@ -79,6 +83,7 @@ impl Backend {
             Backend::Claude => Some(CliBackend::Claude),
             Backend::Codex => Some(CliBackend::Codex),
             Backend::Gemini => Some(CliBackend::Gemini),
+            Backend::Grok => Some(CliBackend::Grok),
             Backend::OpenaiApi
             | Backend::AnthropicApi
             | Backend::GeminiApi
@@ -96,6 +101,7 @@ impl Backend {
             Backend::Claude => "Claude Code CLI",
             Backend::Codex => "Codex CLI",
             Backend::Gemini => "Gemini CLI",
+            Backend::Grok => "Grok Build CLI",
             Backend::OpenaiApi => "OpenAI API",
             Backend::AnthropicApi => "Anthropic API",
             Backend::GeminiApi => "Gemini API",
@@ -115,6 +121,7 @@ impl fmt::Display for Backend {
             Backend::Claude => write!(f, "claude"),
             Backend::Codex => write!(f, "codex"),
             Backend::Gemini => write!(f, "gemini"),
+            Backend::Grok => write!(f, "grok"),
             Backend::OpenaiApi => write!(f, "openai-api"),
             Backend::AnthropicApi => write!(f, "anthropic-api"),
             Backend::GeminiApi => write!(f, "gemini-api"),
@@ -134,6 +141,7 @@ impl From<CliBackend> for Backend {
             CliBackend::Claude => Backend::Claude,
             CliBackend::Codex => Backend::Codex,
             CliBackend::Gemini => Backend::Gemini,
+            CliBackend::Grok => Backend::Grok,
         }
     }
 }
@@ -355,6 +363,12 @@ pub struct Config {
     #[serde(default = "default_gemini_model")]
     pub gemini_model: String,
 
+    #[serde(default)]
+    pub grok_path: String,
+
+    #[serde(default = "default_grok_model")]
+    pub grok_model: String,
+
     // --- PR pipeline models ---
     #[serde(default = "default_opencode_pr_provider")]
     pub opencode_pr_provider: String,
@@ -391,6 +405,12 @@ pub struct Config {
 
     #[serde(default = "default_gemini_cheap_model")]
     pub gemini_cheap_model: String,
+
+    #[serde(default = "default_grok_pr_model")]
+    pub grok_pr_model: String,
+
+    #[serde(default = "default_grok_cheap_model")]
+    pub grok_cheap_model: String,
 
     #[serde(default)]
     pub pr_base_branch: String,
@@ -456,6 +476,7 @@ fn default_backend_order() -> Vec<Backend> {
         Backend::Opencode,
         Backend::Claude,
         Backend::Gemini,
+        Backend::Grok,
     ]
 }
 
@@ -468,7 +489,7 @@ fn default_provider() -> String {
 }
 
 fn default_model() -> String {
-    model_catalog_backend_default("opencode", "commit_model", "gpt-5.4-mini")
+    model_catalog_backend_default("opencode", "commit_model", "gpt-5.6-terra")
 }
 
 fn default_claude_model() -> String {
@@ -476,11 +497,15 @@ fn default_claude_model() -> String {
 }
 
 fn default_codex_model() -> String {
-    model_catalog_backend_default("codex", "commit_model", "gpt-5.4-mini")
+    model_catalog_backend_default("codex", "commit_model", "gpt-5.6-terra")
 }
 
 fn default_gemini_model() -> String {
     model_catalog_backend_default("gemini", "commit_model", "gemini-2.5-flash")
+}
+
+fn default_grok_model() -> String {
+    model_catalog_backend_default("grok", "commit_model", "grok-build")
 }
 
 fn default_diff_source() -> DiffSource {
@@ -528,7 +553,7 @@ fn default_opencode_cheap_provider() -> String {
 }
 
 fn default_opencode_cheap_model() -> String {
-    model_catalog_backend_default("opencode", "cheap_model", "gpt-5.4-mini")
+    model_catalog_backend_default("opencode", "cheap_model", "gpt-5.6-terra")
 }
 
 fn default_claude_pr_model() -> String {
@@ -544,7 +569,7 @@ fn default_codex_pr_model() -> String {
 }
 
 fn default_codex_cheap_model() -> String {
-    model_catalog_backend_default("codex", "cheap_model", "gpt-5.4-mini")
+    model_catalog_backend_default("codex", "cheap_model", "gpt-5.6-terra")
 }
 
 fn default_gemini_pr_model() -> String {
@@ -553,6 +578,14 @@ fn default_gemini_pr_model() -> String {
 
 fn default_gemini_cheap_model() -> String {
     model_catalog_backend_default("gemini", "cheap_model", "gemini-3.1-flash-lite-preview")
+}
+
+fn default_grok_pr_model() -> String {
+    model_catalog_backend_default("grok", "pr_model", "grok-build")
+}
+
+fn default_grok_cheap_model() -> String {
+    model_catalog_backend_default("grok", "cheap_model", "grok-build")
 }
 
 fn model_catalog_backend_default(backend: &str, tier: &str, fallback: &str) -> String {
@@ -571,11 +604,11 @@ fn model_catalog_backend_default(backend: &str, tier: &str, fallback: &str) -> S
 
 fn default_openai_api_config() -> ApiProviderConfig {
     ApiProviderConfig {
-        model: "gpt-5.4-mini".to_owned(),
+        model: "gpt-5.6-terra".to_owned(),
         endpoint: "https://api.openai.com/v1/chat/completions".to_owned(),
         key_env: "OPENAI_API_KEY".to_owned(),
         pr_model: "gpt-5.4".to_owned(),
-        cheap_model: "gpt-5.4-mini".to_owned(),
+        cheap_model: "gpt-5.6-terra".to_owned(),
     }
 }
 
@@ -605,17 +638,17 @@ fn default_openrouter_api_config() -> ApiProviderConfig {
         endpoint: "https://openrouter.ai/api/v1/chat/completions".to_owned(),
         key_env: "OPENROUTER_API_KEY".to_owned(),
         pr_model: "openai/gpt-5.4".to_owned(),
-        cheap_model: "openai/gpt-5.4-mini".to_owned(),
+        cheap_model: "openai/gpt-5.6-terra".to_owned(),
     }
 }
 
 fn default_opencode_api_config() -> ApiProviderConfig {
     ApiProviderConfig {
-        model: "gpt-5.4-mini".to_owned(),
+        model: "gpt-5.6-terra".to_owned(),
         endpoint: "https://opencode.ai/zen/v1/chat/completions".to_owned(),
         key_env: "OPENCODE_API_KEY".to_owned(),
         pr_model: "gpt-5.4".to_owned(),
-        cheap_model: "gpt-5.4-mini".to_owned(),
+        cheap_model: "gpt-5.6-terra".to_owned(),
     }
 }
 
@@ -666,6 +699,8 @@ impl Default for Config {
             codex_provider: String::new(),
             gemini_path: String::new(),
             gemini_model: default_gemini_model(),
+            grok_path: String::new(),
+            grok_model: default_grok_model(),
             opencode_pr_provider: default_opencode_pr_provider(),
             opencode_pr_model: default_opencode_pr_model(),
             opencode_cheap_provider: default_opencode_cheap_provider(),
@@ -678,6 +713,8 @@ impl Default for Config {
             codex_cheap_provider: String::new(),
             gemini_pr_model: default_gemini_pr_model(),
             gemini_cheap_model: default_gemini_cheap_model(),
+            grok_pr_model: default_grok_pr_model(),
+            grok_cheap_model: default_grok_cheap_model(),
             pr_base_branch: String::new(),
             branch_mode: BranchMode::default(),
             diff_source: default_diff_source(),
@@ -789,6 +826,7 @@ impl Config {
             CliBackend::Claude => &self.claude_path,
             CliBackend::Codex => &self.codex_path,
             CliBackend::Gemini => &self.gemini_path,
+            CliBackend::Grok => &self.grok_path,
         }
     }
 
@@ -828,6 +866,7 @@ impl Config {
             Backend::Claude => &self.claude_model,
             Backend::Codex => &self.codex_model,
             Backend::Gemini => &self.gemini_model,
+            Backend::Grok => &self.grok_model,
             Backend::OpenaiApi => &self.api.openai.model,
             Backend::AnthropicApi => &self.api.anthropic.model,
             Backend::GeminiApi => &self.api.gemini.model,
@@ -845,6 +884,7 @@ impl Config {
             Backend::Claude => &self.claude_pr_model,
             Backend::Codex => &self.codex_pr_model,
             Backend::Gemini => &self.gemini_pr_model,
+            Backend::Grok => &self.grok_pr_model,
             Backend::OpenaiApi => fallback_str(&self.api.openai.pr_model, &self.api.openai.model),
             Backend::AnthropicApi => {
                 fallback_str(&self.api.anthropic.pr_model, &self.api.anthropic.model)
@@ -870,6 +910,7 @@ impl Config {
             Backend::Claude => &self.claude_cheap_model,
             Backend::Codex => &self.codex_cheap_model,
             Backend::Gemini => &self.gemini_cheap_model,
+            Backend::Grok => &self.grok_cheap_model,
             Backend::OpenaiApi => {
                 fallback_str(&self.api.openai.cheap_model, &self.api.openai.model)
             }
@@ -923,7 +964,11 @@ impl Config {
             Backend::OllamaApi => Some(&self.api.ollama),
             Backend::LmStudioApi => Some(&self.api.lm_studio),
             Backend::CustomApi => Some(&self.api.custom),
-            Backend::Opencode | Backend::Claude | Backend::Codex | Backend::Gemini => None,
+            Backend::Opencode
+            | Backend::Claude
+            | Backend::Codex
+            | Backend::Gemini
+            | Backend::Grok => None,
         }
     }
 
@@ -1075,21 +1120,26 @@ mod tests {
                 Backend::Codex,
                 Backend::Opencode,
                 Backend::Claude,
-                Backend::Gemini
+                Backend::Gemini,
+                Backend::Grok
             ]
         );
         assert_eq!(cfg.commit_mode, CommitMode::Adaptive);
         assert_eq!(cfg.sparkle_mode, CommitMode::Adaptive);
         assert_eq!(cfg.provider, "openai");
-        assert_eq!(cfg.model, "gpt-5.4-mini");
+        assert_eq!(cfg.model, "gpt-5.6-terra");
         assert_eq!(cfg.cli_path, "");
         assert_eq!(cfg.claude_path, "");
         assert_eq!(cfg.codex_path, "");
         assert_eq!(cfg.claude_model, "claude-sonnet-4-6");
-        assert_eq!(cfg.codex_model, "gpt-5.4-mini");
+        assert_eq!(cfg.codex_model, "gpt-5.6-terra");
         assert_eq!(cfg.codex_provider, "");
         assert_eq!(cfg.gemini_path, "");
         assert_eq!(cfg.gemini_model, "gemini-2.5-flash");
+        assert_eq!(cfg.grok_path, "");
+        assert_eq!(cfg.grok_model, "grok-build");
+        assert_eq!(cfg.grok_pr_model, "grok-build");
+        assert_eq!(cfg.grok_cheap_model, "grok-build");
         assert_eq!(cfg.diff_source, DiffSource::Auto);
         assert_eq!(cfg.max_diff_length, 10000);
         assert_eq!(cfg.commit_branch_timeout_seconds, 70);
@@ -1258,7 +1308,7 @@ mod tests {
     #[test]
     fn backend_model_and_path() {
         let mut cfg = Config::default();
-        assert_eq!(cfg.backend_model(), "gpt-5.4-mini");
+        assert_eq!(cfg.backend_model(), "gpt-5.6-terra");
         assert_eq!(cfg.backend_cli_path(), "");
 
         cfg.backend = Backend::Claude;
@@ -1268,7 +1318,7 @@ mod tests {
 
         cfg.backend = Backend::Codex;
         cfg.codex_path = "/usr/bin/codex".to_owned();
-        assert_eq!(cfg.backend_model(), "gpt-5.4-mini");
+        assert_eq!(cfg.backend_model(), "gpt-5.6-terra");
         assert_eq!(cfg.backend_cli_path(), "/usr/bin/codex");
 
         cfg.backend = Backend::Gemini;
@@ -1276,6 +1326,11 @@ mod tests {
         cfg.gemini_model = "gemini-2.5-flash".to_owned();
         assert_eq!(cfg.backend_model(), "gemini-2.5-flash");
         assert_eq!(cfg.backend_cli_path(), "/usr/bin/gemini");
+
+        cfg.backend = Backend::Grok;
+        cfg.grok_path = "/usr/bin/grok".to_owned();
+        assert_eq!(cfg.backend_model(), "grok-build");
+        assert_eq!(cfg.backend_cli_path(), "/usr/bin/grok");
     }
 
     #[test]
@@ -1325,7 +1380,7 @@ prompt = "Generate: {{{{diff}}}}"
         // Unset fields should get defaults
         assert_eq!(cfg.diff_source, DiffSource::Auto);
         assert_eq!(cfg.commit_template, "{{type}}({{scope}}): {{message}}");
-        assert_eq!(cfg.codex_model, "gpt-5.4-mini");
+        assert_eq!(cfg.codex_model, "gpt-5.6-terra");
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -1477,7 +1532,7 @@ endpoint = "http://127.0.0.1:11434"
 
         let serialized = std::fs::read_to_string(&config_path).unwrap();
         assert_eq!(cfg.backend, Backend::Codex);
-        assert_eq!(cfg.model, "gpt-5.4-mini");
+        assert_eq!(cfg.model, "gpt-5.6-terra");
         assert!(config_path.exists());
         assert!(serialized.contains("backend-order"));
         assert!(serialized.contains("commit-branch-timeout-seconds"));
@@ -1514,13 +1569,13 @@ endpoint = "http://127.0.0.1:11434"
         let mut cfg = Config::default();
         // Default backend is Codex, so PR/cheap pair comes from codex fields.
         assert_eq!(cfg.backend_pr_model(), "gpt-5.4");
-        assert_eq!(cfg.backend_cheap_model(), "gpt-5.4-mini");
+        assert_eq!(cfg.backend_cheap_model(), "gpt-5.6-terra");
         assert_eq!(cfg.backend_pr_provider(), "");
         assert_eq!(cfg.backend_cheap_provider(), "");
 
         cfg.backend = Backend::Opencode;
         assert_eq!(cfg.backend_pr_model(), "gpt-5.4");
-        assert_eq!(cfg.backend_cheap_model(), "gpt-5.4-mini");
+        assert_eq!(cfg.backend_cheap_model(), "gpt-5.6-terra");
         assert_eq!(cfg.backend_pr_provider(), "openai");
         assert_eq!(cfg.backend_cheap_provider(), "openai");
 
@@ -1532,11 +1587,15 @@ endpoint = "http://127.0.0.1:11434"
 
         cfg.backend = Backend::Codex;
         assert_eq!(cfg.backend_pr_model(), "gpt-5.4");
-        assert_eq!(cfg.backend_cheap_model(), "gpt-5.4-mini");
+        assert_eq!(cfg.backend_cheap_model(), "gpt-5.6-terra");
 
         cfg.backend = Backend::Gemini;
         assert_eq!(cfg.backend_pr_model(), "gemini-3-flash-preview");
         assert_eq!(cfg.backend_cheap_model(), "gemini-3.1-flash-lite-preview");
+
+        cfg.backend = Backend::Grok;
+        assert_eq!(cfg.backend_pr_model(), "grok-build");
+        assert_eq!(cfg.backend_cheap_model(), "grok-build");
     }
 
     #[test]

@@ -276,6 +276,16 @@ function readMirroredSettingsFromGlobalSettings(): MirroredSettings {
       "geminiCLIPath",
       defaults.geminiCLIPath,
     ),
+    grokCLIModel: readGlobalSetting(
+      configuration,
+      "grokCLIModel",
+      defaults.grokCLIModel,
+    ),
+    grokCLIPath: readGlobalSetting(
+      configuration,
+      "grokCLIPath",
+      defaults.grokCLIPath,
+    ),
     opencodePRProvider: readGlobalSetting(
       configuration,
       "opencodePRProvider",
@@ -335,6 +345,16 @@ function readMirroredSettingsFromGlobalSettings(): MirroredSettings {
       configuration,
       "geminiCheapModel",
       defaults.geminiCheapModel,
+    ),
+    grokPRModel: readGlobalSetting(
+      configuration,
+      "grokPRModel",
+      defaults.grokPRModel,
+    ),
+    grokCheapModel: readGlobalSetting(
+      configuration,
+      "grokCheapModel",
+      defaults.grokCheapModel,
     ),
     prBaseBranch: readGlobalSetting(
       configuration,

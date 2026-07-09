@@ -45,9 +45,11 @@ pub fn exec_api(request: &ApiRequest, backend: Backend) -> Result<ApiResponse> {
         Backend::AnthropicApi => anthropic::exec(request),
         Backend::GeminiApi => google::exec(request),
         Backend::OllamaApi => ollama::exec(request),
-        Backend::Opencode | Backend::Claude | Backend::Codex | Backend::Gemini => Err(
-            Error::BackendExecution(format!("backend {backend} is not an API backend")),
-        ),
+        Backend::Opencode | Backend::Claude | Backend::Codex | Backend::Gemini | Backend::Grok => {
+            Err(Error::BackendExecution(format!(
+                "backend {backend} is not an API backend"
+            )))
+        }
     }
 }
 

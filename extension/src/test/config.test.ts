@@ -146,12 +146,16 @@ describe("config schema", () => {
       "opencode",
       "claude",
       "gemini",
+      "grok",
     ])
     assert.strictEqual(mirrored.backendOrder[0], "codex")
 
     assert.strictEqual(mirrored.showLanguageSelector, true)
     assert.strictEqual(mirrored.commitBranchTimeoutSeconds, 70)
     assert.strictEqual(mirrored.prTimeoutSeconds, 180)
+    assert.strictEqual(mirrored.grokCLIModel, "grok-build")
+    assert.strictEqual(mirrored.grokPRModel, "grok-build")
+    assert.strictEqual(mirrored.grokCheapModel, "grok-build")
     assert.ok(mirrored.languages.length >= 12)
     assert.ok(
       mirrored.languages[0]?.baseModule?.includes(
@@ -161,11 +165,11 @@ describe("config schema", () => {
     assert.deepStrictEqual(
       (defaultDoc.api as Record<string, unknown> | undefined)?.openai,
       {
-        model: "gpt-5.4-mini",
+        model: "gpt-5.6-terra",
         endpoint: "https://api.openai.com/v1/chat/completions",
         "key-env": "OPENAI_API_KEY",
         "pr-model": "gpt-5.4",
-        "cheap-model": "gpt-5.4-mini",
+        "cheap-model": "gpt-5.6-terra",
       },
     )
     assert.strictEqual(runtimeConfig.activeLanguage, "English")
@@ -175,6 +179,7 @@ describe("config schema", () => {
       ),
     )
     assert.strictEqual(runtimeConfig.api.openai.keyEnv, "OPENAI_API_KEY")
+    assert.strictEqual(runtimeConfig.grokModel, "grok-build")
 
     const updatedDoc = applyMirroredSettingsToToml(parsedDoc, {
       ...mirrored,

@@ -24,6 +24,7 @@ fn backend_label(backend: CliBackend) -> &'static str {
         CliBackend::Claude => "Claude Code CLI",
         CliBackend::Codex => "Codex CLI",
         CliBackend::Gemini => "Gemini CLI",
+        CliBackend::Grok => "Grok Build CLI",
     }
 }
 
@@ -34,6 +35,7 @@ fn backend_binary(backend: CliBackend) -> &'static str {
         CliBackend::Claude => "claude",
         CliBackend::Codex => "codex",
         CliBackend::Gemini => "gemini",
+        CliBackend::Grok => "grok",
     }
 }
 
@@ -117,6 +119,7 @@ fn common_paths(binary: &str) -> Vec<PathBuf> {
         PathBuf::from(format!("/usr/local/bin/{binary}")),
         PathBuf::from(format!("/usr/bin/{binary}")),
         PathBuf::from(format!("{home}/.local/bin/{binary}")),
+        PathBuf::from(format!("{home}/.grok/bin/{binary}")),
         PathBuf::from(format!("{home}/bin/{binary}")),
         PathBuf::from(format!("/opt/homebrew/bin/{binary}")),
     ]
@@ -409,6 +412,16 @@ pub fn build_invocation_for(
                 cleanup_dir: None,
             }
         }
+        CliBackend::Grok => Invocation {
+            command: cli_path.to_owned(),
+            args: grok_args(&config.grok_model, prompt),
+            stdin: None,
+            env: vec![],
+            cwd: None,
+            fallback_args: None,
+            json_response_field: None,
+            cleanup_dir: None,
+        },
     }
 }
 
@@ -557,6 +570,33 @@ fn opencode_base_args(model_spec: &str, prompt: &str) -> Vec<String> {
     args
 }
 
+/// `grok` headless argv for prompt-only generation. The prompt already
+/// contains all required repository context, so tools, memory, web search,
+/// planning, and subagents are disabled for a deterministic read-only run.
+fn grok_args(model: &str, prompt: &str) -> Vec<String> {
+    let mut args = vec![
+        "--no-auto-update".to_owned(),
+        "--no-memory".to_owned(),
+        "--no-subagents".to_owned(),
+        "--no-plan".to_owned(),
+        "--disable-web-search".to_owned(),
+        "--tools".to_owned(),
+        String::new(),
+        "--max-turns".to_owned(),
+        "1".to_owned(),
+        "--output-format".to_owned(),
+        "plain".to_owned(),
+        "--verbatim".to_owned(),
+    ];
+    if !model.is_empty() {
+        args.push("--model".to_owned());
+        args.push(model.to_owned());
+    }
+    args.push("--single".to_owned());
+    args.push(prompt.to_owned());
+    args
+}
+
 /// Build the command invocation with explicit model and provider overrides.
 /// Used by the two-stage PR pipeline to invoke different models for each stage.
 pub fn build_invocation_with_model(
@@ -661,6 +701,16 @@ pub fn build_invocation_with_model_for(
                 cleanup_dir: None,
             }
         }
+        CliBackend::Grok => Invocation {
+            command: cli_path.to_owned(),
+            args: grok_args(model, prompt),
+            stdin: None,
+            env: vec![],
+            cwd: None,
+            fallback_args: None,
+            json_response_field: None,
+            cleanup_dir: None,
+        },
     }
 }
 
@@ -842,7 +892,7 @@ mod tests {
         let config = Config {
             backend: Backend::Opencode,
             provider: "openai".to_owned(),
-            model: "gpt-5.4-mini".to_owned(),
+            model: "gpt-5.6-terra".to_owned(),
             ..Config::default()
         };
         let inv = build_invocation(Path::new("/usr/bin/opencode"), "hello", &config);
@@ -859,7 +909,7 @@ mod tests {
             Some("minimal")
         );
         assert!(inv.args.contains(&"-m".to_owned()));
-        assert!(inv.args.contains(&"openai/gpt-5.4-mini".to_owned()));
+        assert!(inv.args.contains(&"openai/gpt-5.6-terra".to_owned()));
         // Prompt must be the final positional arg (opencode reads it from argv).
         assert_eq!(inv.args.last().map(String::as_str), Some("hello"));
         assert!(inv.stdin.is_none());
@@ -886,10 +936,10 @@ mod tests {
     }
 
     #[test]
-    fn build_invocation_codex() {
+    fn gpt_5_6_terra_commit_uses_no_reasoning() {
         let config = Config {
             backend: Backend::Codex,
-            codex_model: "gpt-5.4-mini".to_owned(),
+            codex_model: "gpt-5.6-terra".to_owned(),
             ..Config::default()
         };
         let inv = build_invocation(Path::new("/usr/bin/codex"), "hello", &config);
@@ -925,7 +975,7 @@ mod tests {
         assert!(disables.contains(&"plugins"));
         assert!(disables.contains(&"apps"));
         assert!(inv.args.contains(&"-m".to_owned()));
-        assert!(inv.args.contains(&"gpt-5.4-mini".to_owned()));
+        assert!(inv.args.contains(&"gpt-5.6-terra".to_owned()));
         assert_eq!(inv.args.last().map(String::as_str), Some("-"));
         assert_eq!(inv.stdin.as_deref(), Some("hello"));
         assert_codex_env_shape(&inv.env);
@@ -935,7 +985,7 @@ mod tests {
     fn codex_fast_invocation_uses_structured_schema() {
         let config = Config {
             backend: Backend::Codex,
-            codex_model: "gpt-5.4-mini".to_owned(),
+            codex_model: "gpt-5.6-terra".to_owned(),
             ..Config::default()
         };
         let inv = build_invocation(Path::new("/usr/bin/codex"), "hello", &config);
@@ -966,7 +1016,7 @@ mod tests {
 
         let config = Config {
             backend: Backend::Codex,
-            codex_model: "gpt-5.4-mini".to_owned(),
+            codex_model: "gpt-5.6-terra".to_owned(),
             ..Config::default()
         };
         let inv = build_invocation(Path::new("/usr/bin/codex"), "hello", &config);
@@ -1038,7 +1088,7 @@ mod tests {
         );
         let config = Config {
             backend: Backend::Codex,
-            codex_model: "gpt-5.4-mini".to_owned(),
+            codex_model: "gpt-5.6-terra".to_owned(),
             ..Config::default()
         };
         let inv = build_invocation(&cli, "hello", &config);
@@ -1057,7 +1107,7 @@ mod tests {
         fake_executable(&cli, "printf '{\"response\":\"feat: structured\"}'");
         let config = Config {
             backend: Backend::Codex,
-            codex_model: "gpt-5.4-mini".to_owned(),
+            codex_model: "gpt-5.6-terra".to_owned(),
             ..Config::default()
         };
         let inv = build_invocation(&cli, "hello", &config);
@@ -1080,7 +1130,7 @@ mod tests {
         );
         let config = Config {
             backend: Backend::Codex,
-            codex_model: "gpt-5.4-mini".to_owned(),
+            codex_model: "gpt-5.6-terra".to_owned(),
             ..Config::default()
         };
         let inv = build_invocation(&cli, "hello", &config);
@@ -1102,7 +1152,7 @@ mod tests {
     fn build_invocation_codex_with_provider() {
         let config = Config {
             backend: Backend::Codex,
-            codex_model: "gpt-5.4-mini".to_owned(),
+            codex_model: "gpt-5.6-terra".to_owned(),
             codex_provider: "openrouter".to_owned(),
             ..Config::default()
         };
@@ -1148,6 +1198,33 @@ mod tests {
         assert_eq!(inv.args[3], "text");
         assert_eq!(inv.stdin, None);
         assert!(inv.env.is_empty(), "gemini must not leak CODEX_HOME");
+    }
+
+    #[test]
+    fn build_invocation_grok_is_headless_and_tool_free() {
+        let config = Config {
+            backend: Backend::Grok,
+            grok_model: "grok-build".to_owned(),
+            ..Config::default()
+        };
+        let inv = build_invocation(Path::new("/usr/bin/grok"), "hello", &config);
+
+        assert!(inv.args.contains(&"--no-auto-update".to_owned()));
+        assert!(inv.args.contains(&"--no-memory".to_owned()));
+        assert!(inv.args.contains(&"--no-subagents".to_owned()));
+        assert!(inv.args.contains(&"--no-plan".to_owned()));
+        assert!(inv.args.contains(&"--disable-web-search".to_owned()));
+        assert!(inv.args.windows(2).any(|args| args == ["--tools", ""]));
+        assert!(
+            inv.args
+                .windows(2)
+                .any(|args| args == ["--model", "grok-build"])
+        );
+        assert_eq!(
+            inv.args.last_chunk::<2>(),
+            Some(&["--single".to_owned(), "hello".to_owned()])
+        );
+        assert!(inv.stdin.is_none());
     }
 
     #[test]

@@ -277,6 +277,7 @@ enum BackendArg {
     Claude,
     Codex,
     Gemini,
+    Grok,
     OpenaiApi,
     AnthropicApi,
     GeminiApi,
@@ -294,6 +295,7 @@ impl BackendArg {
             BackendArg::Claude => Backend::Claude,
             BackendArg::Codex => Backend::Codex,
             BackendArg::Gemini => Backend::Gemini,
+            BackendArg::Grok => Backend::Grok,
             BackendArg::OpenaiApi => Backend::OpenaiApi,
             BackendArg::AnthropicApi => Backend::AnthropicApi,
             BackendArg::GeminiApi => Backend::GeminiApi,
@@ -610,7 +612,8 @@ fn apply_backend_overrides(
             | Backend::LmStudioApi
             | Backend::CustomApi
             | Backend::Claude
-            | Backend::Gemini => {}
+            | Backend::Gemini
+            | Backend::Grok => {}
         }
     }
     if let Some(model) = model {
@@ -619,6 +622,7 @@ fn apply_backend_overrides(
             Backend::Claude => config.claude_model = model.clone(),
             Backend::Codex => config.codex_model = model.clone(),
             Backend::Gemini => config.gemini_model = model.clone(),
+            Backend::Grok => config.grok_model = model.clone(),
             Backend::OpenaiApi => config.api.openai.model = model.clone(),
             Backend::AnthropicApi => config.api.anthropic.model = model.clone(),
             Backend::GeminiApi => config.api.gemini.model = model.clone(),
@@ -635,6 +639,7 @@ fn apply_backend_overrides(
             Backend::Claude => config.claude_path = path.clone(),
             Backend::Codex => config.codex_path = path.clone(),
             Backend::Gemini => config.gemini_path = path.clone(),
+            Backend::Grok => config.grok_path = path.clone(),
             Backend::OpenaiApi
             | Backend::AnthropicApi
             | Backend::GeminiApi
