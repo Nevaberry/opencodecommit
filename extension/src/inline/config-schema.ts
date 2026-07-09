@@ -24,8 +24,8 @@ export interface MirroredSettings {
   opencodeCLIPath: string
   claudeCodeCLIModel: string
   claudeCodeCLIPath: string
-  geminiCLIModel: string
-  geminiCLIPath: string
+  agyCLIModel: string
+  agyCLIPath: string
   grokCLIModel: string
   grokCLIPath: string
   opencodePRProvider: string
@@ -38,8 +38,8 @@ export interface MirroredSettings {
   codexPRModel: string
   codexCheapProvider: string
   codexCheapModel: string
-  geminiPRModel: string
-  geminiCheapModel: string
+  agyPRModel: string
+  agyCheapModel: string
   grokPRModel: string
   grokCheapModel: string
   prBaseBranch: string
@@ -79,7 +79,7 @@ const BACKENDS = [
   "opencode",
   "claude",
   "codex",
-  "gemini",
+  "agy",
   "grok",
   "openai-api",
   "anthropic-api",
@@ -115,8 +115,8 @@ export const MIRRORED_SETTING_FIELDS = [
   { property: "opencodeCLIPath", settingKey: "opencodeCLIPath" },
   { property: "claudeCodeCLIModel", settingKey: "claudeCodeCLIModel" },
   { property: "claudeCodeCLIPath", settingKey: "claudeCodeCLIPath" },
-  { property: "geminiCLIModel", settingKey: "geminiCLIModel" },
-  { property: "geminiCLIPath", settingKey: "geminiCLIPath" },
+  { property: "agyCLIModel", settingKey: "agyCLIModel" },
+  { property: "agyCLIPath", settingKey: "agyCLIPath" },
   { property: "grokCLIModel", settingKey: "grokCLIModel" },
   { property: "grokCLIPath", settingKey: "grokCLIPath" },
   { property: "opencodePRProvider", settingKey: "opencodePRProvider" },
@@ -129,8 +129,8 @@ export const MIRRORED_SETTING_FIELDS = [
   { property: "codexPRModel", settingKey: "codexPRModel" },
   { property: "codexCheapProvider", settingKey: "codexCheapProvider" },
   { property: "codexCheapModel", settingKey: "codexCheapModel" },
-  { property: "geminiPRModel", settingKey: "geminiPRModel" },
-  { property: "geminiCheapModel", settingKey: "geminiCheapModel" },
+  { property: "agyPRModel", settingKey: "agyPRModel" },
+  { property: "agyCheapModel", settingKey: "agyCheapModel" },
   { property: "grokPRModel", settingKey: "grokPRModel" },
   { property: "grokCheapModel", settingKey: "grokCheapModel" },
   { property: "prBaseBranch", settingKey: "prBaseBranch" },
@@ -487,13 +487,13 @@ export function getManifestDefaults(manifest: {
       getPropertyDefault(properties, "claudeCodeCLIModel"),
     ),
     claudeCodeCLIPath: getPropertyDefault(properties, "claudeCodeCLIPath"),
-    geminiCLIModel: backendModelDefault(
+    agyCLIModel: backendModelDefault(
       backendDefaults,
-      "gemini",
+      "agy",
       "commit_model",
-      getPropertyDefault(properties, "geminiCLIModel"),
+      getPropertyDefault(properties, "agyCLIModel"),
     ),
-    geminiCLIPath: getPropertyDefault(properties, "geminiCLIPath"),
+    agyCLIPath: getPropertyDefault(properties, "agyCLIPath"),
     grokCLIModel: backendModelDefault(
       backendDefaults,
       "grok",
@@ -544,17 +544,17 @@ export function getManifestDefaults(manifest: {
       "cheap_model",
       getPropertyDefault(properties, "codexCheapModel"),
     ),
-    geminiPRModel: backendModelDefault(
+    agyPRModel: backendModelDefault(
       backendDefaults,
-      "gemini",
+      "agy",
       "pr_model",
-      getPropertyDefault(properties, "geminiPRModel"),
+      getPropertyDefault(properties, "agyPRModel"),
     ),
-    geminiCheapModel: backendModelDefault(
+    agyCheapModel: backendModelDefault(
       backendDefaults,
-      "gemini",
+      "agy",
       "cheap_model",
-      getPropertyDefault(properties, "geminiCheapModel"),
+      getPropertyDefault(properties, "agyCheapModel"),
     ),
     grokPRModel: backendModelDefault(
       backendDefaults,
@@ -635,8 +635,8 @@ export function buildDefaultTomlDocument(
     "claude-model": defaults.claudeCodeCLIModel,
     "codex-model": defaults.codexCLIModel,
     "codex-provider": defaults.codexCLIProvider,
-    "gemini-path": defaults.geminiCLIPath,
-    "gemini-model": defaults.geminiCLIModel,
+    "agy-path": defaults.agyCLIPath,
+    "agy-model": defaults.agyCLIModel,
     "grok-path": defaults.grokCLIPath,
     "grok-model": defaults.grokCLIModel,
     "opencode-pr-provider": defaults.opencodePRProvider,
@@ -649,8 +649,8 @@ export function buildDefaultTomlDocument(
     "codex-cheap-model": defaults.codexCheapModel,
     "codex-pr-provider": defaults.codexPRProvider,
     "codex-cheap-provider": defaults.codexCheapProvider,
-    "gemini-pr-model": defaults.geminiPRModel,
-    "gemini-cheap-model": defaults.geminiCheapModel,
+    "agy-pr-model": defaults.agyPRModel,
+    "agy-cheap-model": defaults.agyCheapModel,
     "grok-pr-model": defaults.grokPRModel,
     "grok-cheap-model": defaults.grokCheapModel,
     "pr-base-branch": defaults.prBaseBranch,
@@ -697,14 +697,15 @@ function readBackendOrder(value: unknown, fallback: Backend[]): Backend[] {
   if (!Array.isArray(value)) {
     throw new Error("backend-order must be an array")
   }
-  return value.map((item, index) =>
-    readEnum(
-      item,
+  return value.map((item, index) => {
+    const migrated = item === "gemini" ? "agy" : item
+    return readEnum(
+      migrated,
       BACKENDS,
       fallback[index] ?? fallback[0],
       `backend-order[${index}]`,
-    ),
-  )
+    )
+  })
 }
 
 export function readMirroredSettings(
@@ -753,16 +754,12 @@ export function readMirroredSettings(
       defaults.claudeCodeCLIPath,
       "claude-path",
     ),
-    geminiCLIModel: readString(
-      doc["gemini-model"],
-      defaults.geminiCLIModel,
-      "gemini-model",
+    agyCLIModel: readString(
+      doc["agy-model"],
+      defaults.agyCLIModel,
+      "agy-model",
     ),
-    geminiCLIPath: readString(
-      doc["gemini-path"],
-      defaults.geminiCLIPath,
-      "gemini-path",
-    ),
+    agyCLIPath: readString(doc["agy-path"], defaults.agyCLIPath, "agy-path"),
     grokCLIModel: readString(
       doc["grok-model"],
       defaults.grokCLIModel,
@@ -823,15 +820,15 @@ export function readMirroredSettings(
       defaults.codexCheapModel,
       "codex-cheap-model",
     ),
-    geminiPRModel: readString(
-      doc["gemini-pr-model"],
-      defaults.geminiPRModel,
-      "gemini-pr-model",
+    agyPRModel: readString(
+      doc["agy-pr-model"],
+      defaults.agyPRModel,
+      "agy-pr-model",
     ),
-    geminiCheapModel: readString(
-      doc["gemini-cheap-model"],
-      defaults.geminiCheapModel,
-      "gemini-cheap-model",
+    agyCheapModel: readString(
+      doc["agy-cheap-model"],
+      defaults.agyCheapModel,
+      "agy-cheap-model",
     ),
     grokPRModel: readString(
       doc["grok-pr-model"],
@@ -1029,12 +1026,12 @@ export function toExtensionConfig(settings: MirroredSettings): ExtensionConfig {
     sparkleMode: settings.sparkleMode,
     claudePath: settings.claudeCodeCLIPath,
     codexPath: settings.codexCLIPath,
-    geminiPath: settings.geminiCLIPath,
+    agyPath: settings.agyCLIPath,
     grokPath: settings.grokCLIPath,
     claudeModel: settings.claudeCodeCLIModel,
     codexModel: settings.codexCLIModel,
     codexProvider: settings.codexCLIProvider,
-    geminiModel: settings.geminiCLIModel,
+    agyModel: settings.agyCLIModel,
     grokModel: settings.grokCLIModel,
     opencodePrProvider: settings.opencodePRProvider,
     opencodePrModel: settings.opencodePRModel,
@@ -1046,8 +1043,8 @@ export function toExtensionConfig(settings: MirroredSettings): ExtensionConfig {
     codexPrModel: settings.codexPRModel,
     codexCheapProvider: settings.codexCheapProvider,
     codexCheapModel: settings.codexCheapModel,
-    geminiPrModel: settings.geminiPRModel,
-    geminiCheapModel: settings.geminiCheapModel,
+    agyPrModel: settings.agyPRModel,
+    agyCheapModel: settings.agyCheapModel,
     grokPrModel: settings.grokPRModel,
     grokCheapModel: settings.grokCheapModel,
     prBaseBranch: settings.prBaseBranch,
@@ -1087,8 +1084,8 @@ export function applyMirroredSettingsToToml(
     "claude-model": settings.claudeCodeCLIModel,
     "codex-model": settings.codexCLIModel,
     "codex-provider": settings.codexCLIProvider,
-    "gemini-path": settings.geminiCLIPath,
-    "gemini-model": settings.geminiCLIModel,
+    "agy-path": settings.agyCLIPath,
+    "agy-model": settings.agyCLIModel,
     "grok-path": settings.grokCLIPath,
     "grok-model": settings.grokCLIModel,
     "opencode-pr-provider": settings.opencodePRProvider,
@@ -1101,8 +1098,8 @@ export function applyMirroredSettingsToToml(
     "codex-pr-model": settings.codexPRModel,
     "codex-cheap-provider": settings.codexCheapProvider,
     "codex-cheap-model": settings.codexCheapModel,
-    "gemini-pr-model": settings.geminiPRModel,
-    "gemini-cheap-model": settings.geminiCheapModel,
+    "agy-pr-model": settings.agyPRModel,
+    "agy-cheap-model": settings.agyCheapModel,
     "grok-pr-model": settings.grokPRModel,
     "grok-cheap-model": settings.grokCheapModel,
     "pr-base-branch": settings.prBaseBranch,
@@ -1128,6 +1125,11 @@ export function applyMirroredSettingsToToml(
       custom: apiProviderToToml(settings.apiCustom),
     },
   }
+
+  delete next["gemini-path"]
+  delete next["gemini-model"]
+  delete next["gemini-pr-model"]
+  delete next["gemini-cheap-model"]
 
   const custom = readObject(next.custom, {}, "custom")
   next.custom = {

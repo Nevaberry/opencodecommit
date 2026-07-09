@@ -179,7 +179,7 @@ fn backend_short_label(backend: Backend) -> &'static str {
         Backend::Opencode => "OpenCode",
         Backend::Claude => "Claude",
         Backend::Codex => "Codex",
-        Backend::Gemini => "Gemini",
+        Backend::Agy => "Antigravity",
         Backend::Grok => "Grok Build",
         Backend::OpenaiApi => "OpenAI API",
         Backend::AnthropicApi => "Anthropic API",
@@ -3190,8 +3190,8 @@ mod tests {
             "codex action should stay visible"
         );
         assert!(
-            text.contains("[4 Gemini]"),
-            "gemini action should stay visible"
+            text.contains("[4 Antigravity]"),
+            "Antigravity action should stay visible"
         );
     }
 
@@ -3221,8 +3221,8 @@ mod tests {
             "claude action should stay visible"
         );
         assert!(
-            text.contains("[4 Gemini]"),
-            "gemini action should stay visible"
+            text.contains("[4 Antigravity]"),
+            "Antigravity action should stay visible"
         );
     }
 
@@ -3252,8 +3252,8 @@ mod tests {
             "opencode action should stay visible"
         );
         assert!(
-            text.contains("[4 Gemini]"),
-            "gemini action should stay visible"
+            text.contains("[4 Antigravity]"),
+            "Antigravity action should stay visible"
         );
     }
 
@@ -3376,10 +3376,10 @@ mod tests {
         let mut app = test_app();
         app.config.backend_order = vec![Backend::Codex, Backend::Opencode];
 
-        app.set_backend(Backend::Gemini);
+        app.set_backend(Backend::Agy);
 
-        assert_eq!(app.config.backend, Backend::Gemini);
-        assert_eq!(app.config.backend_order, vec![Backend::Gemini]);
+        assert_eq!(app.config.backend, Backend::Agy);
+        assert_eq!(app.config.backend_order, vec![Backend::Agy]);
     }
 
     #[test]
@@ -3390,15 +3390,15 @@ mod tests {
             ..Config::default()
         };
 
-        let one_shot = config_for_origin(&config, PreviewOrigin::SingleBackend(Backend::Gemini));
+        let one_shot = config_for_origin(&config, PreviewOrigin::SingleBackend(Backend::Agy));
 
         assert_eq!(config.backend, Backend::Codex);
         assert_eq!(
             config.backend_order,
             vec![Backend::Codex, Backend::Opencode]
         );
-        assert_eq!(one_shot.backend, Backend::Gemini);
-        assert_eq!(one_shot.backend_order, vec![Backend::Gemini]);
+        assert_eq!(one_shot.backend, Backend::Agy);
+        assert_eq!(one_shot.backend_order, vec![Backend::Agy]);
     }
 
     #[test]
@@ -3412,7 +3412,7 @@ mod tests {
     fn preview_origin_reuses_single_backend() {
         let mut app = test_app();
         app.commit_preview_origin = Some(PreviewOrigin::SingleBackend(Backend::Claude));
-        app.pr_preview_origin = Some(PreviewOrigin::SingleBackend(Backend::Gemini));
+        app.pr_preview_origin = Some(PreviewOrigin::SingleBackend(Backend::Agy));
 
         assert_eq!(
             current_commit_origin(&app),
@@ -3420,7 +3420,7 @@ mod tests {
         );
         assert_eq!(
             current_pr_origin(&app),
-            PreviewOrigin::SingleBackend(Backend::Gemini)
+            PreviewOrigin::SingleBackend(Backend::Agy)
         );
     }
 

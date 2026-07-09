@@ -145,7 +145,7 @@ describe("config schema", () => {
       "codex",
       "opencode",
       "claude",
-      "gemini",
+      "agy",
       "grok",
     ])
     assert.strictEqual(mirrored.backendOrder[0], "codex")
@@ -153,6 +153,9 @@ describe("config schema", () => {
     assert.strictEqual(mirrored.showLanguageSelector, true)
     assert.strictEqual(mirrored.commitBranchTimeoutSeconds, 70)
     assert.strictEqual(mirrored.prTimeoutSeconds, 180)
+    assert.strictEqual(mirrored.agyCLIModel, "Gemini 3.5 Flash (Low)")
+    assert.strictEqual(mirrored.agyPRModel, "Gemini 3.1 Pro (High)")
+    assert.strictEqual(mirrored.agyCheapModel, "Gemini 3.5 Flash (Low)")
     assert.strictEqual(mirrored.grokCLIModel, "grok-build")
     assert.strictEqual(mirrored.grokPRModel, "grok-build")
     assert.strictEqual(mirrored.grokCheapModel, "grok-build")
@@ -179,12 +182,13 @@ describe("config schema", () => {
       ),
     )
     assert.strictEqual(runtimeConfig.api.openai.keyEnv, "OPENAI_API_KEY")
+    assert.strictEqual(runtimeConfig.agyModel, "Gemini 3.5 Flash (Low)")
     assert.strictEqual(runtimeConfig.grokModel, "grok-build")
 
     const updatedDoc = applyMirroredSettingsToToml(parsedDoc, {
       ...mirrored,
       activeLanguage: "Finnish",
-      backendOrder: ["gemini", "codex", "openai-api", "opencode"],
+      backendOrder: ["agy", "codex", "openai-api", "opencode"],
       useEmojis: true,
       commitBranchTimeoutSeconds: 95,
       prTimeoutSeconds: 240,
@@ -192,7 +196,7 @@ describe("config schema", () => {
 
     assert.strictEqual(updatedDoc["active-language"], "Finnish")
     assert.deepStrictEqual(updatedDoc["backend-order"], [
-      "gemini",
+      "agy",
       "codex",
       "openai-api",
       "opencode",
@@ -200,5 +204,25 @@ describe("config schema", () => {
     assert.strictEqual(updatedDoc["use-emojis"], true)
     assert.strictEqual(updatedDoc["commit-branch-timeout-seconds"], 95)
     assert.strictEqual(updatedDoc["pr-timeout-seconds"], 240)
+
+    const migrated = readMirroredSettings(
+      {
+        "backend-order": ["gemini", "codex"],
+        "gemini-path": "/legacy/gemini",
+        "gemini-model": "legacy-model",
+        "gemini-pr-model": "legacy-pr",
+        "gemini-cheap-model": "legacy-cheap",
+      },
+      defaults,
+    )
+    assert.deepStrictEqual(migrated.backendOrder, ["agy", "codex"])
+    assert.strictEqual(migrated.agyCLIPath, "")
+    assert.strictEqual(migrated.agyCLIModel, "Gemini 3.5 Flash (Low)")
+    assert.strictEqual(migrated.agyPRModel, "Gemini 3.1 Pro (High)")
+    assert.strictEqual(migrated.agyCheapModel, "Gemini 3.5 Flash (Low)")
+
+    const migratedDoc = applyMirroredSettingsToToml(parsedDoc, migrated)
+    assert.ok(!("gemini-model" in migratedDoc))
+    assert.strictEqual(migratedDoc["agy-model"], "Gemini 3.5 Flash (Low)")
   })
 })

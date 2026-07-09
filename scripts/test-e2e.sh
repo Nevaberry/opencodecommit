@@ -87,9 +87,9 @@ prepare_backend_requirements() {
         occ_e2e_require_cmd claude
         export OCC_E2E_CLAUDE_PATH=${OCC_E2E_CLAUDE_PATH:-$(command -v claude)}
         ;;
-      gemini)
-        occ_e2e_require_cmd gemini
-        export OCC_E2E_GEMINI_PATH=${OCC_E2E_GEMINI_PATH:-$(command -v gemini)}
+      agy)
+        occ_e2e_require_cmd agy
+        export OCC_E2E_AGY_PATH=${OCC_E2E_AGY_PATH:-$(command -v agy)}
         ;;
       grok)
         occ_e2e_require_cmd grok

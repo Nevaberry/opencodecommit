@@ -72,10 +72,10 @@
       "pr_model": "gpt-5.4",
       "cheap_model": "gpt-5.6-terra"
     },
-    "gemini": {
-      "commit_model": "gemini-2.5-flash",
-      "pr_model": "gemini-3-flash-preview",
-      "cheap_model": "gemini-3.1-flash-lite-preview"
+    "agy": {
+      "commit_model": "Gemini 3.5 Flash (Low)",
+      "pr_model": "Gemini 3.1 Pro (High)",
+      "cheap_model": "Gemini 3.5 Flash (Low)"
     },
     "grok": {
       "commit_model": "grok-build",

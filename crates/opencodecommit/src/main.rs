@@ -276,7 +276,7 @@ enum BackendArg {
     Opencode,
     Claude,
     Codex,
-    Gemini,
+    Agy,
     Grok,
     OpenaiApi,
     AnthropicApi,
@@ -294,7 +294,7 @@ impl BackendArg {
             BackendArg::Opencode => Backend::Opencode,
             BackendArg::Claude => Backend::Claude,
             BackendArg::Codex => Backend::Codex,
-            BackendArg::Gemini => Backend::Gemini,
+            BackendArg::Agy => Backend::Agy,
             BackendArg::Grok => Backend::Grok,
             BackendArg::OpenaiApi => Backend::OpenaiApi,
             BackendArg::AnthropicApi => Backend::AnthropicApi,
@@ -612,7 +612,7 @@ fn apply_backend_overrides(
             | Backend::LmStudioApi
             | Backend::CustomApi
             | Backend::Claude
-            | Backend::Gemini
+            | Backend::Agy
             | Backend::Grok => {}
         }
     }
@@ -621,7 +621,7 @@ fn apply_backend_overrides(
             Backend::Opencode => config.model = model.clone(),
             Backend::Claude => config.claude_model = model.clone(),
             Backend::Codex => config.codex_model = model.clone(),
-            Backend::Gemini => config.gemini_model = model.clone(),
+            Backend::Agy => config.agy_model = model.clone(),
             Backend::Grok => config.grok_model = model.clone(),
             Backend::OpenaiApi => config.api.openai.model = model.clone(),
             Backend::AnthropicApi => config.api.anthropic.model = model.clone(),
@@ -638,7 +638,7 @@ fn apply_backend_overrides(
             Backend::Opencode => config.cli_path = path.clone(),
             Backend::Claude => config.claude_path = path.clone(),
             Backend::Codex => config.codex_path = path.clone(),
-            Backend::Gemini => config.gemini_path = path.clone(),
+            Backend::Agy => config.agy_path = path.clone(),
             Backend::Grok => config.grok_path = path.clone(),
             Backend::OpenaiApi
             | Backend::AnthropicApi

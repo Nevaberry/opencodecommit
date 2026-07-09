@@ -26,7 +26,7 @@ occ_e2e_require_cmd "${OCC_E2E_LLAMA_BIN:-llama-server}"
 occ_e2e_require_cmd codex
 occ_e2e_require_cmd opencode
 occ_e2e_require_cmd claude
-occ_e2e_require_cmd gemini
+occ_e2e_require_cmd agy
 
 occ_e2e_require_env OPENAI_API_KEY
 occ_e2e_require_env ANTHROPIC_API_KEY
@@ -47,7 +47,7 @@ WORKSPACE="$TMP_DIR/preflight-repo"
 occ_e2e_prepare_workspace "$WORKSPACE"
 DIFF=$(git -C "$WORKSPACE" diff --cached)
 
-for backend in codex opencode claude gemini; do
+for backend in codex opencode claude agy; do
   echo "[preflight] CLI backend: $backend"
   (
     cd "$WORKSPACE"

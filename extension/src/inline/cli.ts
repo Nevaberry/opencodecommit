@@ -235,7 +235,7 @@ const BACKEND_LABELS: Record<CliBackend, string> = {
   opencode: "OpenCode CLI",
   claude: "Claude Code CLI",
   codex: "Codex CLI",
-  gemini: "Gemini CLI",
+  agy: "Antigravity CLI",
   grok: "Grok Build CLI",
 }
 
@@ -311,8 +311,8 @@ export function getConfigPath(
       return config.claudePath
     case "codex":
       return config.codexPath
-    case "gemini":
-      return config.geminiPath
+    case "agy":
+      return config.agyPath
     case "grok":
       return config.grokPath
   }
@@ -436,6 +436,13 @@ function grokArgs(model: string, prompt: string): string[] {
   return args
 }
 
+function agyArgs(model: string, prompt: string): string[] {
+  const args = ["--mode", "plan", "--sandbox"]
+  if (model) args.push("--model", model)
+  args.push("--print", prompt)
+  return args
+}
+
 export function buildInvocation(
   cliPath: string,
   prompt: string,
@@ -515,16 +522,11 @@ export function buildInvocation(
       }
     }
 
-    case "gemini": {
-      const geminiArgs = ["-p", prompt]
-      if (config.geminiModel) {
-        geminiArgs.push("-m", config.geminiModel)
-      }
-      geminiArgs.push("--output-format", "text")
+    case "agy": {
       return {
         invocation: {
           command: cliPath,
-          args: geminiArgs,
+          args: agyArgs(config.agyModel, prompt),
           timeout,
         },
       }

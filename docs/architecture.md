@@ -35,7 +35,7 @@ graph TB
         OPENCODE["OpenCode"]
         CLAUDE["Claude"]
         CODEX["Codex"]
-        GEMINI["Gemini"]
+        AGY["Antigravity"]
     end
 
     subgraph "Direct API Backends"
@@ -58,7 +58,7 @@ graph TB
     BACKEND_RS --> OPENCODE
     BACKEND_RS --> CLAUDE
     BACKEND_RS --> CODEX
-    BACKEND_RS --> GEMINI
+    BACKEND_RS --> AGY
     BACKEND_RS --> API
 
     %% Rust response

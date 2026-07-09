@@ -16,7 +16,7 @@ export OPENCODECOMMIT_CONFIG=/path/to/config.toml
 
 ```toml
 backend = "codex"
-backend-order = ["codex", "opencode", "claude", "gemini", "grok"]
+backend-order = ["codex", "opencode", "claude", "agy", "grok"]
 commit-mode = "adaptive"
 branch-mode = "conventional"
 diff-source = "auto"
@@ -25,6 +25,10 @@ commit-template = "{{type}}({{scope}}): {{message}}"
 max-diff-length = 10000
 commit-branch-timeout-seconds = 70
 pr-timeout-seconds = 180
+agy-path = ""
+agy-model = "Gemini 3.5 Flash (Low)"
+agy-pr-model = "Gemini 3.1 Pro (High)"
+agy-cheap-model = "Gemini 3.5 Flash (Low)"
 grok-path = ""
 grok-model = "grok-build"
 grok-pr-model = "grok-build"

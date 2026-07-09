@@ -23,7 +23,7 @@ fn backend_label(backend: CliBackend) -> &'static str {
         CliBackend::Opencode => "OpenCode CLI",
         CliBackend::Claude => "Claude Code CLI",
         CliBackend::Codex => "Codex CLI",
-        CliBackend::Gemini => "Gemini CLI",
+        CliBackend::Agy => "Antigravity CLI",
         CliBackend::Grok => "Grok Build CLI",
     }
 }
@@ -34,7 +34,7 @@ fn backend_binary(backend: CliBackend) -> &'static str {
         CliBackend::Opencode => "opencode",
         CliBackend::Claude => "claude",
         CliBackend::Codex => "codex",
-        CliBackend::Gemini => "gemini",
+        CliBackend::Agy => "agy",
         CliBackend::Grok => "grok",
     }
 }
@@ -393,25 +393,16 @@ pub fn build_invocation_for(
                 cleanup_dir,
             }
         }
-        CliBackend::Gemini => {
-            let mut args = vec!["-p".to_owned(), prompt.to_owned()];
-            if !config.gemini_model.is_empty() {
-                args.push("-m".to_owned());
-                args.push(config.gemini_model.clone());
-            }
-            args.push("--output-format".to_owned());
-            args.push("text".to_owned());
-            Invocation {
-                command: cli_path.to_owned(),
-                args,
-                stdin: None,
-                env: vec![],
-                cwd: None,
-                fallback_args: None,
-                json_response_field: None,
-                cleanup_dir: None,
-            }
-        }
+        CliBackend::Agy => Invocation {
+            command: cli_path.to_owned(),
+            args: agy_args(&config.agy_model, prompt),
+            stdin: None,
+            env: vec![],
+            cwd: None,
+            fallback_args: None,
+            json_response_field: None,
+            cleanup_dir: None,
+        },
         CliBackend::Grok => Invocation {
             command: cli_path.to_owned(),
             args: grok_args(&config.grok_model, prompt),
@@ -597,6 +588,23 @@ fn grok_args(model: &str, prompt: &str) -> Vec<String> {
     args
 }
 
+/// `agy` headless argv for prompt-only generation. Plan mode and the sandbox
+/// keep Antigravity read-only while it produces a single printed response.
+fn agy_args(model: &str, prompt: &str) -> Vec<String> {
+    let mut args = vec![
+        "--mode".to_owned(),
+        "plan".to_owned(),
+        "--sandbox".to_owned(),
+    ];
+    if !model.is_empty() {
+        args.push("--model".to_owned());
+        args.push(model.to_owned());
+    }
+    args.push("--print".to_owned());
+    args.push(prompt.to_owned());
+    args
+}
+
 /// Build the command invocation with explicit model and provider overrides.
 /// Used by the two-stage PR pipeline to invoke different models for each stage.
 pub fn build_invocation_with_model(
@@ -682,25 +690,16 @@ pub fn build_invocation_with_model_for(
                 cleanup_dir,
             }
         }
-        CliBackend::Gemini => {
-            let mut args = vec!["-p".to_owned(), prompt.to_owned()];
-            if !model.is_empty() {
-                args.push("-m".to_owned());
-                args.push(model.to_owned());
-            }
-            args.push("--output-format".to_owned());
-            args.push("text".to_owned());
-            Invocation {
-                command: cli_path.to_owned(),
-                args,
-                stdin: None,
-                env: vec![],
-                cwd: None,
-                fallback_args: None,
-                json_response_field: None,
-                cleanup_dir: None,
-            }
-        }
+        CliBackend::Agy => Invocation {
+            command: cli_path.to_owned(),
+            args: agy_args(model, prompt),
+            stdin: None,
+            env: vec![],
+            cwd: None,
+            fallback_args: None,
+            json_response_field: None,
+            cleanup_dir: None,
+        },
         CliBackend::Grok => Invocation {
             command: cli_path.to_owned(),
             args: grok_args(model, prompt),
@@ -1167,37 +1166,43 @@ mod tests {
     }
 
     #[test]
-    fn build_invocation_gemini() {
+    fn build_invocation_agy() {
         let config = Config {
-            backend: Backend::Gemini,
-            gemini_model: "gemini-2.5-flash".to_owned(),
+            backend: Backend::Agy,
+            agy_model: "Gemini 3.5 Flash (Low)".to_owned(),
             ..Config::default()
         };
-        let inv = build_invocation(Path::new("/usr/bin/gemini"), "hello", &config);
-        assert_eq!(inv.args[0], "-p");
-        assert_eq!(inv.args[1], "hello");
-        assert_eq!(inv.args[2], "-m");
-        assert_eq!(inv.args[3], "gemini-2.5-flash");
-        assert_eq!(inv.args[4], "--output-format");
-        assert_eq!(inv.args[5], "text");
+        let inv = build_invocation(Path::new("/usr/bin/agy"), "hello", &config);
+        assert_eq!(
+            inv.args,
+            [
+                "--mode",
+                "plan",
+                "--sandbox",
+                "--model",
+                "Gemini 3.5 Flash (Low)",
+                "--print",
+                "hello"
+            ]
+        );
         assert_eq!(inv.stdin, None);
-        assert!(inv.env.is_empty(), "gemini must not leak CODEX_HOME");
+        assert!(inv.env.is_empty(), "agy must not leak CODEX_HOME");
     }
 
     #[test]
-    fn build_invocation_gemini_no_model() {
+    fn build_invocation_agy_no_model() {
         let config = Config {
-            backend: Backend::Gemini,
-            gemini_model: String::new(),
+            backend: Backend::Agy,
+            agy_model: String::new(),
             ..Config::default()
         };
-        let inv = build_invocation(Path::new("/usr/bin/gemini"), "hello", &config);
-        assert_eq!(inv.args[0], "-p");
-        assert_eq!(inv.args[1], "hello");
-        assert_eq!(inv.args[2], "--output-format");
-        assert_eq!(inv.args[3], "text");
+        let inv = build_invocation(Path::new("/usr/bin/agy"), "hello", &config);
+        assert_eq!(
+            inv.args,
+            ["--mode", "plan", "--sandbox", "--print", "hello"]
+        );
         assert_eq!(inv.stdin, None);
-        assert!(inv.env.is_empty(), "gemini must not leak CODEX_HOME");
+        assert!(inv.env.is_empty(), "agy must not leak CODEX_HOME");
     }
 
     #[test]
@@ -1305,24 +1310,32 @@ mod tests {
     }
 
     #[test]
-    fn build_invocation_with_model_gemini() {
+    fn build_invocation_with_model_agy() {
         let config = Config {
-            backend: Backend::Gemini,
+            backend: Backend::Agy,
             ..Config::default()
         };
         let inv = build_invocation_with_model(
-            Path::new("/usr/bin/gemini"),
+            Path::new("/usr/bin/agy"),
             "hello",
             &config,
-            "gemini-3-flash-preview",
+            "Gemini 3.1 Pro (High)",
             None,
         );
-        assert_eq!(inv.args[0], "-p");
-        assert_eq!(inv.args[1], "hello");
-        assert_eq!(inv.args[2], "-m");
-        assert_eq!(inv.args[3], "gemini-3-flash-preview");
+        assert_eq!(
+            inv.args,
+            [
+                "--mode",
+                "plan",
+                "--sandbox",
+                "--model",
+                "Gemini 3.1 Pro (High)",
+                "--print",
+                "hello"
+            ]
+        );
         assert_eq!(inv.stdin, None);
-        assert!(inv.env.is_empty(), "gemini must not leak CODEX_HOME");
+        assert!(inv.env.is_empty(), "agy must not leak CODEX_HOME");
     }
 
     #[test]

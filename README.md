@@ -21,7 +21,7 @@ OpenCodeCommit is for teams and solo developers who want:
 - PR drafts and changelog entries without another browser round trip
 - local-first safety checks before any diff reaches an AI provider
 - one config shared by the extension, CLI, TUI, and CI scanner
-- fallback across Codex, OpenCode, Claude, Gemini, Grok Build, hosted APIs, and local OpenAI-compatible endpoints
+- fallback across Codex, OpenCode, Claude, Antigravity, Grok Build, hosted APIs, and local OpenAI-compatible endpoints
 
 ## Install
 
@@ -42,7 +42,8 @@ Optional CLI backends:
 npm i -g @openai/codex
 npm i -g opencode
 npm i -g @anthropic-ai/claude-code
-npm i -g @google/gemini-cli
+# Antigravity
+curl -fsSL https://antigravity.google/cli/install.sh | bash
 ```
 
 Direct API backends are also supported for OpenAI, Anthropic, Google Gemini, OpenRouter, OpenCode Zen, Ollama, LM Studio, and custom OpenAI-compatible endpoints.

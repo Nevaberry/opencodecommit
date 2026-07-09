@@ -10,7 +10,7 @@ export const CLI_BACKENDS = [
   "opencode",
   "claude",
   "codex",
-  "gemini",
+  "agy",
   "grok",
 ] as const satisfies readonly CliBackend[]
 
@@ -38,8 +38,8 @@ export function backendLabel(backend: Backend): string {
       return "Claude"
     case "codex":
       return "Codex"
-    case "gemini":
-      return "Gemini"
+    case "agy":
+      return "Antigravity"
     case "grok":
       return "Grok Build"
     case "openai-api":
@@ -82,8 +82,8 @@ export function backendModel(
       return config.claudeModel
     case "codex":
       return config.codexModel
-    case "gemini":
-      return config.geminiModel
+    case "agy":
+      return config.agyModel
     case "grok":
       return config.grokModel
     default:
@@ -102,8 +102,8 @@ export function backendPrModel(
       return config.claudePrModel
     case "codex":
       return config.codexPrModel
-    case "gemini":
-      return config.geminiPrModel
+    case "agy":
+      return config.agyPrModel
     case "grok":
       return config.grokPrModel
     default: {
@@ -124,8 +124,8 @@ export function backendCheapModel(
       return config.claudeCheapModel
     case "codex":
       return config.codexCheapModel
-    case "gemini":
-      return config.geminiCheapModel
+    case "agy":
+      return config.agyCheapModel
     case "grok":
       return config.grokCheapModel
     default: {
@@ -186,8 +186,8 @@ export function withModelProviderOverride(
       next.codexModel = model
       if (provider) next.codexProvider = provider
       break
-    case "gemini":
-      next.geminiModel = model
+    case "agy":
+      next.agyModel = model
       break
     case "grok":
       next.grokModel = model

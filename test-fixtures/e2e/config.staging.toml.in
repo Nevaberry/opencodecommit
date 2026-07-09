@@ -3,7 +3,7 @@ backend-order = [
   "codex",
   "opencode",
   "claude",
-  "gemini",
+  "agy",
   "grok",
   "openai-api",
   "anthropic-api",
@@ -22,6 +22,10 @@ pr-base-branch = "main"
 active-language = "English"
 commit-branch-timeout-seconds = 90
 pr-timeout-seconds = 240
+agy-path = ""
+agy-model = "Gemini 3.5 Flash (Low)"
+agy-pr-model = "Gemini 3.1 Pro (High)"
+agy-cheap-model = "Gemini 3.5 Flash (Low)"
 grok-path = ""
 grok-model = "grok-build"
 grok-pr-model = "grok-build"

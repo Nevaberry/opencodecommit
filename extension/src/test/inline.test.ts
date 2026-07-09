@@ -152,12 +152,12 @@ function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
     sparkleMode: "adaptive",
     claudePath: "",
     codexPath: "",
-    geminiPath: "",
+    agyPath: "",
     grokPath: "",
     claudeModel: "claude-sonnet-4-6",
     codexModel: "gpt-5.6-terra",
     codexProvider: "",
-    geminiModel: "",
+    agyModel: "Gemini 3.5 Flash (Low)",
     grokModel: "grok-build",
     opencodePrProvider: "openai",
     opencodePrModel: "gpt-5.4",
@@ -169,12 +169,12 @@ function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
     codexPrModel: "gpt-5.4",
     codexCheapProvider: "",
     codexCheapModel: "gpt-5.6-terra",
-    geminiPrModel: "gemini-3-flash-preview",
-    geminiCheapModel: "gemini-3.1-flash-lite-preview",
+    agyPrModel: "Gemini 3.1 Pro (High)",
+    agyCheapModel: "Gemini 3.5 Flash (Low)",
     grokPrModel: "grok-build",
     grokCheapModel: "grok-build",
     prBaseBranch: "",
-    backendOrder: ["codex", "opencode", "claude", "gemini", "grok"],
+    backendOrder: ["codex", "opencode", "claude", "agy", "grok"],
     branchMode: "conventional" as BranchMode,
     api: {
       openai: {
@@ -480,22 +480,23 @@ describe("backend helpers", () => {
     assert.strictEqual(overridden.claudeModel, config.claudeModel)
   })
 
-  it("passes Gemini prompts as a prompt argument", () => {
-    const config = makeConfig({ geminiModel: "gemini-2.5-flash" })
+  it("runs Antigravity in print, plan, and sandbox mode", () => {
+    const config = makeConfig({ agyModel: "Gemini 3.5 Flash (Low)" })
     const { invocation, stdin } = buildInvocation(
-      "/usr/bin/gemini",
+      "/usr/bin/agy",
       "summarize the diff",
       config,
-      "gemini",
+      "agy",
     )
 
     assert.deepStrictEqual(invocation.args, [
-      "-p",
+      "--mode",
+      "plan",
+      "--sandbox",
+      "--model",
+      "Gemini 3.5 Flash (Low)",
+      "--print",
       "summarize the diff",
-      "-m",
-      "gemini-2.5-flash",
-      "--output-format",
-      "text",
     ])
     assert.strictEqual(stdin, undefined)
   })
@@ -809,7 +810,7 @@ describe("extension manifest", () => {
     assert.ok(commands.includes("opencodecommit.generatePrCodex"))
     assert.ok(commands.includes("opencodecommit.generatePrOpencode"))
     assert.ok(commands.includes("opencodecommit.generatePrClaude"))
-    assert.ok(commands.includes("opencodecommit.generatePrGemini"))
+    assert.ok(commands.includes("opencodecommit.generatePrAgy"))
     assert.ok(commands.includes("opencodecommit.generatePrGrok"))
     assert.ok(commands.includes("opencodecommit.generatePrOpenaiApi"))
     assert.ok(commands.includes("opencodecommit.generatePrCustomApi"))

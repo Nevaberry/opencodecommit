@@ -27,7 +27,7 @@ occ_e2e_default_backends_for_profile() {
       echo "custom-api,lm-studio-api"
       ;;
     staging)
-      echo "codex,opencode,claude,gemini,grok,openai-api,anthropic-api,gemini-api,openrouter-api,opencode-api,ollama-api,lm-studio-api,custom-api"
+      echo "codex,opencode,claude,agy,grok,openai-api,anthropic-api,gemini-api,openrouter-api,opencode-api,ollama-api,lm-studio-api,custom-api"
       ;;
     *)
       echo "unknown profile: $1" >&2
@@ -49,7 +49,7 @@ occ_e2e_trim() {
 
 occ_e2e_is_known_backend() {
   case "${1:-}" in
-    codex|opencode|claude|gemini|grok|openai-api|anthropic-api|gemini-api|openrouter-api|opencode-api|ollama-api|lm-studio-api|custom-api)
+    codex|opencode|claude|agy|grok|openai-api|anthropic-api|gemini-api|openrouter-api|opencode-api|ollama-api|lm-studio-api|custom-api)
       return 0
       ;;
     *)
@@ -174,8 +174,8 @@ occ_e2e_render_config_for_backends() {
   local codex_model=${OCC_E2E_CODEX_MODEL:-gpt-5.6-terra}
   local codex_provider=${OCC_E2E_CODEX_PROVIDER:-}
   local codex_path=${OCC_E2E_CODEX_PATH:-}
-  local gemini_model=${OCC_E2E_GEMINI_MODEL:-gemini-2.5-flash}
-  local gemini_path=${OCC_E2E_GEMINI_PATH:-}
+  local agy_model="${OCC_E2E_AGY_MODEL:-Gemini 3.5 Flash (Low)}"
+  local agy_path=${OCC_E2E_AGY_PATH:-}
   local grok_model=${OCC_E2E_GROK_MODEL:-grok-build}
   local grok_path=${OCC_E2E_GROK_PATH:-}
 
@@ -189,8 +189,8 @@ occ_e2e_render_config_for_backends() {
   local codex_pr_model=${OCC_E2E_CODEX_PR_MODEL:-gpt-5.4}
   local codex_cheap_provider=${OCC_E2E_CODEX_CHEAP_PROVIDER:-$codex_provider}
   local codex_cheap_model=${OCC_E2E_CODEX_CHEAP_MODEL:-gpt-5.6-terra}
-  local gemini_pr_model=${OCC_E2E_GEMINI_PR_MODEL:-gemini-3-flash-preview}
-  local gemini_cheap_model=${OCC_E2E_GEMINI_CHEAP_MODEL:-gemini-3.1-flash-lite-preview}
+  local agy_pr_model="${OCC_E2E_AGY_PR_MODEL:-Gemini 3.1 Pro (High)}"
+  local agy_cheap_model="${OCC_E2E_AGY_CHEAP_MODEL:-Gemini 3.5 Flash (Low)}"
   local grok_pr_model=${OCC_E2E_GROK_PR_MODEL:-grok-build}
   local grok_cheap_model=${OCC_E2E_GROK_CHEAP_MODEL:-grok-build}
   local commit_timeout=${OCC_E2E_COMMIT_TIMEOUT_SECONDS:-120}
@@ -219,8 +219,8 @@ codex-path = "${codex_path}"
 claude-model = "${claude_model}"
 codex-model = "${codex_model}"
 codex-provider = "${codex_provider}"
-gemini-path = "${gemini_path}"
-gemini-model = "${gemini_model}"
+agy-path = "${agy_path}"
+agy-model = "${agy_model}"
 grok-path = "${grok_path}"
 grok-model = "${grok_model}"
 opencode-pr-provider = "${opencode_pr_provider}"
@@ -233,8 +233,8 @@ codex-pr-provider = "${codex_pr_provider}"
 codex-pr-model = "${codex_pr_model}"
 codex-cheap-provider = "${codex_cheap_provider}"
 codex-cheap-model = "${codex_cheap_model}"
-gemini-pr-model = "${gemini_pr_model}"
-gemini-cheap-model = "${gemini_cheap_model}"
+agy-pr-model = "${agy_pr_model}"
+agy-cheap-model = "${agy_cheap_model}"
 grok-pr-model = "${grok_pr_model}"
 grok-cheap-model = "${grok_cheap_model}"
 

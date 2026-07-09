@@ -266,15 +266,15 @@ function readMirroredSettingsFromGlobalSettings(): MirroredSettings {
       "claudeCodeCLIPath",
       defaults.claudeCodeCLIPath,
     ),
-    geminiCLIModel: readGlobalSetting(
+    agyCLIModel: readGlobalSetting(
       configuration,
-      "geminiCLIModel",
-      defaults.geminiCLIModel,
+      "agyCLIModel",
+      defaults.agyCLIModel,
     ),
-    geminiCLIPath: readGlobalSetting(
+    agyCLIPath: readGlobalSetting(
       configuration,
-      "geminiCLIPath",
-      defaults.geminiCLIPath,
+      "agyCLIPath",
+      defaults.agyCLIPath,
     ),
     grokCLIModel: readGlobalSetting(
       configuration,
@@ -336,15 +336,15 @@ function readMirroredSettingsFromGlobalSettings(): MirroredSettings {
       "codexCheapModel",
       defaults.codexCheapModel,
     ),
-    geminiPRModel: readGlobalSetting(
+    agyPRModel: readGlobalSetting(
       configuration,
-      "geminiPRModel",
-      defaults.geminiPRModel,
+      "agyPRModel",
+      defaults.agyPRModel,
     ),
-    geminiCheapModel: readGlobalSetting(
+    agyCheapModel: readGlobalSetting(
       configuration,
-      "geminiCheapModel",
-      defaults.geminiCheapModel,
+      "agyCheapModel",
+      defaults.agyCheapModel,
     ),
     grokPRModel: readGlobalSetting(
       configuration,

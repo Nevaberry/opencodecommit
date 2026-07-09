@@ -1,6 +1,6 @@
 import type { Event, Uri } from "vscode"
 
-export type CliBackend = "opencode" | "claude" | "codex" | "gemini" | "grok"
+export type CliBackend = "opencode" | "claude" | "codex" | "agy" | "grok"
 export type ApiBackend =
   | "openai-api"
   | "anthropic-api"
@@ -95,12 +95,12 @@ export interface ExtensionConfig {
   sparkleMode: CommitMode
   claudePath: string
   codexPath: string
-  geminiPath: string
+  agyPath: string
   grokPath: string
   claudeModel: string
   codexModel: string
   codexProvider: string
-  geminiModel: string
+  agyModel: string
   grokModel: string
   opencodePrProvider: string
   opencodePrModel: string
@@ -112,8 +112,8 @@ export interface ExtensionConfig {
   codexPrModel: string
   codexCheapProvider: string
   codexCheapModel: string
-  geminiPrModel: string
-  geminiCheapModel: string
+  agyPrModel: string
+  agyCheapModel: string
   grokPrModel: string
   grokCheapModel: string
   prBaseBranch: string

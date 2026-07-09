@@ -70,7 +70,7 @@ const ONE_SHOT_BACKENDS: Array<{ backend: Backend; suffix: string }> = [
   { backend: "codex", suffix: "Codex" },
   { backend: "opencode", suffix: "Opencode" },
   { backend: "claude", suffix: "Claude" },
-  { backend: "gemini", suffix: "Gemini" },
+  { backend: "agy", suffix: "Agy" },
   { backend: "grok", suffix: "Grok" },
   { backend: "openai-api", suffix: "OpenaiApi" },
   { backend: "anthropic-api", suffix: "AnthropicApi" },
@@ -1044,10 +1044,10 @@ export async function activate(context: vscode.ExtensionContext) {
           `DIAGNOSE: Claude model: ${config.claudeModel}, Codex model: ${config.codexModel}`,
         )
         log(
-          `DIAGNOSE: PR models: opencode=${config.opencodePrModel}, claude=${config.claudePrModel}, codex=${config.codexPrModel}, gemini=${config.geminiPrModel}`,
+          `DIAGNOSE: PR models: opencode=${config.opencodePrModel}, claude=${config.claudePrModel}, codex=${config.codexPrModel}, agy=${config.agyPrModel}`,
         )
         log(
-          `DIAGNOSE: Cheap PR models: opencode=${config.opencodeCheapModel}, claude=${config.claudeCheapModel}, codex=${config.codexCheapModel}, gemini=${config.geminiCheapModel}`,
+          `DIAGNOSE: Cheap PR models: opencode=${config.opencodeCheapModel}, claude=${config.claudeCheapModel}, codex=${config.codexCheapModel}, agy=${config.agyCheapModel}`,
         )
         log(`DIAGNOSE: Commit mode: ${config.commitMode}`)
         log(`DIAGNOSE: Diff source: ${config.diffSource}`)

@@ -1118,7 +1118,7 @@ const AGENT_COMMANDS: &[(&str, &str, &[&str])] = &[
     ("codex", "codex", &["-V"]),
     ("claude", "claude", &["-v"]),
     ("opencode", "opencode", &["--version"]),
-    ("gemini", "gemini", &["--version"]),
+    ("agy", "agy", &["--version"]),
     ("grok", "grok", &["--version"]),
     ("antigravity", "antigravity", &["--version"]),
 ];

@@ -32,7 +32,7 @@ fn backend_label(backend: &str) -> &'static str {
         "opencode" => "OpenCode CLI",
         "claude" => "Claude Code CLI",
         "codex" => "Codex CLI",
-        "gemini" => "Gemini CLI",
+        "agy" => "Antigravity CLI",
         "openai-api" => "OpenAI API",
         "anthropic-api" => "Anthropic API",
         "gemini-api" => "Gemini API",

@@ -177,67 +177,43 @@ detect_claude_models() {
     fi
 }
 
-# ── Gemini CLI ─────────────────────────────────────────────────────────────────
+# ── Antigravity CLI ────────────────────────────────────────────────────────────
 
-detect_gemini_models() {
-    if ! command -v gemini &>/dev/null; then
-        echo "SKIP: gemini CLI not found in PATH" >&2
+detect_agy_models() {
+    if ! command -v agy &>/dev/null; then
+        echo "SKIP: Antigravity CLI (agy) not found in PATH" >&2
         return
     fi
 
     local version
-    version=$(gemini --version 2>/dev/null | grep -oP '\d+\.\d+\.\d+' | head -1 || echo "unknown")
-    cli_versions+=("gemini=$version")
+    version=$(agy --version 2>/dev/null | grep -oP '\d+\.\d+\.\d+' | head -1 || echo "unknown")
+    cli_versions+=("agy=$version")
 
-    local gemini_real
-    gemini_real=$(readlink -f "$(which gemini)" 2>/dev/null || which gemini)
-    local bundle_dir
-    bundle_dir="$(dirname "$gemini_real")/../lib/node_modules/@google/gemini-cli/bundle"
-
-    if [[ ! -d "$bundle_dir" ]]; then
-        # Try alternative layout: global npm prefix
-        local npm_prefix
-        npm_prefix=$(npm prefix -g 2>/dev/null || true)
-        if [[ -n "$npm_prefix" ]]; then
-            bundle_dir="$npm_prefix/lib/node_modules/@google/gemini-cli/bundle"
-        fi
-    fi
-
-    if [[ ! -d "$bundle_dir" ]]; then
-        echo "SKIP: gemini bundle directory not found" >&2
+    local all_models
+    all_models=$(agy models 2>/dev/null || true)
+    if [[ -z "$all_models" ]]; then
+        echo "SKIP: agy returned no available models" >&2
         return
     fi
 
-    # Extract DEFAULT_GEMINI_* constants from JS bundle
-    extract_gemini_const() {
-        local const_name="$1"
-        grep -rohP "${const_name}\s*=\s*\"[^\"]*\"" "$bundle_dir"/*.js 2>/dev/null \
-            | head -1 \
-            | grep -oP '"[^"]*"' \
-            | tr -d '"' || true
-    }
-
     local detected_pr detected_commit detected_cheap
-    detected_pr=$(extract_gemini_const "DEFAULT_GEMINI_MODEL")
-    detected_commit=$(extract_gemini_const "DEFAULT_GEMINI_FLASH_MODEL")
-    detected_cheap=$(extract_gemini_const "DEFAULT_GEMINI_FLASH_LITE_MODEL")
+    detected_pr=$(echo "$all_models" | grep -E 'Pro.*\(High\)$' | head -1 || true)
+    detected_commit=$(echo "$all_models" | grep -E 'Flash.*\(Low\)$' | head -1 || true)
+    detected_cheap=$detected_commit
 
     local cur_pr cur_commit cur_cheap
-    cur_pr=$(get_default gemini pr_model)
-    cur_commit=$(get_default gemini commit_model)
-    cur_cheap=$(get_default gemini cheap_model)
+    cur_pr=$(get_default agy pr_model)
+    cur_commit=$(get_default agy commit_model)
+    cur_cheap=$(get_default agy cheap_model)
 
-    # For gemini, we report what the CLI thinks the default is.
-    # Our defaults may intentionally differ (user overrides), so we still
-    # report when the CLI's own defaults change.
     if [[ -n "$detected_pr" && "$detected_pr" != "$cur_pr" ]]; then
-        changes+=("GEMINI_PR_MODEL: $cur_pr -> $detected_pr")
+        changes+=("AGY_PR_MODEL: $cur_pr -> $detected_pr")
     fi
     if [[ -n "$detected_commit" && "$detected_commit" != "$cur_commit" ]]; then
-        changes+=("GEMINI_COMMIT_MODEL: $cur_commit -> $detected_commit")
+        changes+=("AGY_COMMIT_MODEL: $cur_commit -> $detected_commit")
     fi
     if [[ -n "$detected_cheap" && "$detected_cheap" != "$cur_cheap" ]]; then
-        changes+=("GEMINI_CHEAP_MODEL: $cur_cheap -> $detected_cheap")
+        changes+=("AGY_CHEAP_MODEL: $cur_cheap -> $detected_cheap")
     fi
 }
 
@@ -245,7 +221,7 @@ detect_gemini_models() {
 
 detect_codex_models
 detect_claude_models
-detect_gemini_models
+detect_agy_models
 
 if [[ ${#changes[@]} -eq 0 ]]; then
     exit 0

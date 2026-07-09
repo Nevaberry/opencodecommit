@@ -8,7 +8,7 @@ const STAGING_BACKENDS = [
   "codex",
   "opencode",
   "claude",
-  "gemini",
+  "agy",
   "grok",
   "openai-api",
   "anthropic-api",
@@ -176,9 +176,9 @@ function buildSettings(activeBackends: string[]) {
     "opencodecommit.codexCLIModel":
       process.env.OCC_E2E_CODEX_MODEL ?? "gpt-5.6-terra",
     "opencodecommit.codexCLIPath": process.env.OCC_E2E_CODEX_PATH ?? "",
-    "opencodecommit.geminiCLIModel":
-      process.env.OCC_E2E_GEMINI_MODEL ?? "gemini-2.5-flash",
-    "opencodecommit.geminiCLIPath": process.env.OCC_E2E_GEMINI_PATH ?? "",
+    "opencodecommit.agyCLIModel":
+      process.env.OCC_E2E_AGY_MODEL ?? "Gemini 3.5 Flash (Low)",
+    "opencodecommit.agyCLIPath": process.env.OCC_E2E_AGY_PATH ?? "",
     "opencodecommit.grokCLIModel":
       process.env.OCC_E2E_GROK_MODEL ?? "grok-build",
     "opencodecommit.grokCLIPath": process.env.OCC_E2E_GROK_PATH ?? "",
@@ -210,10 +210,10 @@ function buildSettings(activeBackends: string[]) {
       "",
     "opencodecommit.codexCheapModel":
       process.env.OCC_E2E_CODEX_CHEAP_MODEL ?? "gpt-5.6-terra",
-    "opencodecommit.geminiPRModel":
-      process.env.OCC_E2E_GEMINI_PR_MODEL ?? "gemini-3-flash-preview",
-    "opencodecommit.geminiCheapModel":
-      process.env.OCC_E2E_GEMINI_CHEAP_MODEL ?? "gemini-3.1-flash-lite-preview",
+    "opencodecommit.agyPRModel":
+      process.env.OCC_E2E_AGY_PR_MODEL ?? "Gemini 3.1 Pro (High)",
+    "opencodecommit.agyCheapModel":
+      process.env.OCC_E2E_AGY_CHEAP_MODEL ?? "Gemini 3.5 Flash (Low)",
     "opencodecommit.grokPRModel":
       process.env.OCC_E2E_GROK_PR_MODEL ?? "grok-build",
     "opencodecommit.grokCheapModel":

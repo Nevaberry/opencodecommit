@@ -259,7 +259,7 @@ pub const TUI_BACKENDS: [(&str, char); 12] = [
     ("opencode", '1'),
     ("claude", '2'),
     ("codex", '3'),
-    ("gemini", '4'),
+    ("agy", '4'),
     ("openai-api", '5'),
     ("anthropic-api", '6'),
     ("gemini-api", '7'),

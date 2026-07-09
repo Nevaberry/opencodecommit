@@ -4,7 +4,7 @@ set -euo pipefail
 REPO_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 BACKENDS=("$@")
 if [ ${#BACKENDS[@]} -eq 0 ]; then
-  BACKENDS=(codex opencode claude gemini grok)
+  BACKENDS=(codex opencode claude agy grok)
 fi
 
 case "${OCC_RUNNER:-}" in
@@ -22,7 +22,7 @@ backend_binary() {
     codex) echo "codex" ;;
     opencode) echo "opencode" ;;
     claude) echo "claude" ;;
-    gemini) echo "gemini" ;;
+    agy) echo "agy" ;;
     grok) echo "grok" ;;
     *)
       echo "unknown backend: $1" >&2

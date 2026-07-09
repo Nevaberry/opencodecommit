@@ -10,7 +10,9 @@ Install only the tools you want to use:
 npm i -g @openai/codex
 npm i -g opencode
 npm i -g @anthropic-ai/claude-code
-npm i -g @google/gemini-cli
+# Antigravity
+curl -fsSL https://antigravity.google/cli/install.sh | bash
+# Grok Build
 curl -fsSL https://x.ai/cli/install.sh | bash
 ```
 
@@ -18,13 +20,13 @@ Supported CLI backends:
 - Codex CLI
 - OpenCode CLI
 - Claude Code CLI
-- Gemini CLI
+- Antigravity CLI (`agy`)
 - Grok Build CLI
 
 The default backend order is:
 
 ```toml
-backend-order = ["codex", "opencode", "claude", "gemini", "grok"]
+backend-order = ["codex", "opencode", "claude", "agy", "grok"]
 ```
 
 OpenCodeCommit tries each backend in order until one succeeds.
@@ -71,3 +73,5 @@ PR generation can use a stronger model for final writing and a cheaper model for
 Codex one-shot tasks use a fast, prompt-only profile. The default `gpt-5.6-terra` commit model runs with reasoning effort `none`; PR generation keeps the more conservative quality profile.
 
 Grok Build uses its `grok-build` model key in headless single-prompt mode. OpenCodeCommit disables auto-updates, tools, memory, subagents, planning, and web search for these runs because all required diff context is already in the prompt.
+
+Antigravity uses `agy --print` in plan mode with its sandbox enabled. Configure its model display names with `agy-model`, `agy-pr-model`, and `agy-cheap-model`.

@@ -17,7 +17,8 @@ pub enum CliBackend {
     Opencode,
     Claude,
     Codex,
-    Gemini,
+    #[serde(alias = "gemini")]
+    Agy,
     Grok,
 }
 
@@ -27,7 +28,7 @@ impl fmt::Display for CliBackend {
             CliBackend::Opencode => write!(f, "opencode"),
             CliBackend::Claude => write!(f, "claude"),
             CliBackend::Codex => write!(f, "codex"),
-            CliBackend::Gemini => write!(f, "gemini"),
+            CliBackend::Agy => write!(f, "agy"),
             CliBackend::Grok => write!(f, "grok"),
         }
     }
@@ -40,7 +41,8 @@ pub enum Backend {
     Opencode,
     Claude,
     Codex,
-    Gemini,
+    #[serde(alias = "gemini")]
+    Agy,
     Grok,
     OpenaiApi,
     AnthropicApi,
@@ -57,7 +59,7 @@ impl Backend {
         Backend::Opencode,
         Backend::Claude,
         Backend::Codex,
-        Backend::Gemini,
+        Backend::Agy,
         Backend::Grok,
         Backend::OpenaiApi,
         Backend::AnthropicApi,
@@ -82,7 +84,7 @@ impl Backend {
             Backend::Opencode => Some(CliBackend::Opencode),
             Backend::Claude => Some(CliBackend::Claude),
             Backend::Codex => Some(CliBackend::Codex),
-            Backend::Gemini => Some(CliBackend::Gemini),
+            Backend::Agy => Some(CliBackend::Agy),
             Backend::Grok => Some(CliBackend::Grok),
             Backend::OpenaiApi
             | Backend::AnthropicApi
@@ -100,7 +102,7 @@ impl Backend {
             Backend::Opencode => "OpenCode CLI",
             Backend::Claude => "Claude Code CLI",
             Backend::Codex => "Codex CLI",
-            Backend::Gemini => "Gemini CLI",
+            Backend::Agy => "Antigravity CLI",
             Backend::Grok => "Grok Build CLI",
             Backend::OpenaiApi => "OpenAI API",
             Backend::AnthropicApi => "Anthropic API",
@@ -120,7 +122,7 @@ impl fmt::Display for Backend {
             Backend::Opencode => write!(f, "opencode"),
             Backend::Claude => write!(f, "claude"),
             Backend::Codex => write!(f, "codex"),
-            Backend::Gemini => write!(f, "gemini"),
+            Backend::Agy => write!(f, "agy"),
             Backend::Grok => write!(f, "grok"),
             Backend::OpenaiApi => write!(f, "openai-api"),
             Backend::AnthropicApi => write!(f, "anthropic-api"),
@@ -140,7 +142,7 @@ impl From<CliBackend> for Backend {
             CliBackend::Opencode => Backend::Opencode,
             CliBackend::Claude => Backend::Claude,
             CliBackend::Codex => Backend::Codex,
-            CliBackend::Gemini => Backend::Gemini,
+            CliBackend::Agy => Backend::Agy,
             CliBackend::Grok => Backend::Grok,
         }
     }
@@ -358,10 +360,10 @@ pub struct Config {
     pub codex_provider: String,
 
     #[serde(default)]
-    pub gemini_path: String,
+    pub agy_path: String,
 
-    #[serde(default = "default_gemini_model")]
-    pub gemini_model: String,
+    #[serde(default = "default_agy_model")]
+    pub agy_model: String,
 
     #[serde(default)]
     pub grok_path: String,
@@ -400,11 +402,11 @@ pub struct Config {
     #[serde(default)]
     pub codex_cheap_provider: String,
 
-    #[serde(default = "default_gemini_pr_model")]
-    pub gemini_pr_model: String,
+    #[serde(default = "default_agy_pr_model")]
+    pub agy_pr_model: String,
 
-    #[serde(default = "default_gemini_cheap_model")]
-    pub gemini_cheap_model: String,
+    #[serde(default = "default_agy_cheap_model")]
+    pub agy_cheap_model: String,
 
     #[serde(default = "default_grok_pr_model")]
     pub grok_pr_model: String,
@@ -475,7 +477,7 @@ fn default_backend_order() -> Vec<Backend> {
         Backend::Codex,
         Backend::Opencode,
         Backend::Claude,
-        Backend::Gemini,
+        Backend::Agy,
         Backend::Grok,
     ]
 }
@@ -500,8 +502,8 @@ fn default_codex_model() -> String {
     model_catalog_backend_default("codex", "commit_model", "gpt-5.6-terra")
 }
 
-fn default_gemini_model() -> String {
-    model_catalog_backend_default("gemini", "commit_model", "gemini-2.5-flash")
+fn default_agy_model() -> String {
+    model_catalog_backend_default("agy", "commit_model", "Gemini 3.5 Flash (Low)")
 }
 
 fn default_grok_model() -> String {
@@ -572,12 +574,12 @@ fn default_codex_cheap_model() -> String {
     model_catalog_backend_default("codex", "cheap_model", "gpt-5.6-terra")
 }
 
-fn default_gemini_pr_model() -> String {
-    model_catalog_backend_default("gemini", "pr_model", "gemini-3-flash-preview")
+fn default_agy_pr_model() -> String {
+    model_catalog_backend_default("agy", "pr_model", "Gemini 3.1 Pro (High)")
 }
 
-fn default_gemini_cheap_model() -> String {
-    model_catalog_backend_default("gemini", "cheap_model", "gemini-3.1-flash-lite-preview")
+fn default_agy_cheap_model() -> String {
+    model_catalog_backend_default("agy", "cheap_model", "Gemini 3.5 Flash (Low)")
 }
 
 fn default_grok_pr_model() -> String {
@@ -697,8 +699,8 @@ impl Default for Config {
             claude_model: default_claude_model(),
             codex_model: default_codex_model(),
             codex_provider: String::new(),
-            gemini_path: String::new(),
-            gemini_model: default_gemini_model(),
+            agy_path: String::new(),
+            agy_model: default_agy_model(),
             grok_path: String::new(),
             grok_model: default_grok_model(),
             opencode_pr_provider: default_opencode_pr_provider(),
@@ -711,8 +713,8 @@ impl Default for Config {
             codex_cheap_model: default_codex_cheap_model(),
             codex_pr_provider: String::new(),
             codex_cheap_provider: String::new(),
-            gemini_pr_model: default_gemini_pr_model(),
-            gemini_cheap_model: default_gemini_cheap_model(),
+            agy_pr_model: default_agy_pr_model(),
+            agy_cheap_model: default_agy_cheap_model(),
             grok_pr_model: default_grok_pr_model(),
             grok_cheap_model: default_grok_cheap_model(),
             pr_base_branch: String::new(),
@@ -825,7 +827,7 @@ impl Config {
             CliBackend::Opencode => &self.cli_path,
             CliBackend::Claude => &self.claude_path,
             CliBackend::Codex => &self.codex_path,
-            CliBackend::Gemini => &self.gemini_path,
+            CliBackend::Agy => &self.agy_path,
             CliBackend::Grok => &self.grok_path,
         }
     }
@@ -865,7 +867,7 @@ impl Config {
             Backend::Opencode => &self.model,
             Backend::Claude => &self.claude_model,
             Backend::Codex => &self.codex_model,
-            Backend::Gemini => &self.gemini_model,
+            Backend::Agy => &self.agy_model,
             Backend::Grok => &self.grok_model,
             Backend::OpenaiApi => &self.api.openai.model,
             Backend::AnthropicApi => &self.api.anthropic.model,
@@ -883,7 +885,7 @@ impl Config {
             Backend::Opencode => &self.opencode_pr_model,
             Backend::Claude => &self.claude_pr_model,
             Backend::Codex => &self.codex_pr_model,
-            Backend::Gemini => &self.gemini_pr_model,
+            Backend::Agy => &self.agy_pr_model,
             Backend::Grok => &self.grok_pr_model,
             Backend::OpenaiApi => fallback_str(&self.api.openai.pr_model, &self.api.openai.model),
             Backend::AnthropicApi => {
@@ -909,7 +911,7 @@ impl Config {
             Backend::Opencode => &self.opencode_cheap_model,
             Backend::Claude => &self.claude_cheap_model,
             Backend::Codex => &self.codex_cheap_model,
-            Backend::Gemini => &self.gemini_cheap_model,
+            Backend::Agy => &self.agy_cheap_model,
             Backend::Grok => &self.grok_cheap_model,
             Backend::OpenaiApi => {
                 fallback_str(&self.api.openai.cheap_model, &self.api.openai.model)
@@ -964,11 +966,9 @@ impl Config {
             Backend::OllamaApi => Some(&self.api.ollama),
             Backend::LmStudioApi => Some(&self.api.lm_studio),
             Backend::CustomApi => Some(&self.api.custom),
-            Backend::Opencode
-            | Backend::Claude
-            | Backend::Codex
-            | Backend::Gemini
-            | Backend::Grok => None,
+            Backend::Opencode | Backend::Claude | Backend::Codex | Backend::Agy | Backend::Grok => {
+                None
+            }
         }
     }
 
@@ -1120,7 +1120,7 @@ mod tests {
                 Backend::Codex,
                 Backend::Opencode,
                 Backend::Claude,
-                Backend::Gemini,
+                Backend::Agy,
                 Backend::Grok
             ]
         );
@@ -1134,8 +1134,10 @@ mod tests {
         assert_eq!(cfg.claude_model, "claude-sonnet-4-6");
         assert_eq!(cfg.codex_model, "gpt-5.6-terra");
         assert_eq!(cfg.codex_provider, "");
-        assert_eq!(cfg.gemini_path, "");
-        assert_eq!(cfg.gemini_model, "gemini-2.5-flash");
+        assert_eq!(cfg.agy_path, "");
+        assert_eq!(cfg.agy_model, "Gemini 3.5 Flash (Low)");
+        assert_eq!(cfg.agy_pr_model, "Gemini 3.1 Pro (High)");
+        assert_eq!(cfg.agy_cheap_model, "Gemini 3.5 Flash (Low)");
         assert_eq!(cfg.grok_path, "");
         assert_eq!(cfg.grok_model, "grok-build");
         assert_eq!(cfg.grok_pr_model, "grok-build");
@@ -1321,11 +1323,11 @@ mod tests {
         assert_eq!(cfg.backend_model(), "gpt-5.6-terra");
         assert_eq!(cfg.backend_cli_path(), "/usr/bin/codex");
 
-        cfg.backend = Backend::Gemini;
-        cfg.gemini_path = "/usr/bin/gemini".to_owned();
-        cfg.gemini_model = "gemini-2.5-flash".to_owned();
-        assert_eq!(cfg.backend_model(), "gemini-2.5-flash");
-        assert_eq!(cfg.backend_cli_path(), "/usr/bin/gemini");
+        cfg.backend = Backend::Agy;
+        cfg.agy_path = "/usr/bin/agy".to_owned();
+        cfg.agy_model = "Gemini 3.5 Flash (Low)".to_owned();
+        assert_eq!(cfg.backend_model(), "Gemini 3.5 Flash (Low)");
+        assert_eq!(cfg.backend_cli_path(), "/usr/bin/agy");
 
         cfg.backend = Backend::Grok;
         cfg.grok_path = "/usr/bin/grok".to_owned();
@@ -1589,9 +1591,9 @@ endpoint = "http://127.0.0.1:11434"
         assert_eq!(cfg.backend_pr_model(), "gpt-5.4");
         assert_eq!(cfg.backend_cheap_model(), "gpt-5.6-terra");
 
-        cfg.backend = Backend::Gemini;
-        assert_eq!(cfg.backend_pr_model(), "gemini-3-flash-preview");
-        assert_eq!(cfg.backend_cheap_model(), "gemini-3.1-flash-lite-preview");
+        cfg.backend = Backend::Agy;
+        assert_eq!(cfg.backend_pr_model(), "Gemini 3.1 Pro (High)");
+        assert_eq!(cfg.backend_cheap_model(), "Gemini 3.5 Flash (Low)");
 
         cfg.backend = Backend::Grok;
         assert_eq!(cfg.backend_pr_model(), "grok-build");
@@ -1625,6 +1627,28 @@ pr-base-branch = "develop"
         assert_eq!(cfg.branch_mode, BranchMode::Adaptive);
         let cfg2: Config = toml::from_str("branch-mode = \"conventional\"").unwrap();
         assert_eq!(cfg2.branch_mode, BranchMode::Conventional);
+    }
+
+    #[test]
+    fn legacy_gemini_cli_backend_migrates_to_agy() {
+        let cfg: Config = toml::from_str(
+            r#"
+backend = "gemini"
+backend-order = ["gemini", "codex"]
+gemini-path = "/legacy/gemini"
+gemini-model = "legacy-model"
+gemini-pr-model = "legacy-pr"
+gemini-cheap-model = "legacy-cheap"
+"#,
+        )
+        .unwrap();
+
+        assert_eq!(cfg.backend, Backend::Agy);
+        assert_eq!(cfg.backend_order, vec![Backend::Agy, Backend::Codex]);
+        assert_eq!(cfg.agy_path, "");
+        assert_eq!(cfg.agy_model, "Gemini 3.5 Flash (Low)");
+        assert_eq!(cfg.agy_pr_model, "Gemini 3.1 Pro (High)");
+        assert_eq!(cfg.agy_cheap_model, "Gemini 3.5 Flash (Low)");
     }
 
     #[test]
