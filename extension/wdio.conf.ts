@@ -5,10 +5,7 @@
 import * as path from "node:path"
 import { createFixtureWorkspace } from "./src/test/e2e/wdio/fixtures/create-workspace"
 
-const extensionVsixPath = path.resolve(
-  __dirname,
-  "opencodecommit-ui-e2e.vsix",
-)
+const extensionVsixPath = path.resolve(__dirname, "opencodecommit-ui-e2e.vsix")
 const fixtureWorkspacePath = createFixtureWorkspace()
 
 const lastSpawnEnvPath = path.join(fixtureWorkspacePath, ".occ-last-spawn.json")

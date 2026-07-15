@@ -11,9 +11,9 @@
       "Grok Build"
     ],
     "models": [
-      "claude-fable-5.0",
+      "claude-fable-5",
       "claude-opus-4.8",
-      "claude-sonnet-4.6",
+      "claude-sonnet-5",
       "gpt-5.6-sol",
       "gpt-5.6-terra",
       "gpt-5.6-luna",
@@ -43,7 +43,7 @@
       {
         "label": "Fable",
         "agent": "Claude Code",
-        "model": "claude-fable-5.0",
+        "model": "claude-fable-5",
         "versionCommand": "claude -v",
         "versionPattern": "(?<version>\\S+) \\(Claude Code\\)"
       },
@@ -59,18 +59,18 @@
   "backendDefaults": {
     "opencode": {
       "commit_model": "gpt-5.6-terra",
-      "pr_model": "gpt-5.4",
-      "cheap_model": "gpt-5.6-terra"
+      "pr_model": "gpt-5.6-sol",
+      "cheap_model": "gpt-5.6-luna"
     },
     "claude": {
-      "commit_model": "claude-sonnet-4-6",
-      "pr_model": "claude-opus-4-6",
+      "commit_model": "claude-sonnet-5",
+      "pr_model": "claude-opus-4-8",
       "cheap_model": "claude-haiku-4-5"
     },
     "codex": {
       "commit_model": "gpt-5.6-terra",
-      "pr_model": "gpt-5.4",
-      "cheap_model": "gpt-5.6-terra"
+      "pr_model": "gpt-5.6-sol",
+      "cheap_model": "gpt-5.6-luna"
     },
     "agy": {
       "commit_model": "Gemini 3.5 Flash (Low)",

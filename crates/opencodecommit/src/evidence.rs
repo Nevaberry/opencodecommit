@@ -1256,7 +1256,9 @@ mod tests {
         assert_eq!(config.harnesses[0], "Codex");
         assert_eq!(config.harnesses[1], "Claude Code");
         assert!(config.harnesses.contains(&"GitHub Copilot".to_owned()));
+        assert!(config.models.contains(&"claude-fable-5".to_owned()));
         assert!(config.models.contains(&"claude-opus-4.8".to_owned()));
+        assert!(config.models.contains(&"claude-sonnet-5".to_owned()));
         assert!(config.models.contains(&"gpt-5.6-sol".to_owned()));
         assert!(config.models.contains(&"gpt-5.6-terra".to_owned()));
         assert!(config.models.contains(&"gpt-5.6-luna".to_owned()));
@@ -1299,7 +1301,7 @@ mod tests {
                 .iter()
                 .find(|option| option.label == "Fable")
                 .map(|option| option.model.as_str()),
-            Some("claude-fable-5.0")
+            Some("claude-fable-5")
         );
         assert_eq!(
             config

@@ -59,14 +59,51 @@ detect_codex_models() {
         | .[0].slug // ""
     ' "$cache")
 
-    # Commit/Cheap model: lowest priority visible -mini model
+    # Commit model: prefer the balanced/everyday tier, then fall back to mini.
     local detected_commit
     detected_commit=$(jq -r '
         .models
-        | map(select(.visibility == "list" and (.slug | endswith("-mini"))))
+        | map(select(
+            .visibility == "list"
+            and (
+                (.slug | endswith("-terra"))
+                or ((.description // "" | ascii_downcase) | contains("balanced"))
+            )
+        ))
         | sort_by(.priority)
         | .[0].slug // ""
     ' "$cache")
+    if [[ -z "$detected_commit" ]]; then
+        detected_commit=$(jq -r '
+            .models
+            | map(select(.visibility == "list" and (.slug | endswith("-mini"))))
+            | sort_by(.priority)
+            | .[0].slug // ""
+        ' "$cache")
+    fi
+
+    # Cheap model: prefer the efficient/high-volume tier, then fall back to mini.
+    local detected_cheap
+    detected_cheap=$(jq -r '
+        .models
+        | map(select(
+            .visibility == "list"
+            and (
+                (.slug | endswith("-luna"))
+                or ((.description // "" | ascii_downcase) | contains("affordable"))
+            )
+        ))
+        | sort_by(.priority)
+        | .[0].slug // ""
+    ' "$cache")
+    if [[ -z "$detected_cheap" ]]; then
+        detected_cheap=$(jq -r '
+            .models
+            | map(select(.visibility == "list" and (.slug | endswith("-mini"))))
+            | sort_by(.priority)
+            | .[0].slug // ""
+        ' "$cache")
+    fi
 
     local cur_pr cur_commit cur_cheap
     cur_pr=$(get_default codex pr_model)
@@ -79,24 +116,60 @@ detect_codex_models() {
     if [[ -n "$detected_commit" && "$detected_commit" != "$cur_commit" ]]; then
         changes+=("CODEX_COMMIT_MODEL: $cur_commit -> $detected_commit")
     fi
-    if [[ -n "$detected_commit" && "$detected_commit" != "$cur_cheap" ]]; then
-        changes+=("CODEX_CHEAP_MODEL: $cur_cheap -> $detected_commit")
+    if [[ -n "$detected_cheap" && "$detected_cheap" != "$cur_cheap" ]]; then
+        changes+=("CODEX_CHEAP_MODEL: $cur_cheap -> $detected_cheap")
+    fi
+}
+
+# ── OpenCode CLI ───────────────────────────────────────────────────────────────
+
+detect_opencode_models() {
+    if ! command -v opencode &>/dev/null; then
+        echo "SKIP: opencode CLI not found in PATH" >&2
+        return
     fi
 
-    # OpenCode mirrors Codex defaults
-    local oc_pr oc_commit oc_cheap
-    oc_pr=$(get_default opencode pr_model)
-    oc_commit=$(get_default opencode commit_model)
-    oc_cheap=$(get_default opencode cheap_model)
+    local version
+    version=$(opencode --version 2>/dev/null | grep -oP '\d+\.\d+\.\d+' | head -1 || echo "unknown")
+    cli_versions+=("opencode=$version")
 
-    if [[ -n "$detected_pr" && "$detected_pr" != "$oc_pr" ]]; then
-        changes+=("OPENCODE_PR_MODEL: $oc_pr -> $detected_pr")
+    # OpenCodeCommit defaults to OpenCode's OpenAI provider. Model output uses
+    # provider/model identifiers, so strip the provider before comparing it to
+    # the catalogue defaults.
+    local all_models
+    all_models=$(opencode models openai 2>/dev/null | grep '^openai/' | sed 's#^openai/##' || true)
+    if [[ -z "$all_models" ]]; then
+        echo "SKIP: OpenCode returned no OpenAI models" >&2
+        return
     fi
-    if [[ -n "$detected_commit" && "$detected_commit" != "$oc_commit" ]]; then
-        changes+=("OPENCODE_COMMIT_MODEL: $oc_commit -> $detected_commit")
+
+    pick_latest_tier() {
+        local tier="$1"
+        echo "$all_models" \
+            | grep -E "^gpt-[0-9]+(\.[0-9]+)*-${tier}$" \
+            | sort -V \
+            | tail -1 \
+            || true
+    }
+
+    local detected_pr detected_commit detected_cheap
+    detected_pr=$(pick_latest_tier sol)
+    detected_commit=$(pick_latest_tier terra)
+    detected_cheap=$(pick_latest_tier luna)
+
+    local cur_pr cur_commit cur_cheap
+    cur_pr=$(get_default opencode pr_model)
+    cur_commit=$(get_default opencode commit_model)
+    cur_cheap=$(get_default opencode cheap_model)
+
+    if [[ -n "$detected_pr" && "$detected_pr" != "$cur_pr" ]]; then
+        changes+=("OPENCODE_PR_MODEL: $cur_pr -> $detected_pr")
     fi
-    if [[ -n "$detected_commit" && "$detected_commit" != "$oc_cheap" ]]; then
-        changes+=("OPENCODE_CHEAP_MODEL: $oc_cheap -> $detected_commit")
+    if [[ -n "$detected_commit" && "$detected_commit" != "$cur_commit" ]]; then
+        changes+=("OPENCODE_COMMIT_MODEL: $cur_commit -> $detected_commit")
+    fi
+    if [[ -n "$detected_cheap" && "$detected_cheap" != "$cur_cheap" ]]; then
+        changes+=("OPENCODE_CHEAP_MODEL: $cur_cheap -> $detected_cheap")
     fi
 }
 
@@ -122,7 +195,7 @@ detect_claude_models() {
 
     # Extract all claude model identifiers from the binary
     local all_models
-    all_models=$(strings "$claude_bin" | grep -oP 'claude-(sonnet|opus|haiku)-\d+(-\d+)*' | sort -u || true)
+    all_models=$(strings "$claude_bin" | grep -oP 'claude-(sonnet|opus|haiku|fable)-\d+(-\d+)*' | sort -u || true)
 
     if [[ -z "$all_models" ]]; then
         echo "SKIP: no claude model strings found in binary" >&2
@@ -156,6 +229,8 @@ detect_claude_models() {
         echo "$candidates" | sort -t'-' -k3,3nr -k4,4nr -k5,5nr | head -1
     }
 
+    # Fable is a usage-credit tier for the hardest problems. Keep it opt-in and
+    # use the newest Opus model for the quality-first PR default.
     local detected_pr detected_commit detected_cheap
     detected_pr=$(pick_latest opus)
     detected_commit=$(pick_latest sonnet)
@@ -220,6 +295,7 @@ detect_agy_models() {
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 detect_codex_models
+detect_opencode_models
 detect_claude_models
 detect_agy_models
 

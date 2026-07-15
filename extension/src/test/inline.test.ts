@@ -154,21 +154,21 @@ function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
     codexPath: "",
     agyPath: "",
     grokPath: "",
-    claudeModel: "claude-sonnet-4-6",
+    claudeModel: "claude-sonnet-5",
     codexModel: "gpt-5.6-terra",
     codexProvider: "",
     agyModel: "Gemini 3.5 Flash (Low)",
     grokModel: "grok-build",
     opencodePrProvider: "openai",
-    opencodePrModel: "gpt-5.4",
+    opencodePrModel: "gpt-5.6-sol",
     opencodeCheapProvider: "openai",
-    opencodeCheapModel: "gpt-5.6-terra",
-    claudePrModel: "claude-opus-4-6",
+    opencodeCheapModel: "gpt-5.6-luna",
+    claudePrModel: "claude-opus-4-8",
     claudeCheapModel: "claude-haiku-4-5",
     codexPrProvider: "",
-    codexPrModel: "gpt-5.4",
+    codexPrModel: "gpt-5.6-sol",
     codexCheapProvider: "",
-    codexCheapModel: "gpt-5.6-terra",
+    codexCheapModel: "gpt-5.6-luna",
     agyPrModel: "Gemini 3.1 Pro (High)",
     agyCheapModel: "Gemini 3.5 Flash (Low)",
     grokPrModel: "grok-build",
@@ -340,7 +340,9 @@ describe("evidence Assisted-by helpers", () => {
       "Claude Code",
     ])
     assert.ok(DEFAULT_HARNESSES.includes("GitHub Copilot"))
+    assert.ok(DEFAULT_MODELS.includes("claude-fable-5"))
     assert.ok(DEFAULT_MODELS.includes("claude-opus-4.8"))
+    assert.ok(DEFAULT_MODELS.includes("claude-sonnet-5"))
     assert.ok(DEFAULT_MODELS.includes("gpt-5.6-sol"))
     assert.ok(DEFAULT_MODELS.includes("gpt-5.6-terra"))
     assert.ok(DEFAULT_MODELS.includes("gpt-5.6-luna"))
@@ -368,7 +370,7 @@ describe("evidence Assisted-by helpers", () => {
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find(
         (option) => option.label === "Fable",
       )?.model,
-      "claude-fable-5.0",
+      "claude-fable-5",
     )
     assert.deepStrictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find(

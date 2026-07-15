@@ -169,7 +169,7 @@ occ_e2e_render_config_for_backends() {
   local opencode_provider=${OCC_E2E_OPENCODE_PROVIDER:-openai}
   local opencode_model=${OCC_E2E_OPENCODE_MODEL:-gpt-5.6-terra}
   local opencode_path=${OCC_E2E_OPENCODE_PATH:-}
-  local claude_model=${OCC_E2E_CLAUDE_MODEL:-claude-sonnet-4-6}
+  local claude_model=${OCC_E2E_CLAUDE_MODEL:-claude-sonnet-5}
   local claude_path=${OCC_E2E_CLAUDE_PATH:-}
   local codex_model=${OCC_E2E_CODEX_MODEL:-gpt-5.6-terra}
   local codex_provider=${OCC_E2E_CODEX_PROVIDER:-}
@@ -180,15 +180,15 @@ occ_e2e_render_config_for_backends() {
   local grok_path=${OCC_E2E_GROK_PATH:-}
 
   local opencode_pr_provider=${OCC_E2E_OPENCODE_PR_PROVIDER:-$opencode_provider}
-  local opencode_pr_model=${OCC_E2E_OPENCODE_PR_MODEL:-gpt-5.4}
+  local opencode_pr_model=${OCC_E2E_OPENCODE_PR_MODEL:-gpt-5.6-sol}
   local opencode_cheap_provider=${OCC_E2E_OPENCODE_CHEAP_PROVIDER:-$opencode_provider}
-  local opencode_cheap_model=${OCC_E2E_OPENCODE_CHEAP_MODEL:-gpt-5.6-terra}
-  local claude_pr_model=${OCC_E2E_CLAUDE_PR_MODEL:-claude-opus-4-6}
+  local opencode_cheap_model=${OCC_E2E_OPENCODE_CHEAP_MODEL:-gpt-5.6-luna}
+  local claude_pr_model=${OCC_E2E_CLAUDE_PR_MODEL:-claude-opus-4-8}
   local claude_cheap_model=${OCC_E2E_CLAUDE_CHEAP_MODEL:-claude-haiku-4-5}
   local codex_pr_provider=${OCC_E2E_CODEX_PR_PROVIDER:-$codex_provider}
-  local codex_pr_model=${OCC_E2E_CODEX_PR_MODEL:-gpt-5.4}
+  local codex_pr_model=${OCC_E2E_CODEX_PR_MODEL:-gpt-5.6-sol}
   local codex_cheap_provider=${OCC_E2E_CODEX_CHEAP_PROVIDER:-$codex_provider}
-  local codex_cheap_model=${OCC_E2E_CODEX_CHEAP_MODEL:-gpt-5.6-terra}
+  local codex_cheap_model=${OCC_E2E_CODEX_CHEAP_MODEL:-gpt-5.6-luna}
   local agy_pr_model="${OCC_E2E_AGY_PR_MODEL:-Gemini 3.1 Pro (High)}"
   local agy_cheap_model="${OCC_E2E_AGY_CHEAP_MODEL:-Gemini 3.5 Flash (Low)}"
   local grok_pr_model=${OCC_E2E_GROK_PR_MODEL:-grok-build}

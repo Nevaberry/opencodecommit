@@ -525,7 +525,7 @@
           "order": 21,
           "type": "string",
           "default": "gpt-5.6-terra",
-          "description": "Codex CLI model (e.g. gpt-5.6-terra). Passed as -m to codex CLI.",
+          "description": "Codex CLI model (e.g. gpt-5.6-terra, gpt-5.6-sol). Passed as -m to codex CLI.",
           "scope": "machine"
         },
         "opencodecommit.codexCLIPath": {
@@ -546,7 +546,7 @@
           "order": 24,
           "type": "string",
           "default": "gpt-5.6-terra",
-          "description": "OpenCode CLI model (e.g. gpt-5.6-terra, claude-sonnet-4-6). Used as provider/model with the provider setting.",
+          "description": "OpenCode CLI model (e.g. gpt-5.6-terra, claude-sonnet-5). Used as provider/model with the provider setting.",
           "scope": "machine"
         },
         "opencodecommit.opencodeCLIPath": {
@@ -559,8 +559,8 @@
         "opencodecommit.claudeCodeCLIModel": {
           "order": 26,
           "type": "string",
-          "default": "claude-sonnet-4-6",
-          "description": "Claude Code CLI model (e.g. claude-sonnet-4-6, claude-opus-4-6). Passed as --model to claude CLI.",
+          "default": "claude-sonnet-5",
+          "description": "Claude Code CLI model (e.g. claude-sonnet-5, claude-opus-4-8, claude-fable-5). Passed as --model to claude CLI.",
           "scope": "machine"
         },
         "opencodecommit.claudeCodeCLIPath": {
@@ -594,7 +594,7 @@
         "opencodecommit.opencodePRModel": {
           "order": 31,
           "type": "string",
-          "default": "gpt-5.4",
+          "default": "gpt-5.6-sol",
           "description": "OpenCode model for the final PR generation step.",
           "scope": "machine"
         },
@@ -608,14 +608,14 @@
         "opencodecommit.opencodeCheapModel": {
           "order": 33,
           "type": "string",
-          "default": "gpt-5.6-terra",
+          "default": "gpt-5.6-luna",
           "description": "OpenCode model for the cheap PR summarization step.",
           "scope": "machine"
         },
         "opencodecommit.claudePRModel": {
           "order": 34,
           "type": "string",
-          "default": "claude-opus-4-6",
+          "default": "claude-opus-4-8",
           "description": "Claude model for the final PR generation step.",
           "scope": "machine"
         },
@@ -636,7 +636,7 @@
         "opencodecommit.codexPRModel": {
           "order": 37,
           "type": "string",
-          "default": "gpt-5.4",
+          "default": "gpt-5.6-sol",
           "description": "Codex model for the final PR generation step.",
           "scope": "machine"
         },
@@ -650,7 +650,7 @@
         "opencodecommit.codexCheapModel": {
           "order": 39,
           "type": "string",
-          "default": "gpt-5.6-terra",
+          "default": "gpt-5.6-luna",
           "description": "Codex model for the cheap PR summarization step.",
           "scope": "machine"
         },

@@ -495,7 +495,7 @@ fn default_model() -> String {
 }
 
 fn default_claude_model() -> String {
-    model_catalog_backend_default("claude", "commit_model", "claude-sonnet-4-6")
+    model_catalog_backend_default("claude", "commit_model", "claude-sonnet-5")
 }
 
 fn default_codex_model() -> String {
@@ -547,7 +547,7 @@ fn default_opencode_pr_provider() -> String {
 }
 
 fn default_opencode_pr_model() -> String {
-    model_catalog_backend_default("opencode", "pr_model", "gpt-5.4")
+    model_catalog_backend_default("opencode", "pr_model", "gpt-5.6-sol")
 }
 
 fn default_opencode_cheap_provider() -> String {
@@ -555,11 +555,11 @@ fn default_opencode_cheap_provider() -> String {
 }
 
 fn default_opencode_cheap_model() -> String {
-    model_catalog_backend_default("opencode", "cheap_model", "gpt-5.6-terra")
+    model_catalog_backend_default("opencode", "cheap_model", "gpt-5.6-luna")
 }
 
 fn default_claude_pr_model() -> String {
-    model_catalog_backend_default("claude", "pr_model", "claude-opus-4-6")
+    model_catalog_backend_default("claude", "pr_model", "claude-opus-4-8")
 }
 
 fn default_claude_cheap_model() -> String {
@@ -567,11 +567,11 @@ fn default_claude_cheap_model() -> String {
 }
 
 fn default_codex_pr_model() -> String {
-    model_catalog_backend_default("codex", "pr_model", "gpt-5.4")
+    model_catalog_backend_default("codex", "pr_model", "gpt-5.6-sol")
 }
 
 fn default_codex_cheap_model() -> String {
-    model_catalog_backend_default("codex", "cheap_model", "gpt-5.6-terra")
+    model_catalog_backend_default("codex", "cheap_model", "gpt-5.6-luna")
 }
 
 fn default_agy_pr_model() -> String {
@@ -1131,7 +1131,7 @@ mod tests {
         assert_eq!(cfg.cli_path, "");
         assert_eq!(cfg.claude_path, "");
         assert_eq!(cfg.codex_path, "");
-        assert_eq!(cfg.claude_model, "claude-sonnet-4-6");
+        assert_eq!(cfg.claude_model, "claude-sonnet-5");
         assert_eq!(cfg.codex_model, "gpt-5.6-terra");
         assert_eq!(cfg.codex_provider, "");
         assert_eq!(cfg.agy_path, "");
@@ -1315,7 +1315,7 @@ mod tests {
 
         cfg.backend = Backend::Claude;
         cfg.claude_path = "/usr/bin/claude".to_owned();
-        assert_eq!(cfg.backend_model(), "claude-sonnet-4-6");
+        assert_eq!(cfg.backend_model(), "claude-sonnet-5");
         assert_eq!(cfg.backend_cli_path(), "/usr/bin/claude");
 
         cfg.backend = Backend::Codex;
@@ -1570,26 +1570,26 @@ endpoint = "http://127.0.0.1:11434"
     fn backend_pr_and_cheap_models() {
         let mut cfg = Config::default();
         // Default backend is Codex, so PR/cheap pair comes from codex fields.
-        assert_eq!(cfg.backend_pr_model(), "gpt-5.4");
-        assert_eq!(cfg.backend_cheap_model(), "gpt-5.6-terra");
+        assert_eq!(cfg.backend_pr_model(), "gpt-5.6-sol");
+        assert_eq!(cfg.backend_cheap_model(), "gpt-5.6-luna");
         assert_eq!(cfg.backend_pr_provider(), "");
         assert_eq!(cfg.backend_cheap_provider(), "");
 
         cfg.backend = Backend::Opencode;
-        assert_eq!(cfg.backend_pr_model(), "gpt-5.4");
-        assert_eq!(cfg.backend_cheap_model(), "gpt-5.6-terra");
+        assert_eq!(cfg.backend_pr_model(), "gpt-5.6-sol");
+        assert_eq!(cfg.backend_cheap_model(), "gpt-5.6-luna");
         assert_eq!(cfg.backend_pr_provider(), "openai");
         assert_eq!(cfg.backend_cheap_provider(), "openai");
 
         cfg.backend = Backend::Claude;
-        assert_eq!(cfg.backend_pr_model(), "claude-opus-4-6");
+        assert_eq!(cfg.backend_pr_model(), "claude-opus-4-8");
         assert_eq!(cfg.backend_cheap_model(), "claude-haiku-4-5");
         assert_eq!(cfg.backend_pr_provider(), "");
         assert_eq!(cfg.backend_cheap_provider(), "");
 
         cfg.backend = Backend::Codex;
-        assert_eq!(cfg.backend_pr_model(), "gpt-5.4");
-        assert_eq!(cfg.backend_cheap_model(), "gpt-5.6-terra");
+        assert_eq!(cfg.backend_pr_model(), "gpt-5.6-sol");
+        assert_eq!(cfg.backend_cheap_model(), "gpt-5.6-luna");
 
         cfg.backend = Backend::Agy;
         assert_eq!(cfg.backend_pr_model(), "Gemini 3.1 Pro (High)");
