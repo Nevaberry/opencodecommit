@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.10
+
+- Moves local and CI Rust builds to the rolling stable toolchain while declaring
+  Rust 1.97 as the minimum supported compiler.
+- Moves GitHub Actions, package tooling, and examples to Node.js 24 LTS.
+- Refreshes the Rust, TypeScript, test, packaging, and GitHub Actions dependency
+  stacks to their latest stable releases.
+- Automates dependency update PRs with a 48-hour release cooldown and enforces
+  the same package-age policy in Bun, CI, and production releases.
+
 ## 1.9
 
 - Adds optional `occ evidence` mode with `samd` and `defence` profiles for

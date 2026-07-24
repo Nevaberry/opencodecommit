@@ -19,7 +19,7 @@ steps:
 
   - task: NodeTool@0
     inputs:
-      versionSpec: "22.x"
+      versionSpec: "24.x"
 
   - script: npm install -g opencodecommit@latest
     displayName: Install OpenCodeCommit

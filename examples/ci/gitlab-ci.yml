@@ -6,7 +6,7 @@ variables:
   OCC_CONTINUE_ON_BLOCKING_FINDINGS: "false"
 
 occ_scan:
-  image: node:22
+  image: node:24
   stage: scan
   script:
     - npm install -g "opencodecommit@$OCC_VERSION"

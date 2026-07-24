@@ -9,17 +9,31 @@ permissions:
 
 jobs:
   # ── Tests ──────────────────────────────────────────────────────────
+  dependency-age:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Enforce the 48-hour dependency age rule
+        env:
+          BASE_REF: ${{ github.event.before }}
+        run: node scripts/check-package-age.mjs --base "$BASE_REF" --strict
+
   rust-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test --workspace
 
   ts-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
       - run: bun install
       - working-directory: extension
@@ -29,7 +43,7 @@ jobs:
 
   # ── Cross-compile ─────────────────────────────────────────────────
   cross-compile:
-    needs: [rust-test, ts-test]
+    needs: [dependency-age, rust-test, ts-test]
     strategy:
       matrix:
         include:
@@ -50,7 +64,7 @@ jobs:
             platform: win32-x64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -78,7 +92,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: actions/download-artifact@v8
         with:
@@ -99,7 +113,7 @@ jobs:
           done
           chmod +x linux-x64/occ linux-arm64/occ darwin-x64/occ darwin-arm64/occ
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
@@ -114,10 +128,10 @@ jobs:
 
   # ── Publish crates.io ─────────────────────────────────────────────
   publish-cargo:
-    needs: [rust-test]
+    needs: [dependency-age, rust-test]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - name: Publish to crates.io
         working-directory: crates/opencodecommit
@@ -127,10 +141,10 @@ jobs:
 
   # ── Publish VS Code extension ─────────────────────────────────────
   publish-extension:
-    needs: [ts-test]
+    needs: [dependency-age, ts-test]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
       - run: bun install
       - working-directory: extension
@@ -154,7 +168,7 @@ jobs:
     needs: [cross-compile]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -182,7 +196,7 @@ jobs:
           done
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.version.outputs.version }}
           generate_release_notes: true

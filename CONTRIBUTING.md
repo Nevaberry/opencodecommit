@@ -2,7 +2,8 @@
 
 ## Prerequisites
 
-- [Rust](https://rustup.rs/) 1.94+
+- [Rust](https://rustup.rs/) stable (minimum supported version: 1.97)
+- [Node.js](https://nodejs.org/) 24 LTS
 - [Bun](https://bun.sh/)
 - VS Code or VSCodium for extension testing
 
@@ -12,6 +13,11 @@
 bun install                      # root deps (biome, test tools)
 cd extension && bun install      # extension deps
 ```
+
+Bun filters newly resolved direct and transitive packages until they are at
+least 48 hours old. Dependabot proposes eligible Bun, Cargo, and GitHub Actions
+updates against `development`; CI repeats the registry-age check for every
+lockfile change.
 
 ## Build
 

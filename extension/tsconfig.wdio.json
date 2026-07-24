@@ -1,9 +1,9 @@
 {
   "compilerOptions": {
     "module": "commonjs",
-    "target": "ES2022",
-    "lib": ["ES2022", "DOM"],
-    "moduleResolution": "node",
+    "target": "ES2024",
+    "lib": ["ES2024", "DOM"],
+    "moduleResolution": "bundler",
     "sourceMap": false,
     "strict": true,
     "esModuleInterop": true,

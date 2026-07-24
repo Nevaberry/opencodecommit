@@ -1935,7 +1935,7 @@ fn render_file_sidebar(frame: &mut Frame, area: Rect, app: &App) {
     for group in &app.file_groups {
         // Commit subject as header
         lines.push(Line::styled(
-            format!(" {}", &group.title),
+            format!(" {}", group.title),
             Style::default()
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),

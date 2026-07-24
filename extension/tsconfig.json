@@ -1,15 +1,17 @@
 {
   "compilerOptions": {
     "module": "commonjs",
-    "target": "ES2021",
+    "moduleResolution": "bundler",
+    "target": "ES2024",
     "outDir": "out",
-    "lib": ["ES2021"],
+    "lib": ["ES2024"],
     "sourceMap": true,
     "rootDir": "src",
     "strict": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "types": ["node", "mocha"]
   },
   "exclude": ["node_modules", "wdio.conf.ts", "src/test/e2e/wdio/**/*"]
 }

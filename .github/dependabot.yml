@@ -1,0 +1,58 @@
+version: 2
+
+updates:
+  - package-ecosystem: bun
+    directories:
+      - "/"
+      - "/extension"
+    schedule:
+      interval: daily
+      time: "06:00"
+      timezone: Europe/Helsinki
+    target-branch: development
+    cooldown:
+      default-days: 2
+      include:
+        - "*"
+    groups:
+      bun-dependencies:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: daily
+      time: "06:15"
+      timezone: Europe/Helsinki
+    target-branch: development
+    cooldown:
+      default-days: 2
+      include:
+        - "*"
+    groups:
+      cargo-dependencies:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: daily
+      time: "06:30"
+      timezone: Europe/Helsinki
+    target-branch: development
+    cooldown:
+      default-days: 2
+      include:
+        - "*"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "chore(deps)"
