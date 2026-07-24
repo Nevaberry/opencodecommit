@@ -9,6 +9,8 @@
   stacks to their latest stable releases.
 - Automates dependency update PRs with a 48-hour release cooldown and enforces
   the same package-age policy in Bun, CI, and production releases.
+- Migrates the default Claude model from Opus 4.8 to Opus 5 across the CLI,
+  extension, and Assisted-by catalog.
 
 ## 1.9
 
