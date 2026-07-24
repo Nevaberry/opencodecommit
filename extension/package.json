@@ -560,7 +560,7 @@
           "order": 26,
           "type": "string",
           "default": "claude-sonnet-5",
-          "description": "Claude Code CLI model (e.g. claude-sonnet-5, claude-opus-4-8, claude-fable-5). Passed as --model to claude CLI.",
+          "description": "Claude Code CLI model (e.g. claude-sonnet-5, claude-opus-5, claude-fable-5). Passed as --model to claude CLI.",
           "scope": "machine"
         },
         "opencodecommit.claudeCodeCLIPath": {
@@ -615,7 +615,7 @@
         "opencodecommit.claudePRModel": {
           "order": 34,
           "type": "string",
-          "default": "claude-opus-4-8",
+          "default": "claude-opus-5",
           "description": "Claude model for the final PR generation step.",
           "scope": "machine"
         },

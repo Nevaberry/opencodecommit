@@ -195,7 +195,7 @@ function buildSettings(activeBackends: string[]) {
     "opencodecommit.opencodeCheapModel":
       process.env.OCC_E2E_OPENCODE_CHEAP_MODEL ?? "gpt-5.6-luna",
     "opencodecommit.claudePRModel":
-      process.env.OCC_E2E_CLAUDE_PR_MODEL ?? "claude-opus-4-8",
+      process.env.OCC_E2E_CLAUDE_PR_MODEL ?? "claude-opus-5",
     "opencodecommit.claudeCheapModel":
       process.env.OCC_E2E_CLAUDE_CHEAP_MODEL ?? "claude-haiku-4-5",
     "opencodecommit.codexPRProvider":

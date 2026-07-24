@@ -183,7 +183,7 @@ occ_e2e_render_config_for_backends() {
   local opencode_pr_model=${OCC_E2E_OPENCODE_PR_MODEL:-gpt-5.6-sol}
   local opencode_cheap_provider=${OCC_E2E_OPENCODE_CHEAP_PROVIDER:-$opencode_provider}
   local opencode_cheap_model=${OCC_E2E_OPENCODE_CHEAP_MODEL:-gpt-5.6-luna}
-  local claude_pr_model=${OCC_E2E_CLAUDE_PR_MODEL:-claude-opus-4-8}
+  local claude_pr_model=${OCC_E2E_CLAUDE_PR_MODEL:-claude-opus-5}
   local claude_cheap_model=${OCC_E2E_CLAUDE_CHEAP_MODEL:-claude-haiku-4-5}
   local codex_pr_provider=${OCC_E2E_CODEX_PR_PROVIDER:-$codex_provider}
   local codex_pr_model=${OCC_E2E_CODEX_PR_MODEL:-gpt-5.6-sol}

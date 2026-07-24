@@ -559,7 +559,7 @@ fn default_opencode_cheap_model() -> String {
 }
 
 fn default_claude_pr_model() -> String {
-    model_catalog_backend_default("claude", "pr_model", "claude-opus-4-8")
+    model_catalog_backend_default("claude", "pr_model", "claude-opus-5")
 }
 
 fn default_claude_cheap_model() -> String {
@@ -1582,7 +1582,7 @@ endpoint = "http://127.0.0.1:11434"
         assert_eq!(cfg.backend_cheap_provider(), "openai");
 
         cfg.backend = Backend::Claude;
-        assert_eq!(cfg.backend_pr_model(), "claude-opus-4-8");
+        assert_eq!(cfg.backend_pr_model(), "claude-opus-5");
         assert_eq!(cfg.backend_cheap_model(), "claude-haiku-4-5");
         assert_eq!(cfg.backend_pr_provider(), "");
         assert_eq!(cfg.backend_cheap_provider(), "");

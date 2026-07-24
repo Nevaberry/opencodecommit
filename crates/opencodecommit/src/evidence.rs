@@ -1257,7 +1257,7 @@ mod tests {
         assert_eq!(config.harnesses[1], "Claude Code");
         assert!(config.harnesses.contains(&"GitHub Copilot".to_owned()));
         assert!(config.models.contains(&"claude-fable-5".to_owned()));
-        assert!(config.models.contains(&"claude-opus-4.8".to_owned()));
+        assert!(config.models.contains(&"claude-opus-5".to_owned()));
         assert!(config.models.contains(&"claude-sonnet-5".to_owned()));
         assert!(config.models.contains(&"gpt-5.6-sol".to_owned()));
         assert!(config.models.contains(&"gpt-5.6-terra".to_owned()));
@@ -1265,11 +1265,11 @@ mod tests {
         assert!(config.models.contains(&"grok-build".to_owned()));
         assert!(config.models.contains(&"composer-2.5".to_owned()));
         assert!(config.models.contains(&"big-pickle".to_owned()));
-        assert!(!config.models.contains(&"opus-4.8".to_owned()));
+        assert!(!config.models.contains(&"opus-5".to_owned()));
         assert!(
             !config
                 .models
-                .contains(&"anthropic/claude-opus-4.8".to_owned())
+                .contains(&"anthropic/claude-opus-5".to_owned())
         );
         assert_eq!(
             config
@@ -1293,7 +1293,7 @@ mod tests {
                 .iter()
                 .find(|option| option.label == "Opus")
                 .map(|option| option.model.as_str()),
-            Some("claude-opus-4.8")
+            Some("claude-opus-5")
         );
         assert_eq!(
             config
@@ -1340,12 +1340,12 @@ mod tests {
             "feat: x\n\nBody.",
             &[
                 "Assisted-by: Codex 0.133.0:gpt-5.6-sol".to_owned(),
-                "Assisted-by: Claude Code 2.1.0:claude-opus-4.8".to_owned(),
+                "Assisted-by: Claude Code 2.1.0:claude-opus-5".to_owned(),
             ],
         );
         assert_eq!(
             out,
-            "feat: x\n\nBody.\n\nAssisted-by: Codex 0.133.0:gpt-5.6-sol\nAssisted-by: Claude Code 2.1.0:claude-opus-4.8\n"
+            "feat: x\n\nBody.\n\nAssisted-by: Codex 0.133.0:gpt-5.6-sol\nAssisted-by: Claude Code 2.1.0:claude-opus-5\n"
         );
     }
 

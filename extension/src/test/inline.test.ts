@@ -163,7 +163,7 @@ function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
     opencodePrModel: "gpt-5.6-sol",
     opencodeCheapProvider: "openai",
     opencodeCheapModel: "gpt-5.6-luna",
-    claudePrModel: "claude-opus-4-8",
+    claudePrModel: "claude-opus-5",
     claudeCheapModel: "claude-haiku-4-5",
     codexPrProvider: "",
     codexPrModel: "gpt-5.6-sol",
@@ -341,7 +341,7 @@ describe("evidence Assisted-by helpers", () => {
     ])
     assert.ok(DEFAULT_HARNESSES.includes("GitHub Copilot"))
     assert.ok(DEFAULT_MODELS.includes("claude-fable-5"))
-    assert.ok(DEFAULT_MODELS.includes("claude-opus-4.8"))
+    assert.ok(DEFAULT_MODELS.includes("claude-opus-5"))
     assert.ok(DEFAULT_MODELS.includes("claude-sonnet-5"))
     assert.ok(DEFAULT_MODELS.includes("gpt-5.6-sol"))
     assert.ok(DEFAULT_MODELS.includes("gpt-5.6-terra"))
@@ -349,8 +349,8 @@ describe("evidence Assisted-by helpers", () => {
     assert.ok(DEFAULT_MODELS.includes("grok-build"))
     assert.ok(DEFAULT_MODELS.includes("composer-2.5"))
     assert.ok(DEFAULT_MODELS.includes("big-pickle"))
-    assert.ok(!DEFAULT_MODELS.includes("opus-4.8"))
-    assert.ok(!DEFAULT_MODELS.includes("anthropic/claude-opus-4.8"))
+    assert.ok(!DEFAULT_MODELS.includes("opus-5"))
+    assert.ok(!DEFAULT_MODELS.includes("anthropic/claude-opus-5"))
     assert.deepStrictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.map((option) => option.label),
       ["Sol", "Opus", "Fable", "Build Grok"],
@@ -364,7 +364,7 @@ describe("evidence Assisted-by helpers", () => {
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find(
         (option) => option.label === "Opus",
       )?.model,
-      "claude-opus-4.8",
+      "claude-opus-5",
     )
     assert.strictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find(
@@ -407,12 +407,12 @@ describe("evidence Assisted-by helpers", () => {
 
   it("spaces Assisted-by trailers: one blank line before, none between", () => {
     const t1 = "Assisted-by: Codex 0.133.0:gpt-5.6-sol"
-    const t2 = "Assisted-by: Claude Code 2.1.0:claude-opus-4.8"
+    const t2 = "Assisted-by: Claude Code 2.1.0:claude-opus-5"
 
     // Body -> one blank line -> first trailer; subsequent trailers stay contiguous.
     assert.strictEqual(
       appendAssistedByTrailers("feat: x\n\nBody.", [t1, t2]),
-      "feat: x\n\nBody.\n\nAssisted-by: Codex 0.133.0:gpt-5.6-sol\nAssisted-by: Claude Code 2.1.0:claude-opus-4.8",
+      "feat: x\n\nBody.\n\nAssisted-by: Codex 0.133.0:gpt-5.6-sol\nAssisted-by: Claude Code 2.1.0:claude-opus-5",
     )
 
     // One-liner conventional subject still gets a blank line (no ": " false positive).
@@ -427,7 +427,7 @@ describe("evidence Assisted-by helpers", () => {
         "feat: x\n\nAssisted-by: Codex 0.133.0:gpt-5.6-sol",
         [t2],
       ),
-      "feat: x\n\nAssisted-by: Codex 0.133.0:gpt-5.6-sol\nAssisted-by: Claude Code 2.1.0:claude-opus-4.8",
+      "feat: x\n\nAssisted-by: Codex 0.133.0:gpt-5.6-sol\nAssisted-by: Claude Code 2.1.0:claude-opus-5",
     )
 
     // Empty message -> trailer only, no leading blank line.

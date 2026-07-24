@@ -116,7 +116,7 @@ feat(monitor): clamp ECG sampling window
 
 OCC-Evidence: repo:.occ/evidence/2026/06/20260623T091205Z-a1b2c3d.toml
 Assisted-by: Codex 0.133.0:gpt-5.6-sol
-Assisted-by: Claude Code 2.1.0:claude-opus-4.8
+Assisted-by: Claude Code 2.1.0:claude-opus-5
 ```
 
 ```bash
