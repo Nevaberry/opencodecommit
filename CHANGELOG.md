@@ -4,6 +4,10 @@
 
 - Adds optional `occ evidence` mode with `samd` and `defence` profiles for
   sidecar audit trails, sensitive-term controls, and `Assisted-by` attribution.
+- Moves the Codex and Claude `Assisted-by` quick actions into the main Source
+  Control menu.
+- Introduces the `development` -> `main` -> `production` promotion flow, with
+  marketplace deployment triggered by every push to `production`.
 
 ## 1.8
 

@@ -62,10 +62,30 @@ scripts/dev-extension.sh         # build + launch in VSCodium
 scripts/dev-install.sh           # quick install into VSCodium Flatpak
 ```
 
+## Branches and releases
+
+The permanent branches have separate responsibilities:
+
+- `development` is the integration branch for regular feature and fix work.
+- `main` is the default branch and contains tested, release-ready work.
+- `production` is the deployment branch and should receive only release promotions from `main`.
+
+Promote the same commit through the branches:
+
+```text
+development -> main -> production -> npm / crates.io / VS Code Marketplace / Open VSX / GitHub Releases
+```
+
+Any push to `production` starts the production release workflow. This includes a merge commit, fast-forward merge, squash merge, rebase-and-merge, or direct commit. No tag or manual workflow dispatch is required.
+
+Before promoting to `production`, update `CHANGELOG.md` and synchronize a new version across the manifests as described below. Package registries reject attempts to publish a version that already exists.
+
+Repository maintainers must set `main` as the default branch in GitHub and configure branch protection or rulesets for the three permanent branches. The default-branch setting and protection rules are repository settings, so they cannot be declared by these workflow files.
+
 ## Version sync
 
 ```sh
-scripts/sync-version.sh 1.7.0   # set version across all manifests
+scripts/sync-version.sh X.Y.Z   # set version across all manifests
 ```
 
 ## Publish (maintainer)

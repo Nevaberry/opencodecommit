@@ -1,6 +1,6 @@
 {
   "name": "opencodecommit",
-  "version": "1.9.12",
+  "version": "1.9.13",
   "description": "AI commit, branch, PR, changelog, and CI scan tooling for CLI backends and direct provider APIs",
   "license": "MIT",
   "repository": {

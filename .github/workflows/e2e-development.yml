@@ -1,10 +1,10 @@
-name: Staging E2E
+name: Development E2E
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - staging
+      - development
 
 jobs:
   preflight:
@@ -99,13 +99,13 @@ jobs:
     runs-on: [self-hosted, linux, fedora]
     if: ${{ always() }}
     steps:
-      - name: Fail if any staging verification job failed
+      - name: Fail if any development verification job failed
         run: |
           if [ "${{ needs.preflight.result }}" != "success" ] || \
              [ "${{ needs.unit.result }}" != "success" ] || \
              [ "${{ needs.cli.result }}" != "success" ] || \
              [ "${{ needs.extension.result }}" != "success" ] || \
              [ "${{ needs.tui.result }}" != "success" ]; then
-            echo "staging e2e gate failed" >&2
+            echo "development e2e gate failed" >&2
             exit 1
           fi

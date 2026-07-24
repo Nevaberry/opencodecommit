@@ -1,8 +1,8 @@
-name: Release
+name: Production release
 
 on:
   push:
-    branches: [master]
+    branches: [production]
 
 permissions:
   contents: write
