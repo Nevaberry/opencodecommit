@@ -289,8 +289,20 @@
       ],
       "opencodecommit.menu": [
         {
+          "command": "opencodecommit.assistedByCodexSol",
+          "group": "0_assisted@1"
+        },
+        {
+          "command": "opencodecommit.assistedByClaudeOpus",
+          "group": "0_assisted@2"
+        },
+        {
+          "command": "opencodecommit.assistedByClaudeFable",
+          "group": "0_assisted@3"
+        },
+        {
           "submenu": "opencodecommit.assistedByMenu",
-          "group": "0_assisted"
+          "group": "0_assisted@4"
         },
         {
           "command": "opencodecommit.generateAdaptive",
@@ -370,18 +382,6 @@
         }
       ],
       "opencodecommit.assistedByMenu": [
-        {
-          "command": "opencodecommit.assistedByCodexSol",
-          "group": "1_quick@1"
-        },
-        {
-          "command": "opencodecommit.assistedByClaudeOpus",
-          "group": "1_quick@2"
-        },
-        {
-          "command": "opencodecommit.assistedByClaudeFable",
-          "group": "1_quick@3"
-        },
         {
           "command": "opencodecommit.assistedByGrokBuild",
           "group": "1_quick@4"
