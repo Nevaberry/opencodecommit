@@ -716,7 +716,8 @@ mod tests {
         }
     }
 
-    fn fake_cli(script_name: &str, body: &str) -> PathBuf {
+    #[cfg(unix)]
+    fn fake_cli(script_name: &str, unix_body: &str, _windows_body: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(
             "occ-fake-cli-{}-{}",
             std::process::id(),
@@ -725,19 +726,30 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join(script_name);
-        fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
-        }
+        fs::write(&path, format!("#!/bin/sh\n{unix_body}\n")).unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+        path
+    }
+
+    #[cfg(windows)]
+    fn fake_cli(script_name: &str, _unix_body: &str, windows_body: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "occ-fake-cli-{}-{}",
+            std::process::id(),
+            script_name
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(script_name).with_extension("cmd");
+        fs::write(&path, format!("@echo off\r\n{windows_body}\r\n")).unwrap();
         path
     }
 
     #[test]
     fn commit_preview_blocks_sensitive_content() {
         let repo = setup_repo("sensitive");
-        let cli = fake_cli("opencode", "echo 'feat: ignored'");
+        let cli = fake_cli("opencode", "echo 'feat: ignored'", "echo feat: ignored");
 
         with_repo(&repo, || {
             let cfg = Config {
@@ -862,6 +874,10 @@ mod tests {
             "codex-pr",
             &format!(
                 "printf '%s\\n' \"$*\" >> '{}'\nprintf 'TITLE: Update docs\\nBODY:\\n## Summary\\n- update docs\\n'",
+                log.display()
+            ),
+            &format!(
+                "echo %*>>\"{}\"\necho TITLE: Update docs\necho BODY:\necho ## Summary\necho - update docs\nexit /b 0",
                 log.display()
             ),
         );

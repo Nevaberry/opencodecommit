@@ -1518,15 +1518,17 @@ endpoint = "http://127.0.0.1:11434"
                 .unwrap()
                 .as_nanos()
         ));
-        let config_root = temp_root.join("xdg");
+        let config_root = temp_root.join("config-root");
         let config_path = config_root.join("opencodecommit").join("config.toml");
         let previous_xdg = std::env::var_os("XDG_CONFIG_HOME");
+        let previous_appdata = std::env::var_os("APPDATA");
         let previous_env = std::env::var_os(CONFIG_ENV);
 
         let _ = std::fs::remove_dir_all(&temp_root);
 
         unsafe {
             std::env::set_var("XDG_CONFIG_HOME", &config_root);
+            std::env::set_var("APPDATA", &config_root);
             std::env::remove_var(CONFIG_ENV);
         }
 
@@ -1553,6 +1555,14 @@ endpoint = "http://127.0.0.1:11434"
             },
             None => unsafe {
                 std::env::remove_var("XDG_CONFIG_HOME");
+            },
+        }
+        match previous_appdata {
+            Some(value) => unsafe {
+                std::env::set_var("APPDATA", value);
+            },
+            None => unsafe {
+                std::env::remove_var("APPDATA");
             },
         }
         match previous_env {

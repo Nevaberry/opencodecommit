@@ -14,25 +14,32 @@ fn config_arg(config_path: &Path) -> [&str; 2] {
     ["--config", config_path.to_str().expect("utf8 config path")]
 }
 
+#[cfg(unix)]
 fn fake_opencode(repo: &FixtureRepo, message: &str) -> PathBuf {
     let path = repo.path.join("fake-opencode");
     fs::write(&path, format!("#!/bin/sh\necho '{}'\n", message)).expect("write fake opencode");
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).expect("chmod fake opencode");
-    }
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).expect("chmod fake opencode");
+    path
+}
+
+#[cfg(windows)]
+fn fake_opencode(repo: &FixtureRepo, message: &str) -> PathBuf {
+    let path = repo.path.join("fake-opencode.cmd");
+    fs::write(
+        &path,
+        format!("@echo off\r\necho {message}\r\nexit /b 0\r\n"),
+    )
+    .expect("write fake opencode");
     path
 }
 
 fn fake_config(repo: &FixtureRepo, fake_cli: &Path) -> PathBuf {
     let path = repo.path.join("guard-config.toml");
+    let cli_path = toml::Value::String(fake_cli.to_string_lossy().into_owned()).to_string();
     fs::write(
         &path,
-        format!(
-            "backend = \"opencode\"\nbackend-order = [\"opencode\"]\ncli-path = \"{}\"\n",
-            fake_cli.display()
-        ),
+        format!("backend = \"opencode\"\nbackend-order = [\"opencode\"]\ncli-path = {cli_path}\n"),
     )
     .expect("write fake config");
     path

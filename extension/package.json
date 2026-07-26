@@ -1433,6 +1433,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.5",
+    "@types/cross-spawn": "^6.0.6",
     "@types/mocha": "^10.0.10",
     "@types/node": "^24.13.3",
     "@types/sinon": "^22.0.0",
@@ -1444,6 +1445,7 @@
     "@wdio/local-runner": "^9.30.0",
     "@wdio/mocha-framework": "^9.30.0",
     "@wdio/spec-reporter": "^9.29.1",
+    "extract-zip": "^2.0.1",
     "mocha": "^11.7.6",
     "ovsx": "^1.0.2",
     "sinon": "^22.1.0",
@@ -1468,7 +1470,8 @@
     "ws": "8.21.1"
   },
   "dependencies": {
-    "@iarna/toml": "^2.2.5"
+    "@iarna/toml": "^2.2.5",
+    "cross-spawn": "^7.0.6"
   },
   "extensionKind": [
     "workspace"

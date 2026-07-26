@@ -38,10 +38,10 @@ pub fn detect_install_source() -> InstallSource {
     }
 
     // cargo: binary lives in $CARGO_HOME/bin/ (default ~/.cargo/bin/)
-    let cargo_bin = std::env::var("CARGO_HOME")
-        .map(|h| PathBuf::from(h).join("bin"))
-        .or_else(|_| std::env::var("HOME").map(|h| PathBuf::from(h).join(".cargo").join("bin")));
-    if let Ok(bin_dir) = cargo_bin {
+    let cargo_bin = std::env::var_os("CARGO_HOME")
+        .map(|home| PathBuf::from(home).join("bin"))
+        .or_else(|| std::env::home_dir().map(|home| home.join(".cargo").join("bin")));
+    if let Some(bin_dir) = cargo_bin {
         if let Ok(canon) = std::fs::canonicalize(&bin_dir)
             && exe.starts_with(&canon)
         {
@@ -67,7 +67,7 @@ pub fn check_latest_version(source: InstallSource) -> Result<String, String> {
 }
 
 fn check_npm_latest() -> Result<String, String> {
-    let output = Command::new("npm")
+    let output = Command::new(npm_command())
         .args(["view", "opencodecommit", "version"])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
@@ -84,6 +84,10 @@ fn check_npm_latest() -> Result<String, String> {
         return Err("empty version from npm".to_owned());
     }
     Ok(version)
+}
+
+fn npm_command() -> &'static str {
+    if cfg!(windows) { "npm.cmd" } else { "npm" }
 }
 
 fn check_cargo_latest() -> Result<String, String> {
@@ -187,7 +191,7 @@ pub fn run_update(source: InstallSource) -> Result<(), String> {
     match source {
         InstallSource::Npm => {
             eprintln!("Running: npm install -g opencodecommit");
-            let status = Command::new("npm")
+            let status = Command::new(npm_command())
                 .args(["install", "-g", "opencodecommit"])
                 .status()
                 .map_err(|e| format!("failed to run npm: {e}"))?;

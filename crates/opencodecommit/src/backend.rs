@@ -126,8 +126,9 @@ fn common_paths(binary: &str) -> Vec<PathBuf> {
 }
 
 #[cfg(target_os = "windows")]
-fn run_wsl_which(binary: &str) -> Option<String> {
-    let output = Command::new("wsl")
+fn run_wsl_which(binary: &str) -> Option<PathBuf> {
+    let wsl = run_which("wsl")?;
+    let output = Command::new(&wsl)
         .args(["which", binary])
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -137,7 +138,7 @@ fn run_wsl_which(binary: &str) -> Option<String> {
     if output.status.success() {
         let result = String::from_utf8_lossy(&output.stdout).trim().to_owned();
         if !result.is_empty() {
-            return Some(format!("wsl {binary}"));
+            return Some(wsl);
         }
     }
     None
@@ -290,8 +291,7 @@ pub fn detect_cli(backend: CliBackend, config_path: &str) -> Result<PathBuf> {
 
     // 6. WSL fallback (Windows only)
     #[cfg(target_os = "windows")]
-    if let Some(wsl_cmd) = run_wsl_which(binary) {
-        let p = PathBuf::from(&wsl_cmd);
+    if let Some(p) = run_wsl_which(binary) {
         if let Ok(mut cache) = CACHED_PATHS.lock() {
             cache.insert(backend, p.clone());
         }
@@ -324,6 +324,26 @@ pub struct Invocation {
     pub cleanup_dir: Option<PathBuf>,
 }
 
+fn is_wsl_launcher(path: &Path) -> bool {
+    path.file_name().is_some_and(|name| {
+        let name = name.to_string_lossy();
+        name.eq_ignore_ascii_case("wsl") || name.eq_ignore_ascii_case("wsl.exe")
+    })
+}
+
+fn wrap_wsl_invocation(invocation: &mut Invocation, backend: CliBackend) {
+    if !is_wsl_launcher(&invocation.command) {
+        return;
+    }
+
+    invocation
+        .args
+        .insert(0, backend_binary(backend).to_owned());
+    if let Some(fallback) = invocation.fallback_args.as_mut() {
+        fallback.insert(0, backend_binary(backend).to_owned());
+    }
+}
+
 /// Build the command invocation for a given backend.
 pub fn build_invocation(cli_path: &Path, prompt: &str, config: &Config) -> Invocation {
     let backend = config.backend.cli_backend().unwrap_or(CliBackend::Opencode);
@@ -337,7 +357,7 @@ pub fn build_invocation_for(
     config: &Config,
     backend: CliBackend,
 ) -> Invocation {
-    match backend {
+    let mut invocation = match backend {
         CliBackend::Opencode => {
             let model_spec = format!("{}/{}", config.provider, config.model);
             Invocation {
@@ -370,7 +390,12 @@ pub fn build_invocation_for(
             cleanup_dir: None,
         },
         CliBackend::Codex => {
-            let (cwd, cleanup_dir) = codex_invocation_workspace();
+            let uses_wsl = is_wsl_launcher(cli_path);
+            let (cwd, cleanup_dir) = if uses_wsl {
+                (None, None)
+            } else {
+                codex_invocation_workspace()
+            };
             let schema_path = cleanup_dir.as_deref().and_then(write_codex_response_schema);
             let mut args = codex_base_args(&config.codex_model, schema_path.as_deref());
             let mut fallback_args = schema_path
@@ -386,7 +411,7 @@ pub fn build_invocation_for(
                 command: cli_path.to_owned(),
                 args,
                 stdin: Some(prompt.to_owned()),
-                env: codex_env(),
+                env: if uses_wsl { vec![] } else { codex_env() },
                 cwd,
                 fallback_args,
                 json_response_field: schema_path.as_ref().map(|_| CODEX_RESPONSE_FIELD),
@@ -413,7 +438,9 @@ pub fn build_invocation_for(
             json_response_field: None,
             cleanup_dir: None,
         },
-    }
+    };
+    wrap_wsl_invocation(&mut invocation, backend);
+    invocation
 }
 
 /// Build the environment overrides for a `codex exec` invocation. Points
@@ -626,7 +653,7 @@ pub fn build_invocation_with_model_for(
     model: &str,
     provider: Option<&str>,
 ) -> Invocation {
-    match backend {
+    let mut invocation = match backend {
         CliBackend::Opencode => {
             let prov = provider.unwrap_or(&config.provider);
             let model_spec = format!("{prov}/{model}");
@@ -678,12 +705,17 @@ pub fn build_invocation_with_model_for(
                 add_codex_provider(&mut args, prov);
             }
             args.push("-".to_owned());
-            let (cwd, cleanup_dir) = codex_invocation_workspace();
+            let uses_wsl = is_wsl_launcher(cli_path);
+            let (cwd, cleanup_dir) = if uses_wsl {
+                (None, None)
+            } else {
+                codex_invocation_workspace()
+            };
             Invocation {
                 command: cli_path.to_owned(),
                 args,
                 stdin: Some(prompt.to_owned()),
-                env: codex_env(),
+                env: if uses_wsl { vec![] } else { codex_env() },
                 cwd,
                 fallback_args: None,
                 json_response_field: None,
@@ -710,7 +742,9 @@ pub fn build_invocation_with_model_for(
             json_response_field: None,
             cleanup_dir: None,
         },
-    }
+    };
+    wrap_wsl_invocation(&mut invocation, backend);
+    invocation
 }
 
 /// Strip ANSI escape codes from text.
@@ -725,14 +759,125 @@ fn parse_json_response_field(output: &str, field: &str) -> Option<String> {
     value.get(field)?.as_str().map(str::to_owned)
 }
 
+#[cfg(windows)]
+fn is_windows_batch_script(path: &Path) -> bool {
+    path.extension().is_some_and(|extension| {
+        let extension = extension.to_string_lossy();
+        extension.eq_ignore_ascii_case("cmd") || extension.eq_ignore_ascii_case("bat")
+    })
+}
+
+#[cfg(windows)]
+fn is_cmd_meta_character(character: char) -> bool {
+    matches!(
+        character,
+        '(' | ')'
+            | '['
+            | ']'
+            | '%'
+            | '!'
+            | '^'
+            | '"'
+            | '`'
+            | '<'
+            | '>'
+            | '&'
+            | '|'
+            | ';'
+            | ','
+            | ' '
+            | '*'
+            | '?'
+    )
+}
+
+#[cfg(windows)]
+fn escape_cmd_meta_characters(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        if is_cmd_meta_character(character) {
+            escaped.push('^');
+        }
+        escaped.push(character);
+    }
+    escaped
+}
+
+/// Quote one argument for `cmd.exe /d /s /c`. This mirrors the escaping used
+/// by cross-spawn in the TypeScript implementation. Calling a `.cmd` file via
+/// `std::process::Command` directly makes Rust apply its intentionally strict
+/// batch-file quoting, which rejects real prompts containing shell syntax.
+#[cfg(windows)]
+fn escape_windows_batch_argument(argument: &str, double_escape_meta: bool) -> String {
+    let mut quoted = String::with_capacity(argument.len() + 2);
+    quoted.push('"');
+
+    let mut backslashes = 0;
+    for character in argument.chars() {
+        if character == '\\' {
+            backslashes += 1;
+            continue;
+        }
+
+        if character == '"' {
+            quoted.extend(std::iter::repeat_n('\\', backslashes * 2 + 1));
+        } else {
+            quoted.extend(std::iter::repeat_n('\\', backslashes));
+        }
+        backslashes = 0;
+        quoted.push(character);
+    }
+
+    // The closing quote consumes a trailing backslash, so double that run.
+    quoted.extend(std::iter::repeat_n('\\', backslashes * 2));
+    quoted.push('"');
+
+    let escaped = escape_cmd_meta_characters(&quoted);
+    if double_escape_meta {
+        escape_cmd_meta_characters(&escaped)
+    } else {
+        escaped
+    }
+}
+
+#[cfg(windows)]
+fn windows_batch_command(path: &Path, args: &[String]) -> Command {
+    use std::os::windows::process::CommandExt;
+
+    let normalized = path.to_string_lossy().replace('/', "\\");
+    let lower = normalized.to_ascii_lowercase();
+    let double_escape_meta = lower.contains("\\node_modules\\.bin\\");
+    let mut command_line = escape_cmd_meta_characters(&normalized);
+    for argument in args {
+        command_line.push(' ');
+        command_line.push_str(&escape_windows_batch_argument(argument, double_escape_meta));
+    }
+
+    let shell = std::env::var_os("ComSpec").unwrap_or_else(|| "cmd.exe".into());
+    let mut command = Command::new(shell);
+    command.args(["/d", "/s", "/c"]);
+    command.raw_arg(format!("\"{command_line}\""));
+    command
+}
+
+fn invocation_command(path: &Path, args: &[String]) -> Command {
+    #[cfg(windows)]
+    if is_windows_batch_script(path) {
+        return windows_batch_command(path, args);
+    }
+
+    let mut command = Command::new(path);
+    command.args(args);
+    command
+}
+
 fn exec_cli_once(
     invocation: &Invocation,
     args: &[String],
     timeout_secs: u64,
     json_response_field: Option<&str>,
 ) -> Result<String> {
-    let mut cmd = Command::new(&invocation.command);
-    cmd.args(args);
+    let mut cmd = invocation_command(&invocation.command, args);
     cmd.envs(invocation.env.iter().map(|(k, v)| (k.as_str(), v.as_str())));
     if let Some(cwd) = &invocation.cwd {
         cmd.current_dir(cwd);
@@ -863,16 +1008,30 @@ mod tests {
         dir
     }
 
+    #[cfg(unix)]
     fn fake_executable(path: &Path, body: &str) {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).unwrap();
         }
         std::fs::write(path, format!("#!/bin/sh\n{body}\n")).unwrap();
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    #[cfg(unix)]
+    fn fake_cli(path: &Path, unix_body: &str, _windows_body: &str) -> PathBuf {
+        fake_executable(path, unix_body);
+        path.to_path_buf()
+    }
+
+    #[cfg(windows)]
+    fn fake_cli(path: &Path, _unix_body: &str, windows_body: &str) -> PathBuf {
+        let path = path.with_extension("cmd");
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
         }
+        std::fs::write(&path, format!("@echo off\r\n{windows_body}\r\n")).unwrap();
+        path
     }
 
     #[cfg(all(unix, any(target_os = "linux", target_os = "macos")))]
@@ -913,6 +1072,28 @@ mod tests {
         assert_eq!(inv.args.last().map(String::as_str), Some("hello"));
         assert!(inv.stdin.is_none());
         assert!(inv.env.is_empty(), "opencode must not leak CODEX_HOME");
+    }
+
+    #[test]
+    fn wsl_launcher_prepends_backend_and_avoids_windows_codex_paths() {
+        let config = Config {
+            backend: Backend::Opencode,
+            ..Config::default()
+        };
+        let inv = build_invocation(Path::new("wsl.exe"), "hello", &config);
+        assert_eq!(inv.command, Path::new("wsl.exe"));
+        assert_eq!(inv.args.first().map(String::as_str), Some("opencode"));
+
+        let config = Config {
+            backend: Backend::Codex,
+            ..Config::default()
+        };
+        let inv = build_invocation(Path::new("wsl.exe"), "hello", &config);
+        assert_eq!(inv.args.first().map(String::as_str), Some("codex"));
+        assert!(!inv.args.contains(&"--output-schema".to_owned()));
+        assert!(inv.cwd.is_none());
+        assert!(inv.cleanup_dir.is_none());
+        assert!(inv.env.is_empty());
     }
 
     #[test]
@@ -1080,10 +1261,10 @@ mod tests {
     #[test]
     fn codex_exec_runs_from_empty_temp_cwd() {
         let dir = temp_test_dir("empty-cwd");
-        let cli = dir.join("codex");
-        fake_executable(
-            &cli,
+        let cli = fake_cli(
+            &dir.join("codex"),
             "printf '%s\\n' \"$(pwd)\"\nfind . -mindepth 1 -maxdepth 1 | wc -l",
+            "cd\ndir /b /a 2>nul | find /c /v \"\"\nexit /b 0",
         );
         let config = Config {
             backend: Backend::Codex,
@@ -1102,8 +1283,11 @@ mod tests {
     #[test]
     fn codex_structured_output_extracts_response_field() {
         let dir = temp_test_dir("structured-output");
-        let cli = dir.join("codex");
-        fake_executable(&cli, "printf '{\"response\":\"feat: structured\"}'");
+        let cli = fake_cli(
+            &dir.join("codex"),
+            "printf '{\"response\":\"feat: structured\"}'",
+            "echo {\"response\":\"feat: structured\"}",
+        );
         let config = Config {
             backend: Backend::Codex,
             codex_model: "gpt-5.6-terra".to_owned(),
@@ -1118,12 +1302,15 @@ mod tests {
     #[test]
     fn codex_structured_failure_reruns_plain_text() {
         let dir = temp_test_dir("schema-fallback");
-        let cli = dir.join("codex");
         let log = dir.join("args.log");
-        fake_executable(
-            &cli,
+        let cli = fake_cli(
+            &dir.join("codex"),
             &format!(
                 "printf '%s\\n' \"$*\" >> '{}'\ncase \" $* \" in *\" --output-schema \"*) exit 42;; esac\nprintf 'feat: fallback\\n'",
+                log.display()
+            ),
+            &format!(
+                "echo %*>>\"{}\"\necho %*| findstr /C:\"--output-schema\" >nul\nif not errorlevel 1 exit /b 42\necho feat: fallback",
                 log.display()
             ),
         );
@@ -1144,6 +1331,35 @@ mod tests {
         assert!(
             calls.lines().any(|line| !line.contains("--output-schema")),
             "fallback call should omit schema mode: {calls}"
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn batch_cli_accepts_real_prompt_characters_without_shell_injection() {
+        let dir = temp_test_dir("batch-prompt");
+        let marker = dir.join("injected.txt");
+        let cli = fake_cli(
+            &dir.join("folder with spaces").join("opencode"),
+            "printf 'feat: batch prompt\\n'",
+            "echo feat: batch prompt\r\nexit /b 0",
+        );
+        let prompt = format!(
+            "first line\nsecond line & echo injected>\"{}\" %%PATH%% !PATH! ^ < > |",
+            marker.display()
+        );
+        let config = Config {
+            backend: Backend::Opencode,
+            ..Config::default()
+        };
+        let invocation = build_invocation(&cli, &prompt, &config);
+
+        let output = exec_cli_with_timeout(&invocation, 5).unwrap();
+
+        assert_eq!(output, "feat: batch prompt");
+        assert!(
+            !marker.exists(),
+            "prompt text must not be interpreted by cmd.exe"
         );
     }
 
@@ -1363,6 +1579,7 @@ mod tests {
         let _ = detect_cli(CliBackend::Opencode, "");
     }
 
+    #[cfg(unix)]
     #[test]
     fn detect_cli_checks_common_paths_before_shell_profile() {
         let _lock = crate::TEST_CWD_LOCK.lock().unwrap();
@@ -1401,6 +1618,52 @@ mod tests {
                 std::env::set_var("HOME", home);
             } else {
                 std::env::remove_var("HOME");
+            }
+        }
+        if let Ok(mut cache) = CACHED_PATHS.lock() {
+            cache.clear();
+        }
+
+        assert_eq!(result.unwrap(), common_codex);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn detect_cli_checks_windows_npm_paths() {
+        let _lock = crate::TEST_CWD_LOCK.lock().unwrap();
+        let dir = temp_test_dir("detect-windows-npm");
+        let fake_bin = dir.join("bin");
+        let appdata = dir.join("appdata");
+        let local_appdata = dir.join("local-appdata");
+        std::fs::create_dir_all(&fake_bin).unwrap();
+        let common_codex = fake_cli(&appdata.join("npm").join("codex"), "exit 0", "exit /b 0");
+
+        let original_path = std::env::var_os("PATH");
+        let original_appdata = std::env::var_os("APPDATA");
+        let original_local_appdata = std::env::var_os("LOCALAPPDATA");
+        if let Ok(mut cache) = CACHED_PATHS.lock() {
+            cache.clear();
+        }
+        unsafe {
+            std::env::set_var("PATH", &fake_bin);
+            std::env::set_var("APPDATA", &appdata);
+            std::env::set_var("LOCALAPPDATA", &local_appdata);
+        }
+
+        let result = detect_cli(CliBackend::Codex, "");
+
+        unsafe {
+            match original_path {
+                Some(path) => std::env::set_var("PATH", path),
+                None => std::env::remove_var("PATH"),
+            }
+            match original_appdata {
+                Some(path) => std::env::set_var("APPDATA", path),
+                None => std::env::remove_var("APPDATA"),
+            }
+            match original_local_appdata {
+                Some(path) => std::env::set_var("LOCALAPPDATA", path),
+                None => std::env::remove_var("LOCALAPPDATA"),
             }
         }
         if let Ok(mut cache) = CACHED_PATHS.lock() {

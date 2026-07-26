@@ -76,9 +76,15 @@ fn spawn_tui(
     }
 
     let mut session = Session::spawn(command).expect("spawn tui session");
+    #[cfg(unix)]
     session
         .get_process_mut()
         .set_window_size(120, 30)
+        .expect("resize tui session");
+    #[cfg(windows)]
+    session
+        .get_process_mut()
+        .resize(120, 30)
         .expect("resize tui session");
     session.set_expect_timeout(Some(expect_timeout));
     session

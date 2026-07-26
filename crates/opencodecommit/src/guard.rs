@@ -545,11 +545,41 @@ fn is_occ_managed_hook(path: &Path) -> Result<bool> {
 }
 
 fn run_hook_script(path: &Path, hook_name: &str, args: &[String]) -> Result<i32> {
-    let status = Command::new(path)
+    #[cfg(unix)]
+    let mut command = Command::new(path);
+
+    #[cfg(windows)]
+    let mut command = {
+        let shell = git_for_windows_shell().ok_or_else(|| {
+            GuardError::InvalidInstall(
+                "could not locate the Git for Windows shell needed to run chained hooks".to_owned(),
+            )
+        })?;
+        let mut command = Command::new(shell);
+        command.args(["-c", "exec \"$0\" \"$@\""]).arg(path);
+        command
+    };
+
+    let status = command
         .args(args)
         .env("OCC_CHAINED_HOOK_NAME", hook_name)
         .status()?;
     Ok(status.code().unwrap_or(1))
+}
+
+#[cfg(windows)]
+fn git_for_windows_shell() -> Option<PathBuf> {
+    let output = Command::new("git").arg("--exec-path").output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    let exec_path = PathBuf::from(String::from_utf8_lossy(&output.stdout).trim());
+    exec_path.ancestors().find_map(|ancestor| {
+        [ancestor.join("bin/sh.exe"), ancestor.join("usr/bin/sh.exe")]
+            .into_iter()
+            .find(|candidate| candidate.is_file())
+    })
 }
 
 fn hooks_path_matches(repo_root: &Path, hooks_path: &Path, managed_hooks_dir: &Path) -> bool {

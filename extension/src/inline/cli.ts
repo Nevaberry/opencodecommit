@@ -1,7 +1,8 @@
-import { type SpawnOptionsWithStdioTuple, spawn } from "node:child_process"
+import type { SpawnOptionsWithStdioTuple } from "node:child_process"
 import * as fs from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
+import spawn from "cross-spawn"
 import { ensureMinimalCodexHome } from "./codex-home"
 import type { CliBackend, ExtensionConfig } from "./types"
 
@@ -124,11 +125,14 @@ function getCommonPaths(binary: string): string[] {
   ]
 }
 
-function runWslWhich(binary: string): Promise<string | undefined> {
-  if (process.platform !== "win32") return Promise.resolve(undefined)
+async function runWslWhich(binary: string): Promise<string | undefined> {
+  if (process.platform !== "win32") return undefined
+
+  const wsl = await runWhich("wsl")
+  if (!wsl) return undefined
 
   return new Promise((resolve) => {
-    const child = spawnHost("wsl", ["which", binary])
+    const child = spawnHost(wsl, ["which", binary])
 
     let stdout = ""
     child.stdout?.on("data", (d: Buffer) => {
@@ -137,7 +141,7 @@ function runWslWhich(binary: string): Promise<string | undefined> {
 
     child.on("close", (code) => {
       if (code === 0 && stdout.trim()) {
-        resolve(`wsl ${binary}`)
+        resolve(wsl)
       } else {
         resolve(undefined)
       }
@@ -145,6 +149,11 @@ function runWslWhich(binary: string): Promise<string | undefined> {
 
     child.on("error", () => resolve(undefined))
   })
+}
+
+function isWslLauncher(cliPath: string): boolean {
+  const name = path.basename(cliPath).toLowerCase()
+  return name === "wsl" || name === "wsl.exe"
 }
 
 function codexPlatformParts():
@@ -451,12 +460,14 @@ export function buildInvocation(
   operation: InvocationOperation = "commit",
 ): { invocation: CliInvocation; stdin?: string } {
   const timeout = getInvocationTimeoutMs(config, operation)
+  const launcherArgs = isWslLauncher(cliPath) ? [backend] : []
   switch (backend) {
     case "opencode":
       return {
         invocation: {
           command: cliPath,
           args: [
+            ...launcherArgs,
             "run",
             "-m",
             `${config.provider}/${config.model}`,
@@ -473,6 +484,7 @@ export function buildInvocation(
         invocation: {
           command: cliPath,
           args: [
+            ...launcherArgs,
             "-p",
             "--model",
             config.claudeModel,
@@ -487,7 +499,8 @@ export function buildInvocation(
       }
 
     case "codex": {
-      const workspace = makeCodexWorkspace()
+      const usesWsl = launcherArgs.length > 0
+      const workspace = usesWsl ? undefined : makeCodexWorkspace()
       const useFastProfile = operation !== "pr"
       const codexArgs = useFastProfile
         ? codexFastArgs(config.codexModel, workspace?.schemaPath)
@@ -503,8 +516,10 @@ export function buildInvocation(
         fallbackArgs.push("-")
       }
       codexArgs.push("-")
+      codexArgs.unshift(...launcherArgs)
+      fallbackArgs?.unshift(...launcherArgs)
       const env: Record<string, string> = {}
-      const minimalHome = ensureMinimalCodexHome()
+      const minimalHome = usesWsl ? undefined : ensureMinimalCodexHome()
       if (minimalHome) env.CODEX_HOME = minimalHome
       return {
         invocation: {
@@ -526,7 +541,7 @@ export function buildInvocation(
       return {
         invocation: {
           command: cliPath,
-          args: agyArgs(config.agyModel, prompt),
+          args: [...launcherArgs, ...agyArgs(config.agyModel, prompt)],
           timeout,
         },
       }
@@ -536,7 +551,7 @@ export function buildInvocation(
       return {
         invocation: {
           command: cliPath,
-          args: grokArgs(config.grokModel, prompt),
+          args: [...launcherArgs, ...grokArgs(config.grokModel, prompt)],
           timeout,
         },
       }

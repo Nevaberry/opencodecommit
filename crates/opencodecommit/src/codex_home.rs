@@ -10,8 +10,9 @@
 //! `$XDG_CACHE_HOME/opencodecommit/codex-home` (fallback
 //! `$HOME/.cache/opencodecommit/codex-home`) containing only:
 //!
-//!   - `auth.json`, a symlink to the user's real `~/.codex/auth.json` so
-//!     token refreshes from `codex login` are seen transparently.
+//!   - `auth.json`, a symlink to the user's real `~/.codex/auth.json` on
+//!     Unix. On Windows it is refreshed before each invocation because file
+//!     symlinks otherwise require Developer Mode or elevated privileges.
 //!   - `config.toml`, an empty managed file that suppresses codex's
 //!     first-run "missing config" warning.
 //!
@@ -23,22 +24,24 @@ use std::sync::{LazyLock, Mutex};
 
 static CACHED_HOME: LazyLock<Mutex<Option<PathBuf>>> = LazyLock::new(|| Mutex::new(None));
 
-/// Ensure the occ-managed minimal codex home exists with a live auth symlink.
+/// Ensure the occ-managed minimal codex home exists with current auth data.
 ///
 /// Returns the absolute path on success. On any failure (no
-/// `~/.codex/auth.json`, unwritable cache dir, symlink creation failure)
+/// `~/.codex/auth.json`, unwritable cache dir, auth bridge creation failure)
 /// returns `None` so callers fall back to the user's default `~/.codex`.
 ///
-/// Cached after the first successful call per process.
+/// Cached after the first successful call per process on Unix. Non-Unix
+/// platforms refresh the copied auth file on every invocation.
 pub fn ensure_minimal_codex_home() -> Option<PathBuf> {
-    if let Ok(guard) = CACHED_HOME.lock()
+    if cfg!(unix)
+        && let Ok(guard) = CACHED_HOME.lock()
         && let Some(path) = guard.as_ref()
         && path.join("auth.json").exists()
     {
         return Some(path.clone());
     }
 
-    let home = std::env::var_os("HOME").map(PathBuf::from)?;
+    let home = std::env::home_dir()?;
     let cache_dir = resolve_cache_dir(&home)?;
     let result = ensure_minimal_codex_home_at(&cache_dir, &home);
 
@@ -79,15 +82,15 @@ fn ensure_minimal_codex_home_at(target_root: &Path, home_dir: &Path) -> Option<P
     }
 
     let link_path = target_root.join("auth.json");
-    ensure_auth_symlink(&source_auth, &link_path)?;
+    ensure_auth_bridge(&source_auth, &link_path)?;
     ensure_empty_config(&target_root.join("config.toml"))?;
 
     Some(target_root.to_path_buf())
 }
 
-/// Point `link_path` at `source_auth`, replacing any existing entry that
-/// doesn't already resolve to the correct target.
-fn ensure_auth_symlink(source_auth: &Path, link_path: &Path) -> Option<()> {
+/// Point `link_path` at `source_auth` on Unix, replacing any stale entry.
+#[cfg(unix)]
+fn ensure_auth_bridge(source_auth: &Path, link_path: &Path) -> Option<()> {
     if let Ok(existing_target) = std::fs::read_link(link_path)
         && existing_target == source_auth
         && link_path.exists()
@@ -101,25 +104,21 @@ fn ensure_auth_symlink(source_auth: &Path, link_path: &Path) -> Option<()> {
         Err(_) => return None,
     }
 
-    create_symlink(source_auth, link_path).ok()
+    std::os::unix::fs::symlink(source_auth, link_path).ok()
 }
 
-#[cfg(unix)]
-fn create_symlink(source: &Path, link: &Path) -> std::io::Result<()> {
-    std::os::unix::fs::symlink(source, link)
-}
+/// Refresh an ordinary auth file on platforms where creating a file symlink
+/// is not reliably available to an unprivileged process (notably Windows).
+#[cfg(not(unix))]
+fn ensure_auth_bridge(source_auth: &Path, link_path: &Path) -> Option<()> {
+    if let Ok(existing_target) = std::fs::read_link(link_path) {
+        if existing_target == source_auth && link_path.exists() {
+            return Some(());
+        }
+        std::fs::remove_file(link_path).ok()?;
+    }
 
-#[cfg(windows)]
-fn create_symlink(source: &Path, link: &Path) -> std::io::Result<()> {
-    std::os::windows::fs::symlink_file(source, link)
-}
-
-#[cfg(not(any(unix, windows)))]
-fn create_symlink(_source: &Path, _link: &Path) -> std::io::Result<()> {
-    Err(std::io::Error::new(
-        std::io::ErrorKind::Unsupported,
-        "symlinks not supported on this platform",
-    ))
+    std::fs::copy(source_auth, link_path).ok().map(|_| ())
 }
 
 fn ensure_empty_config(path: &Path) -> Option<()> {
@@ -182,7 +181,7 @@ mod tests {
     #[test]
     fn idempotent_creates_once() {
         let dirs = TestDirs::new("idempotent");
-        dirs.plant_auth();
+        let source_auth = dirs.plant_auth();
 
         let first = ensure_minimal_codex_home_at(&dirs.target(), &dirs.home())
             .expect("first call succeeds");
@@ -192,12 +191,22 @@ mod tests {
 
         let link = dirs.target().join("auth.json");
         let metadata = std::fs::symlink_metadata(&link).expect("link exists");
+        #[cfg(unix)]
         assert!(
             metadata.file_type().is_symlink(),
             "auth.json must be a symlink"
         );
-        let resolved = std::fs::read_link(&link).expect("readlink");
-        assert_eq!(resolved, dirs.home().join(".codex").join("auth.json"));
+        #[cfg(not(unix))]
+        assert!(metadata.is_file(), "auth.json must be a regular file");
+        #[cfg(unix)]
+        {
+            let resolved = std::fs::read_link(&link).expect("readlink");
+            assert_eq!(resolved, source_auth);
+        }
+        assert_eq!(
+            std::fs::read(&link).unwrap(),
+            std::fs::read(source_auth).unwrap()
+        );
 
         assert!(dirs.target().join("config.toml").exists());
     }
@@ -211,40 +220,46 @@ mod tests {
     }
 
     #[test]
-    fn repairs_stale_symlink() {
+    fn repairs_stale_auth_bridge() {
         let dirs = TestDirs::new("stale");
-        dirs.plant_auth();
+        let source_auth = dirs.plant_auth();
         std::fs::create_dir_all(dirs.target()).expect("target");
 
-        // Plant a stale symlink pointing at a nonexistent path.
-        let stale_target = dirs.root.join("nonexistent-auth.json");
         let link = dirs.target().join("auth.json");
-        create_symlink(&stale_target, &link).expect("stale symlink");
+        #[cfg(unix)]
+        {
+            let stale_target = dirs.root.join("nonexistent-auth.json");
+            std::os::unix::fs::symlink(&stale_target, &link).expect("stale symlink");
+        }
+        #[cfg(not(unix))]
+        std::fs::write(&link, "stale auth").expect("stale auth copy");
 
         let result =
             ensure_minimal_codex_home_at(&dirs.target(), &dirs.home()).expect("repair succeeds");
         assert_eq!(result, dirs.target());
 
-        let resolved = std::fs::read_link(&link).expect("readlink");
-        assert_eq!(resolved, dirs.home().join(".codex").join("auth.json"));
+        assert_eq!(
+            std::fs::read(&link).unwrap(),
+            std::fs::read(source_auth).unwrap()
+        );
     }
 
     #[test]
     fn resolve_cache_dir_prefers_xdg_when_absolute() {
         let _env_guard = crate::TEST_CWD_LOCK.lock().unwrap();
+        let dirs = TestDirs::new("resolve-xdg");
+        let xdg = dirs.root.join("xdg-cache");
         let prev = std::env::var_os("XDG_CACHE_HOME");
         // SAFETY: tests in this module mutate process env; Rust 2024 requires
         // `unsafe` around `set_var`, and we accept the risk because these test
         // cases are fast and cooperate via the CACHED_HOME mutex upstream.
         unsafe {
-            std::env::set_var("XDG_CACHE_HOME", "/explicit/xdg/cache");
+            std::env::set_var("XDG_CACHE_HOME", &xdg);
         }
-        let home = PathBuf::from("/home/testuser");
+        let home = dirs.home();
         assert_eq!(
             resolve_cache_dir(&home),
-            Some(PathBuf::from(
-                "/explicit/xdg/cache/opencodecommit/codex-home"
-            ))
+            Some(xdg.join("opencodecommit").join("codex-home"))
         );
 
         unsafe {
@@ -258,16 +273,19 @@ mod tests {
     #[test]
     fn resolve_cache_dir_falls_back_to_home_cache() {
         let _env_guard = crate::TEST_CWD_LOCK.lock().unwrap();
+        let dirs = TestDirs::new("resolve-home");
         let prev = std::env::var_os("XDG_CACHE_HOME");
         unsafe {
             std::env::remove_var("XDG_CACHE_HOME");
         }
-        let home = PathBuf::from("/home/testuser");
+        let home = dirs.home();
         assert_eq!(
             resolve_cache_dir(&home),
-            Some(PathBuf::from(
-                "/home/testuser/.cache/opencodecommit/codex-home"
-            ))
+            Some(
+                home.join(".cache")
+                    .join("opencodecommit")
+                    .join("codex-home")
+            )
         );
         unsafe {
             if let Some(val) = prev {

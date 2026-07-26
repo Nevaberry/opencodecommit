@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
 import { runTests } from "@vscode/test-electron"
+import extract from "extract-zip"
 
 const STAGING_BACKENDS = [
   "codex",
@@ -63,9 +64,7 @@ async function buildAndExtractVsix(runRoot: string): Promise<PackagedVsix> {
     cwd: extensionDir,
     stdio: "inherit",
   })
-  execFileSync("unzip", ["-q", "-o", vsixPath, "-d", extractDir], {
-    stdio: "inherit",
-  })
+  await extract(vsixPath, { dir: extractDir })
 
   const extensionPath = path.join(extractDir, "extension")
   return { vsixPath, extractDir, extensionPath }

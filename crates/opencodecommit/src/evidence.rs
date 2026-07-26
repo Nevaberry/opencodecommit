@@ -629,7 +629,7 @@ fn write_sidecar(
         EvidenceStorage::Repo => {
             let repo_rel = path.strip_prefix(&paths.repo_root).unwrap_or(&path);
             stage_repo_sidecar(&paths.repo_root, repo_rel)?;
-            format!("repo:{}", repo_rel.display())
+            format!("repo:{}", portable_pointer_path(repo_rel))
         }
         EvidenceStorage::Artifact => {
             let digest = file_sha256(&path)?;
@@ -1020,9 +1020,13 @@ fn display_local_pointer(paths: &EvidencePaths, path: &Path) -> String {
     if same_path(&paths.git_dir, &default_git)
         && let Ok(rel) = path.strip_prefix(&paths.repo_root)
     {
-        return rel.display().to_string();
+        return portable_pointer_path(rel);
     }
-    path.display().to_string()
+    portable_pointer_path(path)
+}
+
+fn portable_pointer_path(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
 }
 
 fn stage_repo_sidecar(repo_root: &Path, repo_rel: &Path) -> Result<()> {

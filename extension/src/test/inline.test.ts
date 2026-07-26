@@ -6,6 +6,7 @@ import * as path from "node:path"
 import { describe, it } from "node:test"
 import { withBackendOverride } from "../inline/backends"
 import { buildInvocation, detectCli, execCli } from "../inline/cli"
+import { ensureMinimalCodexHomeAt } from "../inline/codex-home"
 import type { CommitContext } from "../inline/context"
 import {
   appendAssistedByTrailers,
@@ -268,6 +269,22 @@ function fakeExecutable(filePath: string, body: string): void {
   fs.chmodSync(filePath, 0o755)
 }
 
+function fakeCli(
+  filePath: string,
+  unixBody: string,
+  windowsBody: string,
+): string {
+  if (process.platform === "win32") {
+    const batchPath = `${filePath}.cmd`
+    fs.mkdirSync(path.dirname(batchPath), { recursive: true })
+    fs.writeFileSync(batchPath, `@echo off\r\n${windowsBody}\r\n`)
+    return batchPath
+  }
+
+  fakeExecutable(filePath, unixBody)
+  return filePath
+}
+
 function runGit(repoPath: string, args: string[]): string {
   return execFileSync("git", args, {
     cwd: repoPath,
@@ -317,7 +334,9 @@ function codexPlatformParts():
 }
 
 describe("guard token", () => {
-  it("writes a preserve-message token for the current index tree", async () => {
+  it("writes a preserve-message token for the current index tree", {
+    timeout: 15_000,
+  }, async () => {
     const repo = tempDir("guard-token")
     runGit(repo, ["init", "-q"])
     fs.writeFileSync(path.join(repo, "README.md"), "# Test\n")
@@ -330,6 +349,34 @@ describe("guard token", () => {
     assert.match(token, /kind = "preserve-message"/)
     assert.match(token, new RegExp(`index-tree = "${indexTree}"`))
     assert.match(token, /expires-at-unix = \d+/)
+  })
+})
+
+describe("minimal Codex home", () => {
+  it("keeps the managed auth file synchronized", () => {
+    const root = tempDir("codex-home")
+    const home = path.join(root, "home")
+    const target = path.join(root, "target")
+    const sourceAuth = path.join(home, ".codex", "auth.json")
+    fs.mkdirSync(path.dirname(sourceAuth), { recursive: true })
+    fs.writeFileSync(sourceAuth, '{"token":"first"}')
+
+    assert.strictEqual(ensureMinimalCodexHomeAt(target, home), target)
+    assert.strictEqual(
+      fs.readFileSync(path.join(target, "auth.json"), "utf8"),
+      '{"token":"first"}',
+    )
+
+    fs.writeFileSync(sourceAuth, '{"token":"refreshed"}')
+    assert.strictEqual(ensureMinimalCodexHomeAt(target, home), target)
+    assert.strictEqual(
+      fs.readFileSync(path.join(target, "auth.json"), "utf8"),
+      '{"token":"refreshed"}',
+    )
+
+    const authStat = fs.lstatSync(path.join(target, "auth.json"))
+    if (process.platform === "win32") assert.ok(authStat.isFile())
+    else assert.ok(authStat.isSymbolicLink())
   })
 })
 
@@ -480,6 +527,29 @@ describe("backend helpers", () => {
     assert.deepStrictEqual(overridden.backendOrder, ["claude"])
     assert.strictEqual(overridden.codexModel, config.codexModel)
     assert.strictEqual(overridden.claudeModel, config.claudeModel)
+  })
+
+  it("wraps WSL backends without passing Windows-only Codex paths", () => {
+    const opencode = buildInvocation(
+      "wsl.exe",
+      "summarize the diff",
+      makeConfig(),
+      "opencode",
+    )
+    assert.strictEqual(opencode.invocation.command, "wsl.exe")
+    assert.strictEqual(opencode.invocation.args[0], "opencode")
+
+    const codex = buildInvocation(
+      "wsl.exe",
+      "summarize the diff",
+      makeConfig(),
+      "codex",
+    )
+    assert.strictEqual(codex.invocation.args[0], "codex")
+    assert.ok(!codex.invocation.args.includes("--output-schema"))
+    assert.strictEqual(codex.invocation.cwd, undefined)
+    assert.strictEqual(codex.invocation.cleanupDir, undefined)
+    assert.deepStrictEqual(codex.invocation.env, {})
   })
 
   it("runs Antigravity in print, plan, and sandbox mode", () => {
@@ -663,10 +733,12 @@ describe("backend helpers", () => {
   })
 
   it("parses Codex structured response JSON when schema mode succeeds", async () => {
-    if (process.platform === "win32") return
     const dir = tempDir("codex-json")
-    const cli = path.join(dir, "codex")
-    fakeExecutable(cli, 'printf \'{"response":"feat: structured"}\'')
+    const cli = fakeCli(
+      path.join(dir, "codex"),
+      'printf \'{"response":"feat: structured"}\'',
+      'echo {"response":"feat: structured"}',
+    )
     const config = makeConfig()
     const { invocation, stdin } = buildInvocation(
       cli,
@@ -681,15 +753,17 @@ describe("backend helpers", () => {
   })
 
   it("falls back to plain Codex execution when schema mode fails", async () => {
-    if (process.platform === "win32") return
     const dir = tempDir("codex-schema-fallback")
-    const cli = path.join(dir, "codex")
     const log = path.join(dir, "args.log")
-    fakeExecutable(
-      cli,
+    const cli = fakeCli(
+      path.join(dir, "codex"),
       `printf '%s\\n' "$*" >> '${log}'
 case " $* " in *" --output-schema "*) exit 42;; esac
 printf 'feat: fallback\\n'`,
+      `echo %*>>"${log}"
+echo %*| findstr /C:"--output-schema" >nul
+if not errorlevel 1 exit /b 42
+echo feat: fallback`,
     )
     const config = makeConfig()
     const { invocation, stdin } = buildInvocation(
@@ -708,12 +782,11 @@ printf 'feat: fallback\\n'`,
   })
 
   it("runs Codex from an empty temporary cwd", async () => {
-    if (process.platform === "win32") return
     const dir = tempDir("codex-cwd")
-    const cli = path.join(dir, "codex")
-    fakeExecutable(
-      cli,
+    const cli = fakeCli(
+      path.join(dir, "codex"),
       "printf '%s\\n' \"$(pwd)\"\nfind . -mindepth 1 -maxdepth 1 | wc -l",
+      'cd\ndir /b /a 2>nul | find /c /v ""\nexit /b 0',
     )
     const config = makeConfig()
     const { invocation, stdin } = buildInvocation(
@@ -731,27 +804,52 @@ printf 'feat: fallback\\n'`,
   })
 
   it("checks common CLI paths before shell-profile PATH repair", async () => {
-    if (process.platform === "win32") return
     const dir = tempDir("detect-order")
     const fakeBin = path.join(dir, "bin")
     const home = path.join(dir, "home")
-    const commonCodex = path.join(home, ".local", "bin", "codex")
-    const shellCodex = path.join(dir, "shell", "codex")
-    fakeExecutable(commonCodex, "exit 0")
-    fakeExecutable(shellCodex, "exit 0")
-    fakeExecutable(path.join(fakeBin, "which"), "exit 1")
-    fakeExecutable(path.join(fakeBin, "bash"), `printf '%s\\n' '${shellCodex}'`)
-
     const originalPath = process.env.PATH
     const originalHome = process.env.HOME
+    const originalAppData = process.env.APPDATA
+    const originalLocalAppData = process.env.LOCALAPPDATA
+    let commonCodex: string
+
+    if (process.platform === "win32") {
+      const appData = path.join(dir, "appdata")
+      const localAppData = path.join(dir, "local-appdata")
+      commonCodex = fakeCli(
+        path.join(appData, "npm", "codex"),
+        "exit 0",
+        "exit /b 0",
+      )
+      fs.mkdirSync(fakeBin, { recursive: true })
+      process.env.APPDATA = appData
+      process.env.LOCALAPPDATA = localAppData
+    } else {
+      commonCodex = path.join(home, ".local", "bin", "codex")
+      const shellCodex = path.join(dir, "shell", "codex")
+      fakeExecutable(commonCodex, "exit 0")
+      fakeExecutable(shellCodex, "exit 0")
+      fakeExecutable(path.join(fakeBin, "which"), "exit 1")
+      fakeExecutable(
+        path.join(fakeBin, "bash"),
+        `printf '%s\\n' '${shellCodex}'`,
+      )
+    }
+
     process.env.PATH = fakeBin
     process.env.HOME = home
     try {
       const detected = await detectCli("codex")
       assert.strictEqual(detected, commonCodex)
     } finally {
-      process.env.PATH = originalPath
-      process.env.HOME = originalHome
+      if (originalPath === undefined) delete process.env.PATH
+      else process.env.PATH = originalPath
+      if (originalHome === undefined) delete process.env.HOME
+      else process.env.HOME = originalHome
+      if (originalAppData === undefined) delete process.env.APPDATA
+      else process.env.APPDATA = originalAppData
+      if (originalLocalAppData === undefined) delete process.env.LOCALAPPDATA
+      else process.env.LOCALAPPDATA = originalLocalAppData
       fs.rmSync(dir, { recursive: true, force: true })
     }
   })

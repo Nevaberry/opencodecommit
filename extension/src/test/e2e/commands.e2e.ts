@@ -35,6 +35,7 @@ type Scenario =
   | { kind: "openSettings" }
   | { kind: "resetSettings" }
   | { kind: "diagnose" }
+  | { kind: "assistedBy"; selection: "quick" | "pick" | "custom" }
   | { kind: "unknown" }
 
 const backendSuffixes = new Map<string, string>([
@@ -105,6 +106,14 @@ function extractChangelogEntry(content: string, version: string): string {
   return match?.[1]?.trim() ?? normalized
 }
 
+function sameFsPath(left: string, right: string): boolean {
+  const normalize = (value: string) => {
+    const resolved = path.resolve(value)
+    return process.platform === "win32" ? resolved.toLowerCase() : resolved
+  }
+  return normalize(left) === normalize(right)
+}
+
 function classify(command: string): Scenario {
   if (
     /^opencodecommit\.generateAdaptive(?:Codex|Opencode|Claude|Agy|Grok|OpenaiApi|AnthropicApi|GeminiApi|OpenrouterApi|OpencodeApi|OllamaApi|LmStudioApi|CustomApi)$/.test(
@@ -149,6 +158,15 @@ function classify(command: string): Scenario {
       return { kind: "resetSettings" }
     case "opencodecommit.diagnose":
       return { kind: "diagnose" }
+    case "opencodecommit.assistedByCodexSol":
+    case "opencodecommit.assistedByGrokBuild":
+    case "opencodecommit.assistedByClaudeOpus":
+    case "opencodecommit.assistedByClaudeFable":
+      return { kind: "assistedBy", selection: "quick" }
+    case "opencodecommit.assistedByPick":
+      return { kind: "assistedBy", selection: "pick" }
+    case "opencodecommit.assistedByCustom":
+      return { kind: "assistedBy", selection: "custom" }
     case "opencodecommit.generateBranch":
     case "opencodecommit.generateBranchAdaptive":
     case "opencodecommit.generateBranchConventional":
@@ -409,15 +427,40 @@ describe("Extension Commands E2E", function () {
             break
           }
 
+          case "assistedBy": {
+            const repo = await getRepository()
+            if (scenario.selection === "pick") {
+              sandbox
+                .stub(vscode.window, "showQuickPick")
+                .callsFake(async (items) => {
+                  const list = Array.isArray(items) ? items : []
+                  return list[0] as never
+                })
+            } else if (scenario.selection === "custom") {
+              sandbox
+                .stub(vscode.window, "showInputBox")
+                .callsFake(async (options) =>
+                  options?.prompt === "AI harness or agent"
+                    ? "Windows E2E"
+                    : "test-model",
+                )
+            }
+
+            await originalExecuteCommand(command)
+            assert.match(repo.inputBox.value, /(?:^|\n)Assisted-by: .+/)
+            break
+          }
+
           case "openConfig": {
             await originalExecuteCommand(command)
             const openedPath = await waitFor("config document", async () => {
               const editor = vscode.window.activeTextEditor
-              return editor?.document.uri.fsPath === configPath
+              return editor &&
+                sameFsPath(editor.document.uri.fsPath, configPath)
                 ? editor.document.uri.fsPath
                 : undefined
             })
-            assert.equal(openedPath, configPath)
+            assert.ok(sameFsPath(openedPath, configPath))
             break
           }
 
@@ -429,7 +472,7 @@ describe("Extension Commands E2E", function () {
               },
             })
             await originalExecuteCommand(command)
-            assert.equal(revealedPath, configPath)
+            assert.ok(sameFsPath(revealedPath, configPath))
             break
           }
 

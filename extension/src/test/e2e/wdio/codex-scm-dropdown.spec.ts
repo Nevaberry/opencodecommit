@@ -137,10 +137,17 @@ describe("Codex SCM dropdown flow", () => {
 
     const authLink = path.join(resolveCodexHome(), "auth.json")
     const stat = fs.lstatSync(authLink)
-    assert.ok(
-      stat.isSymbolicLink(),
-      `expected ${authLink} to be a symlink (proves ensureMinimalCodexHome ran)`,
-    )
+    if (process.platform === "win32") {
+      assert.ok(
+        stat.isFile(),
+        `expected ${authLink} to be a refreshed auth file`,
+      )
+    } else {
+      assert.ok(
+        stat.isSymbolicLink(),
+        `expected ${authLink} to be an auth symlink`,
+      )
+    }
 
     const spawnEnvPath = process.env.OCC_E2E_LAST_SPAWN_ENV_PATH
     if (spawnEnvPath) {

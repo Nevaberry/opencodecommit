@@ -5,7 +5,11 @@ import * as path from "node:path"
 let cached: string | undefined
 
 export function ensureMinimalCodexHome(): string | undefined {
-  if (cached && fs.existsSync(path.join(cached, "auth.json"))) {
+  if (
+    process.platform !== "win32" &&
+    cached &&
+    fs.existsSync(path.join(cached, "auth.json"))
+  ) {
     return cached
   }
 
@@ -26,7 +30,7 @@ function resolveCacheDir(home: string): string {
   return path.join(home, ".cache", "opencodecommit", "codex-home")
 }
 
-function ensureMinimalCodexHomeAt(
+export function ensureMinimalCodexHomeAt(
   targetRoot: string,
   homeDir: string,
 ): string | undefined {
@@ -40,13 +44,13 @@ function ensureMinimalCodexHomeAt(
   if (!fs.existsSync(sourceAuth)) return undefined
 
   const linkPath = path.join(targetRoot, "auth.json")
-  if (!ensureAuthSymlink(sourceAuth, linkPath)) return undefined
+  if (!ensureAuthBridge(sourceAuth, linkPath)) return undefined
   if (!ensureEmptyConfig(path.join(targetRoot, "config.toml"))) return undefined
 
   return targetRoot
 }
 
-function ensureAuthSymlink(sourceAuth: string, linkPath: string): boolean {
+function ensureAuthBridge(sourceAuth: string, linkPath: string): boolean {
   try {
     const existingTarget = fs.readlinkSync(linkPath)
     if (existingTarget === sourceAuth && fs.existsSync(linkPath)) {
@@ -60,6 +64,15 @@ function ensureAuthSymlink(sourceAuth: string, linkPath: string): boolean {
     fs.rmSync(linkPath, { force: true })
   } catch {
     return false
+  }
+
+  if (process.platform === "win32") {
+    try {
+      fs.copyFileSync(sourceAuth, linkPath)
+      return true
+    } catch {
+      return false
+    }
   }
 
   try {
