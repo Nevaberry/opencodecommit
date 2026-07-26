@@ -65,6 +65,7 @@ cargo run --bin occ -- tui       # run TUI from source
 cargo run --bin occ -- commit    # run CLI commit from source
 scripts/dev-cli.sh               # worktree-aware CLI runner
 scripts/dev-extension.sh         # build + launch in VSCodium
+scripts/dev-extension.ps1 -Fresh # Windows: build + launch in a fresh VSCodium profile
 scripts/dev-install.sh           # quick install into VSCodium Flatpak
 ```
 

@@ -1410,6 +1410,7 @@
   },
   "scripts": {
     "prepare": "git config core.hooksPath .githooks",
+    "dev:extension:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev-extension.ps1",
     "build": "tsc -p extension/",
     "build:vsix": "tsc -p ./ && bun build src/extension.ts --outdir out --target node --format cjs --external vscode --sourcemap=linked",
     "watch": "tsc -watch -p extension/",
