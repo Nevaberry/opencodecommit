@@ -207,10 +207,6 @@ pr-base-branch = "main"
 active-language = "English"
 commit-branch-timeout-seconds = ${commit_timeout}
 pr-timeout-seconds = ${pr_timeout}
-
-[sensitive]
-enforcement = "warn"
-
 provider = "${opencode_provider}"
 model = "${opencode_model}"
 cli-path = "${opencode_path}"
@@ -237,6 +233,9 @@ agy-pr-model = "${agy_pr_model}"
 agy-cheap-model = "${agy_cheap_model}"
 grok-pr-model = "${grok_pr_model}"
 grok-cheap-model = "${grok_cheap_model}"
+
+[sensitive]
+enforcement = "warn"
 
 [api.openai]
 model = "gpt-5.6-terra"

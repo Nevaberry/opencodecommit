@@ -47,6 +47,7 @@ interface PackagedVsix {
   vsixPath: string
   extractDir: string
   extensionPath: string
+  extensionTestsPath: string
 }
 
 async function buildAndExtractVsix(runRoot: string): Promise<PackagedVsix> {
@@ -67,7 +68,48 @@ async function buildAndExtractVsix(runRoot: string): Promise<PackagedVsix> {
   await extract(vsixPath, { dir: extractDir })
 
   const extensionPath = path.join(extractDir, "extension")
-  return { vsixPath, extractDir, extensionPath }
+  const extensionTestsPath = path.join(
+    extensionPath,
+    "out",
+    "test",
+    "e2e",
+    "index.js",
+  )
+  const extractedModelCatalogPath = path.join(
+    extractDir,
+    "crates",
+    "opencodecommit",
+    "model-catalog.json",
+  )
+
+  // VS Code scopes require("vscode") to the extension that owns the calling
+  // file. Keep packaged tests under the extracted extension so their stubs and
+  // the packaged bundle receive the same API object.
+  await fs.mkdir(path.dirname(extractedModelCatalogPath), { recursive: true })
+  await Promise.all([
+    fs.cp(
+      path.join(extensionDir, "out", "test", "e2e"),
+      path.dirname(extensionTestsPath),
+      { recursive: true },
+    ),
+    fs.cp(
+      path.join(extensionDir, "out", "inline"),
+      path.join(extensionPath, "out", "inline"),
+      { recursive: true },
+    ),
+    fs.copyFile(
+      path.join(
+        extensionDir,
+        "..",
+        "crates",
+        "opencodecommit",
+        "model-catalog.json",
+      ),
+      extractedModelCatalogPath,
+    ),
+  ])
+
+  return { vsixPath, extractDir, extensionPath, extensionTestsPath }
 }
 
 function activeBackendsFor(mode: string): string[] {
@@ -244,6 +286,7 @@ function buildSettings(activeBackends: string[]) {
 async function main() {
   const mode = process.env.OCC_E2E_MODE ?? "dev-local"
   const activeBackends = activeBackendsFor(mode)
+  const sourceExtensionPath = path.resolve(__dirname, "../../..")
   const root = await createRunRoot()
   const workspacePath = await createWorkspace(root)
   const userDataDir = path.join(root, "user-data")
@@ -264,14 +307,19 @@ async function main() {
   const usePackagedVsix =
     process.env.OCC_E2E_USE_PACKAGED_VSIX === "1" || mode === "staging"
 
-  let extensionDevelopmentPath = path.resolve(__dirname, "../../..")
+  let extensionDevelopmentPath = sourceExtensionPath
+  let extensionTestsPath = path.resolve(__dirname, "./index.js")
   let packaged: PackagedVsix | undefined
   if (usePackagedVsix) {
     packaged = await buildAndExtractVsix(root)
     extensionDevelopmentPath = packaged.extensionPath
+    extensionTestsPath = packaged.extensionTestsPath
   }
 
-  const extensionTestsPath = path.resolve(__dirname, "./index.js")
+  const sourceNodeModules = path.join(sourceExtensionPath, "node_modules")
+  const testNodePath = process.env.NODE_PATH
+    ? `${sourceNodeModules}${path.delimiter}${process.env.NODE_PATH}`
+    : sourceNodeModules
 
   await runTests({
     extensionDevelopmentPath,
@@ -294,6 +342,7 @@ async function main() {
       OCC_E2E_WORKSPACE: workspacePath,
       OCC_E2E_CONFIG_PATH: configPath,
       OPENCODECOMMIT_CONFIG: configPath,
+      NODE_PATH: testNodePath,
       ...(packaged
         ? {
             OCC_E2E_VSIX_PATH: packaged.vsixPath,

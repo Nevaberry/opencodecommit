@@ -53,6 +53,17 @@ fn tui_expect_timeout(mode: &str) -> Duration {
     }
 }
 
+#[cfg(unix)]
+fn answer_cursor_position_query(session: &mut OsSession) {
+    session.set_expect_timeout(Some(Duration::from_secs(5)));
+    session
+        .expect("\u{1b}[6n")
+        .expect("wait for tui cursor-position query");
+    session
+        .send("\u{1b}[1;1R")
+        .expect("answer tui cursor-position query");
+}
+
 fn spawn_tui(
     repo: &FixtureRepo,
     config_path: &std::path::Path,
@@ -86,6 +97,8 @@ fn spawn_tui(
         .get_process_mut()
         .resize(120, 30)
         .expect("resize tui session");
+    #[cfg(unix)]
+    answer_cursor_position_query(&mut session);
     session.set_expect_timeout(Some(expect_timeout));
     session
 }

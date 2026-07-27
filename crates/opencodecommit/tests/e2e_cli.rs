@@ -5,10 +5,16 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 
+#[cfg(unix)]
+use common::repo_root;
 use common::{
     FixtureRepo, append_response_log, assert_branch_shape, assert_changelog_shape,
     assert_commit_shape, assert_pr_shape, load_env, run_occ, stderr, stdout,
 };
+#[cfg(unix)]
+use opencodecommit::config::Config;
+#[cfg(unix)]
+use opencodecommit::sensitive::SensitiveEnforcement;
 
 fn config_arg(config_path: &Path) -> [&str; 2] {
     ["--config", config_path.to_str().expect("utf8 config path")]
@@ -67,6 +73,52 @@ fn last_commit_message(repo: &FixtureRepo) -> String {
         .expect("read git log");
     assert!(output.status.success(), "git log failed");
     String::from_utf8_lossy(&output.stdout).trim().to_owned()
+}
+
+#[cfg(unix)]
+#[test]
+fn targeted_e2e_renderer_keeps_cli_settings_at_toml_root() {
+    let repo = FixtureRepo::new("e2e-render-config");
+    let config_path = repo.path.join("rendered-config.toml");
+    let common_script = repo_root().join("scripts/e2e-common.sh");
+
+    let output = Command::new("bash")
+        .arg("-c")
+        .arg(r#"source "$1"; occ_e2e_render_config_for_backends codex "$2""#)
+        .arg("occ-e2e-render-config")
+        .arg(&common_script)
+        .arg(&config_path)
+        .env("OCC_E2E_OPENCODE_PROVIDER", "renderer-provider")
+        .env("OCC_E2E_OPENCODE_MODEL", "renderer-model")
+        .env("OCC_E2E_OPENCODE_PATH", "/renderer/opencode")
+        .env("OCC_E2E_CODEX_PATH", "/renderer/codex")
+        .env("OCC_E2E_CODEX_MODEL", "renderer-codex-model")
+        .env("OCC_E2E_CODEX_PROVIDER", "renderer-codex-provider")
+        .env("OCC_E2E_CODEX_PR_MODEL", "renderer-codex-pr-model")
+        .env("OCC_E2E_CODEX_CHEAP_MODEL", "renderer-codex-cheap-model")
+        .env("OCC_E2E_COMMIT_TIMEOUT_SECONDS", "17")
+        .env("OCC_E2E_PR_TIMEOUT_SECONDS", "29")
+        .output()
+        .expect("render targeted e2e config");
+
+    assert!(
+        output.status.success(),
+        "config renderer failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let config = Config::load(&config_path).expect("load rendered config");
+    assert_eq!(config.provider, "renderer-provider");
+    assert_eq!(config.model, "renderer-model");
+    assert_eq!(config.cli_path, "/renderer/opencode");
+    assert_eq!(config.codex_path, "/renderer/codex");
+    assert_eq!(config.codex_model, "renderer-codex-model");
+    assert_eq!(config.codex_provider, "renderer-codex-provider");
+    assert_eq!(config.codex_pr_model, "renderer-codex-pr-model");
+    assert_eq!(config.codex_cheap_model, "renderer-codex-cheap-model");
+    assert_eq!(config.commit_branch_timeout_seconds, 17);
+    assert_eq!(config.pr_timeout_seconds, 29);
+    assert_eq!(config.sensitive.enforcement, SensitiveEnforcement::Warn);
 }
 
 #[test]
