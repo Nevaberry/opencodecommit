@@ -1440,7 +1440,7 @@
     "@types/sinon": "^22.0.0",
     "@types/vscode": "^1.125.0",
     "@vscode/test-cli": "^0.0.15",
-    "@vscode/test-electron": "^3.0.0",
+    "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^3.9.2",
     "@wdio/cli": "^9.30.0",
     "@wdio/local-runner": "^9.30.0",
