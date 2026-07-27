@@ -248,10 +248,10 @@ function Get-VSCodiumCommands {
     return Get-VSCodiumCommands -ExplicitPath $guiPath
   }
 
-  throw "VSCodium was not found. Install it, add codium to PATH, set OCC_VSCODIUM_EXECUTABLE, or pass -VSCodiumPath."
+  return $null
 }
 
-function Assert-VSCodiumCommands {
+function Assert-EditorCommands {
   param(
     [Parameter(Mandatory = $true)]
     [pscustomobject]$Commands
@@ -259,8 +259,79 @@ function Assert-VSCodiumCommands {
 
   foreach ($path in @($Commands.Cli, $Commands.Gui)) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
-      throw "VSCodium command not found: $path"
+      throw "Editor command not found: $path"
     }
+  }
+}
+
+function Get-EditorVersion {
+  param(
+    [Parameter(Mandatory = $true)]
+    [pscustomobject]$Commands
+  )
+
+  $versionOutput = @(& $Commands.Cli "--version" 2>&1)
+  if ($LASTEXITCODE -ne 0) {
+    return $null
+  }
+
+  foreach ($line in $versionOutput) {
+    if ($line.ToString() -match '^\s*(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)') {
+      return $Matches[1]
+    }
+  }
+
+  return $null
+}
+
+function Test-EditorCompatibility {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$ResolverPath,
+
+    [Parameter(Mandatory = $true)]
+    [string]$ExtensionDirectory,
+
+    [Parameter(Mandatory = $true)]
+    [string]$Version
+  )
+
+  & node $ResolverPath "supports" $ExtensionDirectory $Version | Out-Null
+  $status = $LASTEXITCODE
+  if ($status -eq 0) {
+    return $true
+  }
+  if ($status -eq 1) {
+    return $false
+  }
+
+  throw "Failed to check editor compatibility with exit code $status."
+}
+
+function Get-ManagedVSCodeCommands {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$ResolverPath,
+
+    [Parameter(Mandatory = $true)]
+    [string]$ExtensionDirectory,
+
+    [Parameter(Mandatory = $true)]
+    [string]$CacheDirectory
+  )
+
+  $output = @(& node $ResolverPath "managed" $ExtensionDirectory $CacheDirectory 2>&1)
+  if ($LASTEXITCODE -ne 0) {
+    throw "Failed to resolve managed VS Code:`n$($output -join [Environment]::NewLine)"
+  }
+  if ($output.Count -ne 3) {
+    throw "Expected three lines from the managed VS Code resolver, received $($output.Count)."
+  }
+
+  return [pscustomobject]@{
+    Version = $output[0].ToString()
+    Gui = $output[1].ToString()
+    Cli = $output[2].ToString()
   }
 }
 
@@ -292,8 +363,6 @@ if ($List) {
 }
 
 $worktreePath = Resolve-OccWorktree -Selector $Worktree -RepositoryPath $repoRoot
-$vscodium = Get-VSCodiumCommands -ExplicitPath $VSCodiumPath
-Assert-VSCodiumCommands -Commands $vscodium
 $commonDirectory = Get-GitCommonDirectory -RepositoryPath $worktreePath
 $worktreeRecord = $knownWorktrees | Where-Object { $_.Path -ieq $worktreePath } | Select-Object -First 1
 $worktreeLabel = if ($null -ne $worktreeRecord -and -not [string]::IsNullOrWhiteSpace($worktreeRecord.Branch)) {
@@ -303,7 +372,70 @@ else {
   Split-Path -Leaf $worktreePath
 }
 $worktreeSlug = [regex]::Replace($worktreeLabel, "[^A-Za-z0-9._-]+", "-").Trim([char[]]"-")
-$stateRoot = Join-Path (Join-Path (Join-Path $commonDirectory "dev") "vscodium") $worktreeSlug
+
+$extensionDirectory = Join-Path $worktreePath "extension"
+$manifestPath = Join-Path $extensionDirectory "package.json"
+$manifest = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json
+$vsixPath = Join-Path $extensionDirectory ("opencodecommit-{0}.vsix" -f $manifest.version)
+$resolverPath = Join-Path $scriptDir "resolve-vscode-editor.mjs"
+$testElectronManifest = Join-Path $extensionDirectory "node_modules\@vscode\test-electron\package.json"
+
+if (-not $LaunchOnly -or -not (Test-Path -LiteralPath $testElectronManifest -PathType Leaf)) {
+  Invoke-NativeCommand -FilePath "bun" -Arguments @("install", "--frozen-lockfile") -WorkingDirectory $extensionDirectory
+}
+
+if ($null -eq (Get-Command "node" -ErrorAction SilentlyContinue | Select-Object -First 1)) {
+  throw "Node.js is required to select a compatible VS Code/VSCodium editor."
+}
+
+$engineOutput = @(& node $resolverPath "engine" $extensionDirectory 2>&1)
+if ($LASTEXITCODE -ne 0 -or $engineOutput.Count -ne 1) {
+  throw "Failed to read engines.vscode:`n$($engineOutput -join [Environment]::NewLine)"
+}
+$vscodeEngine = $engineOutput[0].ToString()
+
+$vscodium = Get-VSCodiumCommands -ExplicitPath $VSCodiumPath
+$editor = $null
+if ($null -ne $vscodium) {
+  Assert-EditorCommands -Commands $vscodium
+  $vscodiumVersion = Get-EditorVersion -Commands $vscodium
+  if (-not [string]::IsNullOrWhiteSpace($vscodiumVersion) -and
+    (Test-EditorCompatibility -ResolverPath $resolverPath -ExtensionDirectory $extensionDirectory -Version $vscodiumVersion)) {
+    $editor = [pscustomobject]@{
+      Name = "VSCodium"
+      Version = $vscodiumVersion
+      StateName = "vscodium"
+      Cli = $vscodium.Cli
+      Gui = $vscodium.Gui
+    }
+  }
+  elseif ([string]::IsNullOrWhiteSpace($vscodiumVersion)) {
+    Write-Output "Could not determine the installed VSCodium version; using managed VS Code."
+  }
+  else {
+    Write-Output "Installed VSCodium $vscodiumVersion does not satisfy engines.vscode $vscodeEngine; using managed VS Code."
+  }
+}
+else {
+  Write-Output "VSCodium was not found; using managed VS Code."
+}
+
+if ($null -eq $editor) {
+  $managedVSCode = Get-ManagedVSCodeCommands `
+    -ResolverPath $resolverPath `
+    -ExtensionDirectory $extensionDirectory `
+    -CacheDirectory (Join-Path $repoRoot ".vscode-test")
+  Assert-EditorCommands -Commands $managedVSCode
+  $editor = [pscustomobject]@{
+    Name = "Visual Studio Code"
+    Version = $managedVSCode.Version
+    StateName = "vscode"
+    Cli = $managedVSCode.Cli
+    Gui = $managedVSCode.Gui
+  }
+}
+
+$stateRoot = Join-Path (Join-Path (Join-Path $commonDirectory "dev") $editor.StateName) $worktreeSlug
 
 if ($Fresh) {
   $sessionName = "session-{0}-{1}" -f (Get-Date).ToUniversalTime().ToString("yyyyMMdd-HHmmss"), $PID
@@ -314,24 +446,19 @@ $userDataDirectory = Join-Path $stateRoot "user-data"
 $extensionsDirectory = Join-Path $stateRoot "extensions"
 New-Item -ItemType Directory -Force -Path $userDataDirectory, $extensionsDirectory | Out-Null
 
-$extensionDirectory = Join-Path $worktreePath "extension"
-$manifestPath = Join-Path $extensionDirectory "package.json"
-$manifest = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json
-$vsixPath = Join-Path $extensionDirectory ("opencodecommit-{0}.vsix" -f $manifest.version)
-
 Write-Output "version: $($manifest.version)"
+Write-Output "editor: $($editor.Name) $($editor.Version)"
 Write-Output "worktree: $worktreePath"
 Write-Output "user-data-dir: $userDataDirectory"
 Write-Output "extensions-dir: $extensionsDirectory"
 Write-Output "vsix: $vsixPath"
-Write-Output "vscodium-cli: $($vscodium.Cli)"
-Write-Output "vscodium-gui: $($vscodium.Gui)"
+Write-Output "editor-cli: $($editor.Cli)"
+Write-Output "editor-gui: $($editor.Gui)"
 
 if (-not $LaunchOnly) {
-  Invoke-NativeCommand -FilePath "bun" -Arguments @("install", "--frozen-lockfile") -WorkingDirectory $extensionDirectory
   Invoke-NativeCommand -FilePath "bun" -Arguments @("run", "build:vsix") -WorkingDirectory $extensionDirectory
   Invoke-NativeCommand -FilePath "bunx" -Arguments @("@vscode/vsce", "package", "--out", $vsixPath) -WorkingDirectory $extensionDirectory
-  Invoke-NativeCommand -FilePath $vscodium.Cli -Arguments @(
+  Invoke-NativeCommand -FilePath $editor.Cli -Arguments @(
     "--user-data-dir", $userDataDirectory,
     "--extensions-dir", $extensionsDirectory,
     "--install-extension", $vsixPath,
@@ -344,9 +471,9 @@ if (-not $LaunchOnly) {
     "--list-extensions",
     "--show-versions"
   )
-  $installedExtensions = @(& $vscodium.Cli @listArguments 2>&1)
+  $installedExtensions = @(& $editor.Cli @listArguments 2>&1)
   if ($LASTEXITCODE -ne 0) {
-    throw "Failed to list extensions from the isolated VSCodium profile:`n$($installedExtensions -join [Environment]::NewLine)"
+    throw "Failed to list extensions from the isolated editor profile:`n$($installedExtensions -join [Environment]::NewLine)"
   }
 
   $expectedExtension = "{0}.{1}@{2}" -f $manifest.publisher, $manifest.name, $manifest.version
@@ -354,7 +481,7 @@ if (-not $LaunchOnly) {
     Where-Object { $_.ToString().Trim() -ieq $expectedExtension } |
     Select-Object -First 1
   if ($null -eq $installedExtension) {
-    throw "VSCodium did not report $expectedExtension after installation.`nInstalled extensions:`n$($installedExtensions -join [Environment]::NewLine)"
+    throw "$($editor.Name) did not report $expectedExtension after installation.`nInstalled extensions:`n$($installedExtensions -join [Environment]::NewLine)"
   }
   Write-Output "verified-extension: $($installedExtension.ToString().Trim())"
 }
@@ -367,5 +494,5 @@ if (-not $InstallOnly) {
     $worktreePath
   ) | ForEach-Object { ConvertTo-ProcessArgument -Value $_ }
 
-  Start-Process -FilePath $vscodium.Gui -ArgumentList $launchArguments -WorkingDirectory $worktreePath | Out-Null
+  Start-Process -FilePath $editor.Gui -ArgumentList $launchArguments -WorkingDirectory $worktreePath | Out-Null
 }

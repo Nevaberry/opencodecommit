@@ -20,7 +20,7 @@ const headless = process.env.HEADLESS === "1"
 export const config: WebdriverIO.Config = {
   runner: "local",
   tsConfigPath: path.resolve(__dirname, "tsconfig.wdio.json"),
-  specs: ["./src/test/e2e/wdio/**/*.spec.ts"],
+  specs: ["./src/test/e2e/wdio/**/*.wdio.ts"],
   exclude: [],
   maxInstances: 1,
   capabilities: [

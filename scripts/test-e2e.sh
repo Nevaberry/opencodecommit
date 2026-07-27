@@ -43,47 +43,6 @@ run_step() {
   log "[pass] $label ($(($(date +%s) - start))s)"
 }
 
-version_is_at_least() {
-  local current=$1
-  local required=$2
-  local current_parts=()
-  local required_parts=()
-  local index current_part required_part
-
-  IFS='.' read -r -a current_parts <<<"$current"
-  IFS='.' read -r -a required_parts <<<"$required"
-  for index in 0 1 2; do
-    current_part=${current_parts[$index]:-0}
-    required_part=${required_parts[$index]:-0}
-    if ((10#$current_part > 10#$required_part)); then
-      return 0
-    fi
-    if ((10#$current_part < 10#$required_part)); then
-      return 1
-    fi
-  done
-
-  return 0
-}
-
-vscode_engine_supports_version() {
-  local engine=$1
-  local version=$2
-  local minimum
-
-  if [[ ! "$engine" =~ ([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
-    return 1
-  fi
-  minimum=${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}
-
-  version_is_at_least "$version" "$minimum" || return 1
-  if [[ "$engine" == ^* ]] && [ "${version%%.*}" != "${minimum%%.*}" ]; then
-    return 1
-  fi
-
-  return 0
-}
-
 prepare_vscode_executable() {
   if [ -n "${OCC_E2E_VSCODE_EXECUTABLE:-}" ]; then
     log "[info] using configured VS Code executable: $OCC_E2E_VSCODE_EXECUTABLE"
@@ -92,7 +51,7 @@ prepare_vscode_executable() {
 
   if command -v flatpak >/dev/null 2>&1 && flatpak info com.vscodium.codium >/dev/null 2>&1; then
     local engine version_output version
-    engine=$(node -e 'const manifest = require(process.argv[1]); process.stdout.write(manifest.engines.vscode)' "$REPO_ROOT/extension/package.json")
+    engine=$(node "$REPO_ROOT/scripts/resolve-vscode-editor.mjs" engine "$REPO_ROOT/extension")
     if version_output=$(flatpak run com.vscodium.codium --version 2>/dev/null); then
       version=$(awk '/^[0-9]+\.[0-9]+\.[0-9]+/ { print $1; exit }' <<<"$version_output")
     fi
@@ -101,7 +60,7 @@ prepare_vscode_executable() {
       log "[info] could not determine the installed VSCodium version; using a test-electron managed VS Code"
       return 0
     fi
-    if ! vscode_engine_supports_version "$engine" "$version"; then
+    if ! node "$REPO_ROOT/scripts/resolve-vscode-editor.mjs" supports "$REPO_ROOT/extension" "$version"; then
       log "[info] installed VSCodium $version does not satisfy engines.vscode $engine; using a test-electron managed VS Code"
       return 0
     fi

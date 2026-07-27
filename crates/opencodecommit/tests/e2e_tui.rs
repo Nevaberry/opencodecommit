@@ -329,7 +329,7 @@ fn tui_targeted_single_backend_smoke() {
     session.expect("PR PREVIEW").unwrap();
 
     session.send("4").unwrap();
-    session.expect("SAFETY SETTINGS").unwrap();
+    session.expect("GUARD SETTINGS").unwrap();
     session.send(ControlCode::ESC).unwrap();
 
     session.send("5").unwrap();
