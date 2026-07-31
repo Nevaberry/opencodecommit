@@ -115,7 +115,7 @@ runs:
 
     - name: Upload SARIF
       if: ${{ inputs.upload-sarif == 'true' }}
-      uses: github/codeql-action/upload-sarif@v4
+      uses: github/codeql-action/upload-sarif@v4.37.3
       with:
         sarif_file: ${{ steps.scan.outputs.sarif-path }}
 
