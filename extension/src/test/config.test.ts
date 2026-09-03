@@ -171,8 +171,8 @@ describe("config schema", () => {
         model: "gpt-5.6-terra",
         endpoint: "https://api.openai.com/v1/chat/completions",
         "key-env": "OPENAI_API_KEY",
-        "pr-model": "gpt-5.4",
-        "cheap-model": "gpt-5.6-terra",
+        "pr-model": "gpt-5.6-sol",
+        "cheap-model": "gpt-5.6-luna",
       },
     )
     assert.strictEqual(runtimeConfig.activeLanguage, "English")

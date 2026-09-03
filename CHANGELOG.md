@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.1
+
+- Adds Claude Fable 5.1 (`claude-fable-5-1`) and GPT-6 Astra (`gpt-6-astra`) to
+  the Assisted-by model catalog, and repoints the Fable quick action from
+  Fable 5 to Fable 5.1.
+- Refreshes the direct API backend defaults: OpenAI and OpenCode Zen PR
+  generation moves from `gpt-5.4` to `gpt-5.6-sol`, with `gpt-5.6-luna` for the
+  cheap summarization step; the Anthropic backend moves from Sonnet 4.6 and
+  Opus 4.6 to Sonnet 5 and Opus 5.
+- Keeps the premium `gpt-6-astra` and `claude-fable-5-1` tiers opt-in rather
+  than default, matching how the CLI backends already treat Fable.
+
 ## 1.10
 
 - Moves local and CI Rust builds to the rolling stable toolchain while declaring

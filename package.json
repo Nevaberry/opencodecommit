@@ -2,7 +2,7 @@
   "name": "opencodecommit",
   "displayName": "OpenCodeCommit",
   "description": "AI commit, branch, PR, changelog, and CI scan tooling with local secret checks",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "publisher": "Nevaberry",
   "license": "MIT",
   "repository": {
@@ -1086,8 +1086,8 @@
             "model": "gpt-5.6-terra",
             "endpoint": "https://api.openai.com/v1/chat/completions",
             "keyEnv": "OPENAI_API_KEY",
-            "prModel": "gpt-5.4",
-            "cheapModel": "gpt-5.6-terra"
+            "prModel": "gpt-5.6-sol",
+            "cheapModel": "gpt-5.6-luna"
           },
           "properties": {
             "model": {
@@ -1107,12 +1107,12 @@
             },
             "prModel": {
               "type": "string",
-              "default": "gpt-5.4",
+              "default": "gpt-5.6-sol",
               "description": "Model for the final PR generation step. Falls back to model when empty."
             },
             "cheapModel": {
               "type": "string",
-              "default": "gpt-5.6-terra",
+              "default": "gpt-5.6-luna",
               "description": "Model for the cheap PR summarization step. Falls back to model when empty."
             }
           },
@@ -1124,16 +1124,16 @@
           "scope": "machine",
           "additionalProperties": false,
           "default": {
-            "model": "claude-sonnet-4-6",
+            "model": "claude-sonnet-5",
             "endpoint": "https://api.anthropic.com/v1/messages",
             "keyEnv": "ANTHROPIC_API_KEY",
-            "prModel": "claude-opus-4-6",
+            "prModel": "claude-opus-5",
             "cheapModel": "claude-haiku-4-5"
           },
           "properties": {
             "model": {
               "type": "string",
-              "default": "claude-sonnet-4-6",
+              "default": "claude-sonnet-5",
               "description": "Primary model for commit, refine, branch, and changelog generation."
             },
             "endpoint": {
@@ -1148,7 +1148,7 @@
             },
             "prModel": {
               "type": "string",
-              "default": "claude-opus-4-6",
+              "default": "claude-opus-5",
               "description": "Model for the final PR generation step. Falls back to model when empty."
             },
             "cheapModel": {
@@ -1250,8 +1250,8 @@
             "model": "gpt-5.6-terra",
             "endpoint": "https://opencode.ai/zen/v1/chat/completions",
             "keyEnv": "OPENCODE_API_KEY",
-            "prModel": "gpt-5.4",
-            "cheapModel": "gpt-5.6-terra"
+            "prModel": "gpt-5.6-sol",
+            "cheapModel": "gpt-5.6-luna"
           },
           "properties": {
             "model": {
@@ -1271,12 +1271,12 @@
             },
             "prModel": {
               "type": "string",
-              "default": "gpt-5.4",
+              "default": "gpt-5.6-sol",
               "description": "Model for the final PR generation step. Falls back to model when empty."
             },
             "cheapModel": {
               "type": "string",
-              "default": "gpt-5.6-terra",
+              "default": "gpt-5.6-luna",
               "description": "Model for the cheap PR summarization step. Falls back to model when empty."
             }
           },

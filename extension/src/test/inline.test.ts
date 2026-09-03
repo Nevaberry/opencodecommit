@@ -182,14 +182,14 @@ function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
         model: "gpt-5.6-terra",
         endpoint: "https://api.openai.com/v1/chat/completions",
         keyEnv: "OPENAI_API_KEY",
-        prModel: "gpt-5.4",
-        cheapModel: "gpt-5.6-terra",
+        prModel: "gpt-5.6-sol",
+        cheapModel: "gpt-5.6-luna",
       },
       anthropic: {
-        model: "claude-sonnet-4-6",
+        model: "claude-sonnet-5",
         endpoint: "https://api.anthropic.com/v1/messages",
         keyEnv: "ANTHROPIC_API_KEY",
-        prModel: "claude-opus-4-6",
+        prModel: "claude-opus-5",
         cheapModel: "claude-haiku-4-5",
       },
       gemini: {
@@ -210,8 +210,8 @@ function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
         model: "gpt-5.6-terra",
         endpoint: "https://opencode.ai/zen/v1/chat/completions",
         keyEnv: "OPENCODE_API_KEY",
-        prModel: "gpt-5.4",
-        cheapModel: "gpt-5.6-terra",
+        prModel: "gpt-5.6-sol",
+        cheapModel: "gpt-5.6-luna",
       },
       ollama: {
         model: "",
@@ -387,9 +387,10 @@ describe("evidence Assisted-by helpers", () => {
       "Claude Code",
     ])
     assert.ok(DEFAULT_HARNESSES.includes("GitHub Copilot"))
-    assert.ok(DEFAULT_MODELS.includes("claude-fable-5"))
+    assert.ok(DEFAULT_MODELS.includes("claude-fable-5-1"))
     assert.ok(DEFAULT_MODELS.includes("claude-opus-5"))
     assert.ok(DEFAULT_MODELS.includes("claude-sonnet-5"))
+    assert.ok(DEFAULT_MODELS.includes("gpt-6-astra"))
     assert.ok(DEFAULT_MODELS.includes("gpt-5.6-sol"))
     assert.ok(DEFAULT_MODELS.includes("gpt-5.6-terra"))
     assert.ok(DEFAULT_MODELS.includes("gpt-5.6-luna"))
@@ -417,7 +418,7 @@ describe("evidence Assisted-by helpers", () => {
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find(
         (option) => option.label === "Fable",
       )?.model,
-      "claude-fable-5",
+      "claude-fable-5-1",
     )
     assert.deepStrictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find(

@@ -1,6 +1,6 @@
 [package]
 name = "opencodecommit"
-version = "2.0.0"
+version = "2.1.0"
 edition = "2024"
 rust-version = "1.97"
 description = "AI-powered git commit message generator that delegates to terminal AI agents"

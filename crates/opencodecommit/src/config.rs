@@ -609,17 +609,17 @@ fn default_openai_api_config() -> ApiProviderConfig {
         model: "gpt-5.6-terra".to_owned(),
         endpoint: "https://api.openai.com/v1/chat/completions".to_owned(),
         key_env: "OPENAI_API_KEY".to_owned(),
-        pr_model: "gpt-5.4".to_owned(),
-        cheap_model: "gpt-5.6-terra".to_owned(),
+        pr_model: "gpt-5.6-sol".to_owned(),
+        cheap_model: "gpt-5.6-luna".to_owned(),
     }
 }
 
 fn default_anthropic_api_config() -> ApiProviderConfig {
     ApiProviderConfig {
-        model: "claude-sonnet-4-6".to_owned(),
+        model: "claude-sonnet-5".to_owned(),
         endpoint: "https://api.anthropic.com/v1/messages".to_owned(),
         key_env: "ANTHROPIC_API_KEY".to_owned(),
-        pr_model: "claude-opus-4-6".to_owned(),
+        pr_model: "claude-opus-5".to_owned(),
         cheap_model: "claude-haiku-4-5".to_owned(),
     }
 }
@@ -649,8 +649,8 @@ fn default_opencode_api_config() -> ApiProviderConfig {
         model: "gpt-5.6-terra".to_owned(),
         endpoint: "https://opencode.ai/zen/v1/chat/completions".to_owned(),
         key_env: "OPENCODE_API_KEY".to_owned(),
-        pr_model: "gpt-5.4".to_owned(),
-        cheap_model: "gpt-5.6-terra".to_owned(),
+        pr_model: "gpt-5.6-sol".to_owned(),
+        cheap_model: "gpt-5.6-luna".to_owned(),
     }
 }
 
