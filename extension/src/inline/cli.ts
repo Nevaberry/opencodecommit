@@ -678,6 +678,10 @@ export function execCli(
       })
 
       if (stdin && child.stdin) {
+        // A CLI that exits before draining the prompt closes the pipe under
+        // us, raising EPIPE. The child's own exit code and output decide the
+        // result, so swallow the write error instead of failing the run.
+        child.stdin.on("error", () => {})
         child.stdin.write(stdin)
         child.stdin.end()
       }
