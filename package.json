@@ -2,7 +2,7 @@
   "name": "opencodecommit",
   "displayName": "OpenCodeCommit",
   "description": "AI commit, branch, PR, changelog, and CI scan tooling with local secret checks",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "publisher": "Nevaberry",
   "license": "MIT",
   "repository": {
@@ -66,6 +66,11 @@
         "command": "opencodecommit.manualCommitOnce",
         "title": "Manual Commit Once",
         "icon": "$(check)"
+      },
+      {
+        "command": "opencodecommit.assistedByCodexAstra",
+        "title": "Codex Astra",
+        "category": "Assisted-by"
       },
       {
         "command": "opencodecommit.assistedByCodexSol",
@@ -289,11 +294,11 @@
       ],
       "opencodecommit.menu": [
         {
-          "command": "opencodecommit.assistedByCodexSol",
+          "command": "opencodecommit.assistedByCodexAstra",
           "group": "0_assisted@1"
         },
         {
-          "command": "opencodecommit.assistedByClaudeOpus",
+          "command": "opencodecommit.assistedByCodexSol",
           "group": "0_assisted@2"
         },
         {
@@ -301,8 +306,12 @@
           "group": "0_assisted@3"
         },
         {
-          "submenu": "opencodecommit.assistedByMenu",
+          "command": "opencodecommit.assistedByClaudeOpus",
           "group": "0_assisted@4"
+        },
+        {
+          "submenu": "opencodecommit.assistedByMenu",
+          "group": "0_assisted@5"
         },
         {
           "command": "opencodecommit.generateAdaptive",

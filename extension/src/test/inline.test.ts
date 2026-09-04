@@ -401,7 +401,13 @@ describe("evidence Assisted-by helpers", () => {
     assert.ok(!DEFAULT_MODELS.includes("anthropic/claude-opus-5"))
     assert.deepStrictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.map((option) => option.label),
-      ["Sol", "Opus", "Fable", "Build Grok"],
+      ["Astra", "Sol", "Fable", "Opus", "Build Grok"],
+    )
+    assert.strictEqual(
+      DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find(
+        (option) => option.label === "Astra",
+      )?.model,
+      "gpt-6-astra",
     )
     assert.strictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find((option) => option.label === "Sol")

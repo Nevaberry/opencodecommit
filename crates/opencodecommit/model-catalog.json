@@ -28,6 +28,13 @@
     ],
     "quick": [
       {
+        "label": "Astra",
+        "agent": "Codex",
+        "model": "gpt-6-astra",
+        "versionCommand": "codex -V",
+        "versionPattern": "codex-cli (?<version>\\S+)"
+      },
+      {
         "label": "Sol",
         "agent": "Codex",
         "model": "gpt-5.6-sol",
@@ -35,16 +42,16 @@
         "versionPattern": "codex-cli (?<version>\\S+)"
       },
       {
-        "label": "Opus",
+        "label": "Fable",
         "agent": "Claude Code",
-        "model": "claude-opus-5",
+        "model": "claude-fable-5-1",
         "versionCommand": "claude -v",
         "versionPattern": "(?<version>\\S+) \\(Claude Code\\)"
       },
       {
-        "label": "Fable",
+        "label": "Opus",
         "agent": "Claude Code",
-        "model": "claude-fable-5-1",
+        "model": "claude-opus-5",
         "versionCommand": "claude -v",
         "versionPattern": "(?<version>\\S+) \\(Claude Code\\)"
       },

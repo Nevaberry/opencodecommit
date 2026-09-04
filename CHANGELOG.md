@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.1.1
+
+- Adds a `Codex Astra` Assisted-by quick action for GPT-6 Astra
+  (`gpt-6-astra`) and promotes it to the top of the Source Control menu.
+- Reorders the assisted quick actions to Astra, Sol, Fable, Opus. Build Grok
+  stays in the overflow submenu.
+
 ## 2.1
 
 - Adds Claude Fable 5.1 (`claude-fable-5-1`) and GPT-6 Astra (`gpt-6-astra`) to
@@ -11,6 +18,9 @@
   Opus 4.6 to Sonnet 5 and Opus 5.
 - Keeps the premium `gpt-6-astra` and `claude-fable-5-1` tiers opt-in rather
   than default, matching how the CLI backends already treat Fable.
+- Fixes an unhandled EPIPE in the extension's CLI runner when a backend exits
+  before draining the prompt from stdin. The Rust side already discarded that
+  write result; the TypeScript mirror had drifted.
 
 ## 1.10
 

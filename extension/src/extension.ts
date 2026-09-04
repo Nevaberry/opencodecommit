@@ -884,6 +884,10 @@ export async function activate(context: vscode.ExtensionContext) {
       manualCommitOnce(arg),
     ),
     vscode.commands.registerCommand(
+      "opencodecommit.assistedByCodexAstra",
+      (arg) => appendAssistedByQuick("Astra", arg),
+    ),
+    vscode.commands.registerCommand(
       "opencodecommit.assistedByCodexSol",
       (arg) => appendAssistedByQuick("Sol", arg),
     ),

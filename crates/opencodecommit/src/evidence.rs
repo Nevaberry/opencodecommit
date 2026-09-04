@@ -1282,7 +1282,15 @@ mod tests {
                 .iter()
                 .map(|option| option.label.as_str())
                 .collect::<Vec<_>>(),
-            vec!["Sol", "Opus", "Fable", "Build Grok"]
+            vec!["Astra", "Sol", "Fable", "Opus", "Build Grok"]
+        );
+        assert_eq!(
+            config
+                .quick
+                .iter()
+                .find(|option| option.label == "Astra")
+                .map(|option| (option.agent.as_str(), option.model.as_str())),
+            Some(("Codex", "gpt-6-astra"))
         );
         assert_eq!(
             config
