@@ -118,7 +118,7 @@ function loadSharedCommitFormattingScenarios(): SharedCommitFormattingScenario[]
 function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
   return {
     provider: "openai",
-    model: "gpt-5.6-terra",
+    model: "gpt-6-luna",
     cliPath: "",
     diffSource: "auto",
     maxDiffLength: 10000,
@@ -156,20 +156,20 @@ function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
     agyPath: "",
     grokPath: "",
     claudeModel: "claude-sonnet-5",
-    codexModel: "gpt-5.6-terra",
+    codexModel: "gpt-6-luna",
     codexProvider: "",
     agyModel: "Gemini 3.5 Flash (Low)",
     grokModel: "grok-build",
     opencodePrProvider: "openai",
-    opencodePrModel: "gpt-5.6-sol",
+    opencodePrModel: "gpt-6-luna",
     opencodeCheapProvider: "openai",
-    opencodeCheapModel: "gpt-5.6-luna",
-    claudePrModel: "claude-opus-5",
+    opencodeCheapModel: "gpt-6-luna",
+    claudePrModel: "claude-opus-5-5",
     claudeCheapModel: "claude-haiku-4-5",
     codexPrProvider: "",
-    codexPrModel: "gpt-5.6-sol",
+    codexPrModel: "gpt-6-luna",
     codexCheapProvider: "",
-    codexCheapModel: "gpt-5.6-luna",
+    codexCheapModel: "gpt-6-luna",
     agyPrModel: "Gemini 3.1 Pro (High)",
     agyCheapModel: "Gemini 3.5 Flash (Low)",
     grokPrModel: "grok-build",
@@ -179,17 +179,17 @@ function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
     branchMode: "conventional" as BranchMode,
     api: {
       openai: {
-        model: "gpt-5.6-terra",
+        model: "gpt-6-luna",
         endpoint: "https://api.openai.com/v1/chat/completions",
         keyEnv: "OPENAI_API_KEY",
-        prModel: "gpt-5.6-sol",
-        cheapModel: "gpt-5.6-luna",
+        prModel: "gpt-6-luna",
+        cheapModel: "gpt-6-luna",
       },
       anthropic: {
         model: "claude-sonnet-5",
         endpoint: "https://api.anthropic.com/v1/messages",
         keyEnv: "ANTHROPIC_API_KEY",
-        prModel: "claude-opus-5",
+        prModel: "claude-opus-5-5",
         cheapModel: "claude-haiku-4-5",
       },
       gemini: {
@@ -200,18 +200,18 @@ function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
         cheapModel: "gemini-3.1-flash-lite-preview",
       },
       openrouter: {
-        model: "anthropic/claude-sonnet-4",
+        model: "anthropic/claude-sonnet-5",
         endpoint: "https://openrouter.ai/api/v1/chat/completions",
         keyEnv: "OPENROUTER_API_KEY",
-        prModel: "openai/gpt-5.4",
-        cheapModel: "openai/gpt-5.6-terra",
+        prModel: "openai/gpt-6-luna",
+        cheapModel: "openai/gpt-6-luna",
       },
       opencode: {
-        model: "gpt-5.6-terra",
+        model: "gpt-6-luna",
         endpoint: "https://opencode.ai/zen/v1/chat/completions",
         keyEnv: "OPENCODE_API_KEY",
-        prModel: "gpt-5.6-sol",
-        cheapModel: "gpt-5.6-luna",
+        prModel: "gpt-6-luna",
+        cheapModel: "gpt-6-luna",
       },
       ollama: {
         model: "",
@@ -388,17 +388,17 @@ describe("evidence Assisted-by helpers", () => {
     ])
     assert.ok(DEFAULT_HARNESSES.includes("GitHub Copilot"))
     assert.ok(DEFAULT_MODELS.includes("claude-fable-5-1"))
-    assert.ok(DEFAULT_MODELS.includes("claude-opus-5"))
+    assert.ok(DEFAULT_MODELS.includes("claude-opus-5-5"))
     assert.ok(DEFAULT_MODELS.includes("claude-sonnet-5"))
     assert.ok(DEFAULT_MODELS.includes("gpt-6-astra"))
-    assert.ok(DEFAULT_MODELS.includes("gpt-5.6-sol"))
-    assert.ok(DEFAULT_MODELS.includes("gpt-5.6-terra"))
-    assert.ok(DEFAULT_MODELS.includes("gpt-5.6-luna"))
+    assert.ok(DEFAULT_MODELS.includes("gpt-6-sol"))
+    assert.ok(DEFAULT_MODELS.includes("claude-haiku-4-5"))
+    assert.ok(DEFAULT_MODELS.includes("gpt-6-luna"))
     assert.ok(DEFAULT_MODELS.includes("grok-build"))
     assert.ok(DEFAULT_MODELS.includes("composer-2.5"))
     assert.ok(DEFAULT_MODELS.includes("big-pickle"))
     assert.ok(!DEFAULT_MODELS.includes("opus-5"))
-    assert.ok(!DEFAULT_MODELS.includes("anthropic/claude-opus-5"))
+    assert.ok(!DEFAULT_MODELS.includes("anthropic/claude-opus-5-5"))
     assert.deepStrictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.map((option) => option.label),
       ["Astra", "Sol", "Fable", "Opus", "Build Grok"],
@@ -412,13 +412,13 @@ describe("evidence Assisted-by helpers", () => {
     assert.strictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find((option) => option.label === "Sol")
         ?.model,
-      "gpt-5.6-sol",
+      "gpt-6-sol",
     )
     assert.strictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find(
         (option) => option.label === "Opus",
       )?.model,
-      "claude-opus-5",
+      "claude-opus-5-5",
     )
     assert.strictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find(
@@ -653,7 +653,7 @@ describe("backend helpers", () => {
     assert.strictEqual(changelog.invocation.timeout, 75_000)
   })
 
-  it("uses gpt-5.6-terra with no reasoning for prompt-only operations", () => {
+  it("uses gpt-6-luna with no reasoning for prompt-only operations", () => {
     const config = makeConfig({ codexProvider: "openrouter" })
 
     for (const operation of ["commit", "branch", "changelog"] as const) {
@@ -670,7 +670,7 @@ describe("backend helpers", () => {
 
       assert.ok(disables.includes("plugins"))
       assert.ok(disables.includes("apps"))
-      assert.ok(invocation.args.includes("gpt-5.6-terra"))
+      assert.ok(invocation.args.includes("gpt-6-luna"))
       assert.ok(invocation.args.includes('model_reasoning_effort="none"'))
       assert.ok(invocation.args.includes('web_search="disabled"'))
       assert.ok(invocation.args.includes("--output-schema"))

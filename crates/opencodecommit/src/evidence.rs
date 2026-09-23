@@ -1261,12 +1261,12 @@ mod tests {
         assert_eq!(config.harnesses[1], "Claude Code");
         assert!(config.harnesses.contains(&"GitHub Copilot".to_owned()));
         assert!(config.models.contains(&"claude-fable-5-1".to_owned()));
-        assert!(config.models.contains(&"claude-opus-5".to_owned()));
+        assert!(config.models.contains(&"claude-opus-5-5".to_owned()));
         assert!(config.models.contains(&"claude-sonnet-5".to_owned()));
         assert!(config.models.contains(&"gpt-6-astra".to_owned()));
-        assert!(config.models.contains(&"gpt-5.6-sol".to_owned()));
-        assert!(config.models.contains(&"gpt-5.6-terra".to_owned()));
-        assert!(config.models.contains(&"gpt-5.6-luna".to_owned()));
+        assert!(config.models.contains(&"gpt-6-sol".to_owned()));
+        assert!(config.models.contains(&"claude-haiku-4-5".to_owned()));
+        assert!(config.models.contains(&"gpt-6-luna".to_owned()));
         assert!(config.models.contains(&"grok-build".to_owned()));
         assert!(config.models.contains(&"composer-2.5".to_owned()));
         assert!(config.models.contains(&"big-pickle".to_owned()));
@@ -1274,7 +1274,7 @@ mod tests {
         assert!(
             !config
                 .models
-                .contains(&"anthropic/claude-opus-5".to_owned())
+                .contains(&"anthropic/claude-opus-5-5".to_owned())
         );
         assert_eq!(
             config
@@ -1298,7 +1298,7 @@ mod tests {
                 .iter()
                 .find(|option| option.label == "Sol")
                 .map(|option| option.model.as_str()),
-            Some("gpt-5.6-sol")
+            Some("gpt-6-sol")
         );
         assert_eq!(
             config
@@ -1306,7 +1306,7 @@ mod tests {
                 .iter()
                 .find(|option| option.label == "Opus")
                 .map(|option| option.model.as_str()),
-            Some("claude-opus-5")
+            Some("claude-opus-5-5")
         );
         assert_eq!(
             config

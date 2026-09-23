@@ -2,7 +2,7 @@
   "name": "opencodecommit",
   "displayName": "OpenCodeCommit",
   "description": "AI commit, branch, PR, changelog, and CI scan tooling with local secret checks",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "publisher": "Nevaberry",
   "license": "MIT",
   "repository": {
@@ -533,8 +533,8 @@
         "opencodecommit.codexCLIModel": {
           "order": 21,
           "type": "string",
-          "default": "gpt-5.6-terra",
-          "description": "Codex CLI model (e.g. gpt-5.6-terra, gpt-5.6-sol). Passed as -m to codex CLI.",
+          "default": "gpt-6-luna",
+          "description": "Codex CLI model (e.g. gpt-6-luna, gpt-6-sol). Passed as -m to codex CLI.",
           "scope": "machine"
         },
         "opencodecommit.codexCLIPath": {
@@ -554,8 +554,8 @@
         "opencodecommit.opencodeCLIModel": {
           "order": 24,
           "type": "string",
-          "default": "gpt-5.6-terra",
-          "description": "OpenCode CLI model (e.g. gpt-5.6-terra, claude-sonnet-5). Used as provider/model with the provider setting.",
+          "default": "gpt-6-luna",
+          "description": "OpenCode CLI model (e.g. gpt-6-luna, claude-sonnet-5). Used as provider/model with the provider setting.",
           "scope": "machine"
         },
         "opencodecommit.opencodeCLIPath": {
@@ -569,7 +569,7 @@
           "order": 26,
           "type": "string",
           "default": "claude-sonnet-5",
-          "description": "Claude Code CLI model (e.g. claude-sonnet-5, claude-opus-5, claude-fable-5). Passed as --model to claude CLI.",
+          "description": "Claude Code CLI model (e.g. claude-sonnet-5, claude-opus-5-5, claude-fable-5-1). Passed as --model to claude CLI.",
           "scope": "machine"
         },
         "opencodecommit.claudeCodeCLIPath": {
@@ -603,7 +603,7 @@
         "opencodecommit.opencodePRModel": {
           "order": 31,
           "type": "string",
-          "default": "gpt-5.6-sol",
+          "default": "gpt-6-luna",
           "description": "OpenCode model for the final PR generation step.",
           "scope": "machine"
         },
@@ -617,14 +617,14 @@
         "opencodecommit.opencodeCheapModel": {
           "order": 33,
           "type": "string",
-          "default": "gpt-5.6-luna",
+          "default": "gpt-6-luna",
           "description": "OpenCode model for the cheap PR summarization step.",
           "scope": "machine"
         },
         "opencodecommit.claudePRModel": {
           "order": 34,
           "type": "string",
-          "default": "claude-opus-5",
+          "default": "claude-opus-5-5",
           "description": "Claude model for the final PR generation step.",
           "scope": "machine"
         },
@@ -645,7 +645,7 @@
         "opencodecommit.codexPRModel": {
           "order": 37,
           "type": "string",
-          "default": "gpt-5.6-sol",
+          "default": "gpt-6-luna",
           "description": "Codex model for the final PR generation step.",
           "scope": "machine"
         },
@@ -659,7 +659,7 @@
         "opencodecommit.codexCheapModel": {
           "order": 39,
           "type": "string",
-          "default": "gpt-5.6-luna",
+          "default": "gpt-6-luna",
           "description": "Codex model for the cheap PR summarization step.",
           "scope": "machine"
         },
@@ -1092,16 +1092,16 @@
           "scope": "machine",
           "additionalProperties": false,
           "default": {
-            "model": "gpt-5.6-terra",
+            "model": "gpt-6-luna",
             "endpoint": "https://api.openai.com/v1/chat/completions",
             "keyEnv": "OPENAI_API_KEY",
-            "prModel": "gpt-5.6-sol",
-            "cheapModel": "gpt-5.6-luna"
+            "prModel": "gpt-6-luna",
+            "cheapModel": "gpt-6-luna"
           },
           "properties": {
             "model": {
               "type": "string",
-              "default": "gpt-5.6-terra",
+              "default": "gpt-6-luna",
               "description": "Primary model for commit, refine, branch, and changelog generation."
             },
             "endpoint": {
@@ -1116,12 +1116,12 @@
             },
             "prModel": {
               "type": "string",
-              "default": "gpt-5.6-sol",
+              "default": "gpt-6-luna",
               "description": "Model for the final PR generation step. Falls back to model when empty."
             },
             "cheapModel": {
               "type": "string",
-              "default": "gpt-5.6-luna",
+              "default": "gpt-6-luna",
               "description": "Model for the cheap PR summarization step. Falls back to model when empty."
             }
           },
@@ -1136,7 +1136,7 @@
             "model": "claude-sonnet-5",
             "endpoint": "https://api.anthropic.com/v1/messages",
             "keyEnv": "ANTHROPIC_API_KEY",
-            "prModel": "claude-opus-5",
+            "prModel": "claude-opus-5-5",
             "cheapModel": "claude-haiku-4-5"
           },
           "properties": {
@@ -1157,7 +1157,7 @@
             },
             "prModel": {
               "type": "string",
-              "default": "claude-opus-5",
+              "default": "claude-opus-5-5",
               "description": "Model for the final PR generation step. Falls back to model when empty."
             },
             "cheapModel": {
@@ -1215,16 +1215,16 @@
           "scope": "machine",
           "additionalProperties": false,
           "default": {
-            "model": "anthropic/claude-sonnet-4",
+            "model": "anthropic/claude-sonnet-5",
             "endpoint": "https://openrouter.ai/api/v1/chat/completions",
             "keyEnv": "OPENROUTER_API_KEY",
-            "prModel": "openai/gpt-5.4",
-            "cheapModel": "openai/gpt-5.6-terra"
+            "prModel": "openai/gpt-6-luna",
+            "cheapModel": "openai/gpt-6-luna"
           },
           "properties": {
             "model": {
               "type": "string",
-              "default": "anthropic/claude-sonnet-4",
+              "default": "anthropic/claude-sonnet-5",
               "description": "Primary model for commit, refine, branch, and changelog generation."
             },
             "endpoint": {
@@ -1239,12 +1239,12 @@
             },
             "prModel": {
               "type": "string",
-              "default": "openai/gpt-5.4",
+              "default": "openai/gpt-6-luna",
               "description": "Model for the final PR generation step. Falls back to model when empty."
             },
             "cheapModel": {
               "type": "string",
-              "default": "openai/gpt-5.6-terra",
+              "default": "openai/gpt-6-luna",
               "description": "Model for the cheap PR summarization step. Falls back to model when empty."
             }
           },
@@ -1256,16 +1256,16 @@
           "scope": "machine",
           "additionalProperties": false,
           "default": {
-            "model": "gpt-5.6-terra",
+            "model": "gpt-6-luna",
             "endpoint": "https://opencode.ai/zen/v1/chat/completions",
             "keyEnv": "OPENCODE_API_KEY",
-            "prModel": "gpt-5.6-sol",
-            "cheapModel": "gpt-5.6-luna"
+            "prModel": "gpt-6-luna",
+            "cheapModel": "gpt-6-luna"
           },
           "properties": {
             "model": {
               "type": "string",
-              "default": "gpt-5.6-terra",
+              "default": "gpt-6-luna",
               "description": "Primary model for commit, refine, branch, and changelog generation."
             },
             "endpoint": {
@@ -1280,12 +1280,12 @@
             },
             "prModel": {
               "type": "string",
-              "default": "gpt-5.6-sol",
+              "default": "gpt-6-luna",
               "description": "Model for the final PR generation step. Falls back to model when empty."
             },
             "cheapModel": {
               "type": "string",
-              "default": "gpt-5.6-luna",
+              "default": "gpt-6-luna",
               "description": "Model for the cheap PR summarization step. Falls back to model when empty."
             }
           },

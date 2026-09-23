@@ -651,7 +651,7 @@ async function appendAssistedByCustom(arg?: { rootUri?: vscode.Uri }) {
     if (!agent?.trim()) return
     const model = await vscode.window.showInputBox({
       prompt: "User-confirmed model",
-      placeHolder: "gpt-5.6-sol",
+      placeHolder: "gpt-6-luna",
     })
     if (!model?.trim()) return
     await appendAssistedByRows(repo, [

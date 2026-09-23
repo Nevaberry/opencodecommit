@@ -168,11 +168,11 @@ describe("config schema", () => {
     assert.deepStrictEqual(
       (defaultDoc.api as Record<string, unknown> | undefined)?.openai,
       {
-        model: "gpt-5.6-terra",
+        model: "gpt-6-luna",
         endpoint: "https://api.openai.com/v1/chat/completions",
         "key-env": "OPENAI_API_KEY",
-        "pr-model": "gpt-5.6-sol",
-        "cheap-model": "gpt-5.6-luna",
+        "pr-model": "gpt-6-luna",
+        "cheap-model": "gpt-6-luna",
       },
     )
     assert.strictEqual(runtimeConfig.activeLanguage, "English")

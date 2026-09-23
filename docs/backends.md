@@ -52,11 +52,11 @@ backend = "openai-api"
 backend-order = ["codex", "openai-api", "ollama-api"]
 
 [api.openai]
-model = "gpt-5.6-terra"
+model = "gpt-6-luna"
 endpoint = "https://api.openai.com/v1/chat/completions"
 key-env = "OPENAI_API_KEY"
-pr-model = "gpt-5.6-sol"
-cheap-model = "gpt-5.6-luna"
+pr-model = "gpt-6-luna"
+cheap-model = "gpt-6-luna"
 
 [api.ollama]
 model = ""
@@ -70,7 +70,7 @@ Commit, refine, branch, and changelog generation use the primary backend model.
 
 PR generation can use a stronger model for final writing and a cheaper model for summarization. Configure `pr-model` and `cheap-model` in the relevant backend section.
 
-Codex one-shot tasks use a fast, prompt-only profile. The default `gpt-5.6-terra` commit model runs with reasoning effort `none`; PR generation keeps the more conservative quality profile.
+Codex one-shot tasks use a fast, prompt-only profile. The default `gpt-6-luna` commit model runs with reasoning effort `none`; PR generation keeps the more conservative quality profile.
 
 Grok Build uses its `grok-build` model key in headless single-prompt mode. OpenCodeCommit disables auto-updates, tools, memory, subagents, planning, and web search for these runs because all required diff context is already in the prompt.
 

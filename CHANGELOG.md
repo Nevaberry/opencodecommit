@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.1.2
+
+- Uses GPT-6 Luna for Codex, OpenCode, OpenAI, and OpenCode Zen commit, PR,
+  and summarization defaults in both the Rust CLI and VS Code extension.
+- Refreshes OpenRouter defaults to Claude Sonnet 5 and GPT-6 Luna, and
+  Claude PR defaults and the Opus quick action to Claude Opus 5.5.
+- Updates the shared Assisted-by catalog with GPT-6 Sol and Luna and the
+  current Claude models, and aligns live test configurations and examples.
+
 ## 2.1.1
 
 - Adds a `Codex Astra` Assisted-by quick action for GPT-6 Astra

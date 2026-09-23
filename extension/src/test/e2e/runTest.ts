@@ -208,14 +208,14 @@ function buildSettings(activeBackends: string[]) {
     "opencodecommit.opencodeCLIProvider":
       process.env.OCC_E2E_OPENCODE_PROVIDER ?? "openai",
     "opencodecommit.opencodeCLIModel":
-      process.env.OCC_E2E_OPENCODE_MODEL ?? "gpt-5.6-terra",
+      process.env.OCC_E2E_OPENCODE_MODEL ?? "gpt-6-luna",
     "opencodecommit.opencodeCLIPath": process.env.OCC_E2E_OPENCODE_PATH ?? "",
     "opencodecommit.claudeCodeCLIModel":
       process.env.OCC_E2E_CLAUDE_MODEL ?? "claude-sonnet-5",
     "opencodecommit.claudeCodeCLIPath": process.env.OCC_E2E_CLAUDE_PATH ?? "",
     "opencodecommit.codexCLIProvider": process.env.OCC_E2E_CODEX_PROVIDER ?? "",
     "opencodecommit.codexCLIModel":
-      process.env.OCC_E2E_CODEX_MODEL ?? "gpt-5.6-terra",
+      process.env.OCC_E2E_CODEX_MODEL ?? "gpt-6-luna",
     "opencodecommit.codexCLIPath": process.env.OCC_E2E_CODEX_PATH ?? "",
     "opencodecommit.agyCLIModel":
       process.env.OCC_E2E_AGY_MODEL ?? "Gemini 3.5 Flash (Low)",
@@ -228,15 +228,15 @@ function buildSettings(activeBackends: string[]) {
       process.env.OCC_E2E_OPENCODE_PROVIDER ??
       "openai",
     "opencodecommit.opencodePRModel":
-      process.env.OCC_E2E_OPENCODE_PR_MODEL ?? "gpt-5.6-sol",
+      process.env.OCC_E2E_OPENCODE_PR_MODEL ?? "gpt-6-luna",
     "opencodecommit.opencodeCheapProvider":
       process.env.OCC_E2E_OPENCODE_CHEAP_PROVIDER ??
       process.env.OCC_E2E_OPENCODE_PROVIDER ??
       "openai",
     "opencodecommit.opencodeCheapModel":
-      process.env.OCC_E2E_OPENCODE_CHEAP_MODEL ?? "gpt-5.6-luna",
+      process.env.OCC_E2E_OPENCODE_CHEAP_MODEL ?? "gpt-6-luna",
     "opencodecommit.claudePRModel":
-      process.env.OCC_E2E_CLAUDE_PR_MODEL ?? "claude-opus-5",
+      process.env.OCC_E2E_CLAUDE_PR_MODEL ?? "claude-opus-5-5",
     "opencodecommit.claudeCheapModel":
       process.env.OCC_E2E_CLAUDE_CHEAP_MODEL ?? "claude-haiku-4-5",
     "opencodecommit.codexPRProvider":
@@ -244,13 +244,13 @@ function buildSettings(activeBackends: string[]) {
       process.env.OCC_E2E_CODEX_PROVIDER ??
       "",
     "opencodecommit.codexPRModel":
-      process.env.OCC_E2E_CODEX_PR_MODEL ?? "gpt-5.6-sol",
+      process.env.OCC_E2E_CODEX_PR_MODEL ?? "gpt-6-luna",
     "opencodecommit.codexCheapProvider":
       process.env.OCC_E2E_CODEX_CHEAP_PROVIDER ??
       process.env.OCC_E2E_CODEX_PROVIDER ??
       "",
     "opencodecommit.codexCheapModel":
-      process.env.OCC_E2E_CODEX_CHEAP_MODEL ?? "gpt-5.6-luna",
+      process.env.OCC_E2E_CODEX_CHEAP_MODEL ?? "gpt-6-luna",
     "opencodecommit.agyPRModel":
       process.env.OCC_E2E_AGY_PR_MODEL ?? "Gemini 3.1 Pro (High)",
     "opencodecommit.agyCheapModel":

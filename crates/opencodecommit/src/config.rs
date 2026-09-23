@@ -491,7 +491,7 @@ fn default_provider() -> String {
 }
 
 fn default_model() -> String {
-    model_catalog_backend_default("opencode", "commit_model", "gpt-5.6-terra")
+    model_catalog_backend_default("opencode", "commit_model", "gpt-6-luna")
 }
 
 fn default_claude_model() -> String {
@@ -499,7 +499,7 @@ fn default_claude_model() -> String {
 }
 
 fn default_codex_model() -> String {
-    model_catalog_backend_default("codex", "commit_model", "gpt-5.6-terra")
+    model_catalog_backend_default("codex", "commit_model", "gpt-6-luna")
 }
 
 fn default_agy_model() -> String {
@@ -547,7 +547,7 @@ fn default_opencode_pr_provider() -> String {
 }
 
 fn default_opencode_pr_model() -> String {
-    model_catalog_backend_default("opencode", "pr_model", "gpt-5.6-sol")
+    model_catalog_backend_default("opencode", "pr_model", "gpt-6-luna")
 }
 
 fn default_opencode_cheap_provider() -> String {
@@ -555,11 +555,11 @@ fn default_opencode_cheap_provider() -> String {
 }
 
 fn default_opencode_cheap_model() -> String {
-    model_catalog_backend_default("opencode", "cheap_model", "gpt-5.6-luna")
+    model_catalog_backend_default("opencode", "cheap_model", "gpt-6-luna")
 }
 
 fn default_claude_pr_model() -> String {
-    model_catalog_backend_default("claude", "pr_model", "claude-opus-5")
+    model_catalog_backend_default("claude", "pr_model", "claude-opus-5-5")
 }
 
 fn default_claude_cheap_model() -> String {
@@ -567,11 +567,11 @@ fn default_claude_cheap_model() -> String {
 }
 
 fn default_codex_pr_model() -> String {
-    model_catalog_backend_default("codex", "pr_model", "gpt-5.6-sol")
+    model_catalog_backend_default("codex", "pr_model", "gpt-6-luna")
 }
 
 fn default_codex_cheap_model() -> String {
-    model_catalog_backend_default("codex", "cheap_model", "gpt-5.6-luna")
+    model_catalog_backend_default("codex", "cheap_model", "gpt-6-luna")
 }
 
 fn default_agy_pr_model() -> String {
@@ -606,11 +606,11 @@ fn model_catalog_backend_default(backend: &str, tier: &str, fallback: &str) -> S
 
 fn default_openai_api_config() -> ApiProviderConfig {
     ApiProviderConfig {
-        model: "gpt-5.6-terra".to_owned(),
+        model: "gpt-6-luna".to_owned(),
         endpoint: "https://api.openai.com/v1/chat/completions".to_owned(),
         key_env: "OPENAI_API_KEY".to_owned(),
-        pr_model: "gpt-5.6-sol".to_owned(),
-        cheap_model: "gpt-5.6-luna".to_owned(),
+        pr_model: "gpt-6-luna".to_owned(),
+        cheap_model: "gpt-6-luna".to_owned(),
     }
 }
 
@@ -619,7 +619,7 @@ fn default_anthropic_api_config() -> ApiProviderConfig {
         model: "claude-sonnet-5".to_owned(),
         endpoint: "https://api.anthropic.com/v1/messages".to_owned(),
         key_env: "ANTHROPIC_API_KEY".to_owned(),
-        pr_model: "claude-opus-5".to_owned(),
+        pr_model: "claude-opus-5-5".to_owned(),
         cheap_model: "claude-haiku-4-5".to_owned(),
     }
 }
@@ -636,21 +636,21 @@ fn default_gemini_api_config() -> ApiProviderConfig {
 
 fn default_openrouter_api_config() -> ApiProviderConfig {
     ApiProviderConfig {
-        model: "anthropic/claude-sonnet-4".to_owned(),
+        model: "anthropic/claude-sonnet-5".to_owned(),
         endpoint: "https://openrouter.ai/api/v1/chat/completions".to_owned(),
         key_env: "OPENROUTER_API_KEY".to_owned(),
-        pr_model: "openai/gpt-5.4".to_owned(),
-        cheap_model: "openai/gpt-5.6-terra".to_owned(),
+        pr_model: "openai/gpt-6-luna".to_owned(),
+        cheap_model: "openai/gpt-6-luna".to_owned(),
     }
 }
 
 fn default_opencode_api_config() -> ApiProviderConfig {
     ApiProviderConfig {
-        model: "gpt-5.6-terra".to_owned(),
+        model: "gpt-6-luna".to_owned(),
         endpoint: "https://opencode.ai/zen/v1/chat/completions".to_owned(),
         key_env: "OPENCODE_API_KEY".to_owned(),
-        pr_model: "gpt-5.6-sol".to_owned(),
-        cheap_model: "gpt-5.6-luna".to_owned(),
+        pr_model: "gpt-6-luna".to_owned(),
+        cheap_model: "gpt-6-luna".to_owned(),
     }
 }
 
@@ -1127,12 +1127,12 @@ mod tests {
         assert_eq!(cfg.commit_mode, CommitMode::Adaptive);
         assert_eq!(cfg.sparkle_mode, CommitMode::Adaptive);
         assert_eq!(cfg.provider, "openai");
-        assert_eq!(cfg.model, "gpt-5.6-terra");
+        assert_eq!(cfg.model, "gpt-6-luna");
         assert_eq!(cfg.cli_path, "");
         assert_eq!(cfg.claude_path, "");
         assert_eq!(cfg.codex_path, "");
         assert_eq!(cfg.claude_model, "claude-sonnet-5");
-        assert_eq!(cfg.codex_model, "gpt-5.6-terra");
+        assert_eq!(cfg.codex_model, "gpt-6-luna");
         assert_eq!(cfg.codex_provider, "");
         assert_eq!(cfg.agy_path, "");
         assert_eq!(cfg.agy_model, "Gemini 3.5 Flash (Low)");
@@ -1310,7 +1310,7 @@ mod tests {
     #[test]
     fn backend_model_and_path() {
         let mut cfg = Config::default();
-        assert_eq!(cfg.backend_model(), "gpt-5.6-terra");
+        assert_eq!(cfg.backend_model(), "gpt-6-luna");
         assert_eq!(cfg.backend_cli_path(), "");
 
         cfg.backend = Backend::Claude;
@@ -1320,7 +1320,7 @@ mod tests {
 
         cfg.backend = Backend::Codex;
         cfg.codex_path = "/usr/bin/codex".to_owned();
-        assert_eq!(cfg.backend_model(), "gpt-5.6-terra");
+        assert_eq!(cfg.backend_model(), "gpt-6-luna");
         assert_eq!(cfg.backend_cli_path(), "/usr/bin/codex");
 
         cfg.backend = Backend::Agy;
@@ -1382,7 +1382,7 @@ prompt = "Generate: {{{{diff}}}}"
         // Unset fields should get defaults
         assert_eq!(cfg.diff_source, DiffSource::Auto);
         assert_eq!(cfg.commit_template, "{{type}}({{scope}}): {{message}}");
-        assert_eq!(cfg.codex_model, "gpt-5.6-terra");
+        assert_eq!(cfg.codex_model, "gpt-6-luna");
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -1536,7 +1536,7 @@ endpoint = "http://127.0.0.1:11434"
 
         let serialized = std::fs::read_to_string(&config_path).unwrap();
         assert_eq!(cfg.backend, Backend::Codex);
-        assert_eq!(cfg.model, "gpt-5.6-terra");
+        assert_eq!(cfg.model, "gpt-6-luna");
         assert!(config_path.exists());
         assert!(serialized.contains("backend-order"));
         assert!(serialized.contains("commit-branch-timeout-seconds"));
@@ -1580,26 +1580,26 @@ endpoint = "http://127.0.0.1:11434"
     fn backend_pr_and_cheap_models() {
         let mut cfg = Config::default();
         // Default backend is Codex, so PR/cheap pair comes from codex fields.
-        assert_eq!(cfg.backend_pr_model(), "gpt-5.6-sol");
-        assert_eq!(cfg.backend_cheap_model(), "gpt-5.6-luna");
+        assert_eq!(cfg.backend_pr_model(), "gpt-6-luna");
+        assert_eq!(cfg.backend_cheap_model(), "gpt-6-luna");
         assert_eq!(cfg.backend_pr_provider(), "");
         assert_eq!(cfg.backend_cheap_provider(), "");
 
         cfg.backend = Backend::Opencode;
-        assert_eq!(cfg.backend_pr_model(), "gpt-5.6-sol");
-        assert_eq!(cfg.backend_cheap_model(), "gpt-5.6-luna");
+        assert_eq!(cfg.backend_pr_model(), "gpt-6-luna");
+        assert_eq!(cfg.backend_cheap_model(), "gpt-6-luna");
         assert_eq!(cfg.backend_pr_provider(), "openai");
         assert_eq!(cfg.backend_cheap_provider(), "openai");
 
         cfg.backend = Backend::Claude;
-        assert_eq!(cfg.backend_pr_model(), "claude-opus-5");
+        assert_eq!(cfg.backend_pr_model(), "claude-opus-5-5");
         assert_eq!(cfg.backend_cheap_model(), "claude-haiku-4-5");
         assert_eq!(cfg.backend_pr_provider(), "");
         assert_eq!(cfg.backend_cheap_provider(), "");
 
         cfg.backend = Backend::Codex;
-        assert_eq!(cfg.backend_pr_model(), "gpt-5.6-sol");
-        assert_eq!(cfg.backend_cheap_model(), "gpt-5.6-luna");
+        assert_eq!(cfg.backend_pr_model(), "gpt-6-luna");
+        assert_eq!(cfg.backend_cheap_model(), "gpt-6-luna");
 
         cfg.backend = Backend::Agy;
         assert_eq!(cfg.backend_pr_model(), "Gemini 3.1 Pro (High)");

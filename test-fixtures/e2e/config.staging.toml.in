@@ -35,14 +35,14 @@ grok-cheap-model = "grok-build"
 enforcement = "warn"
 
 [api.openai]
-model = "gpt-5.6-terra"
+model = "gpt-6-luna"
 endpoint = "https://api.openai.com/v1/chat/completions"
 key-env = "OPENAI_API_KEY"
-pr-model = "gpt-5.4"
-cheap-model = "gpt-5.6-terra"
+pr-model = "gpt-6-luna"
+cheap-model = "gpt-6-luna"
 
 [api.anthropic]
-model = "claude-sonnet-4-6"
+model = "claude-sonnet-5"
 endpoint = "https://api.anthropic.com/v1/messages"
 key-env = "ANTHROPIC_API_KEY"
 pr-model = "claude-opus-4-6"
@@ -56,18 +56,18 @@ pr-model = "gemini-3-flash-preview"
 cheap-model = "gemini-3.1-flash-lite-preview"
 
 [api.openrouter]
-model = "anthropic/claude-sonnet-4"
+model = "anthropic/claude-sonnet-5"
 endpoint = "https://openrouter.ai/api/v1/chat/completions"
 key-env = "OPENROUTER_API_KEY"
-pr-model = "openai/gpt-5.4"
-cheap-model = "openai/gpt-5.6-terra"
+pr-model = "openai/gpt-6-luna"
+cheap-model = "openai/gpt-6-luna"
 
 [api.opencode]
-model = "gpt-5.6-terra"
+model = "gpt-6-luna"
 endpoint = "https://opencode.ai/zen/v1/chat/completions"
 key-env = "OPENCODE_API_KEY"
-pr-model = "gpt-5.4"
-cheap-model = "gpt-5.6-terra"
+pr-model = "gpt-6-luna"
+cheap-model = "gpt-6-luna"
 
 [api.ollama]
 model = "__OLLAMA_MODEL__"

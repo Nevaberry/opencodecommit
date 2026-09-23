@@ -1050,7 +1050,7 @@ mod tests {
         let config = Config {
             backend: Backend::Opencode,
             provider: "openai".to_owned(),
-            model: "gpt-5.6-terra".to_owned(),
+            model: "gpt-6-luna".to_owned(),
             ..Config::default()
         };
         let inv = build_invocation(Path::new("/usr/bin/opencode"), "hello", &config);
@@ -1067,7 +1067,7 @@ mod tests {
             Some("minimal")
         );
         assert!(inv.args.contains(&"-m".to_owned()));
-        assert!(inv.args.contains(&"openai/gpt-5.6-terra".to_owned()));
+        assert!(inv.args.contains(&"openai/gpt-6-luna".to_owned()));
         // Prompt must be the final positional arg (opencode reads it from argv).
         assert_eq!(inv.args.last().map(String::as_str), Some("hello"));
         assert!(inv.stdin.is_none());
@@ -1116,10 +1116,10 @@ mod tests {
     }
 
     #[test]
-    fn gpt_5_6_terra_commit_uses_no_reasoning() {
+    fn gpt_6_luna_commit_uses_no_reasoning() {
         let config = Config {
             backend: Backend::Codex,
-            codex_model: "gpt-5.6-terra".to_owned(),
+            codex_model: "gpt-6-luna".to_owned(),
             ..Config::default()
         };
         let inv = build_invocation(Path::new("/usr/bin/codex"), "hello", &config);
@@ -1155,7 +1155,7 @@ mod tests {
         assert!(disables.contains(&"plugins"));
         assert!(disables.contains(&"apps"));
         assert!(inv.args.contains(&"-m".to_owned()));
-        assert!(inv.args.contains(&"gpt-5.6-terra".to_owned()));
+        assert!(inv.args.contains(&"gpt-6-luna".to_owned()));
         assert_eq!(inv.args.last().map(String::as_str), Some("-"));
         assert_eq!(inv.stdin.as_deref(), Some("hello"));
         assert_codex_env_shape(&inv.env);
@@ -1165,7 +1165,7 @@ mod tests {
     fn codex_fast_invocation_uses_structured_schema() {
         let config = Config {
             backend: Backend::Codex,
-            codex_model: "gpt-5.6-terra".to_owned(),
+            codex_model: "gpt-6-luna".to_owned(),
             ..Config::default()
         };
         let inv = build_invocation(Path::new("/usr/bin/codex"), "hello", &config);
@@ -1196,7 +1196,7 @@ mod tests {
 
         let config = Config {
             backend: Backend::Codex,
-            codex_model: "gpt-5.6-terra".to_owned(),
+            codex_model: "gpt-6-luna".to_owned(),
             ..Config::default()
         };
         let inv = build_invocation(Path::new("/usr/bin/codex"), "hello", &config);
@@ -1232,7 +1232,7 @@ mod tests {
             Path::new("/usr/bin/codex"),
             "draft the pr",
             &config,
-            "gpt-5.4",
+            "gpt-6-luna",
             Some("openrouter"),
         );
 
@@ -1268,7 +1268,7 @@ mod tests {
         );
         let config = Config {
             backend: Backend::Codex,
-            codex_model: "gpt-5.6-terra".to_owned(),
+            codex_model: "gpt-6-luna".to_owned(),
             ..Config::default()
         };
         let inv = build_invocation(&cli, "hello", &config);
@@ -1290,7 +1290,7 @@ mod tests {
         );
         let config = Config {
             backend: Backend::Codex,
-            codex_model: "gpt-5.6-terra".to_owned(),
+            codex_model: "gpt-6-luna".to_owned(),
             ..Config::default()
         };
         let inv = build_invocation(&cli, "hello", &config);
@@ -1316,7 +1316,7 @@ mod tests {
         );
         let config = Config {
             backend: Backend::Codex,
-            codex_model: "gpt-5.6-terra".to_owned(),
+            codex_model: "gpt-6-luna".to_owned(),
             ..Config::default()
         };
         let inv = build_invocation(&cli, "hello", &config);
@@ -1367,7 +1367,7 @@ mod tests {
     fn build_invocation_codex_with_provider() {
         let config = Config {
             backend: Backend::Codex,
-            codex_model: "gpt-5.6-terra".to_owned(),
+            codex_model: "gpt-6-luna".to_owned(),
             codex_provider: "openrouter".to_owned(),
             ..Config::default()
         };
@@ -1459,12 +1459,12 @@ mod tests {
             Path::new("/usr/bin/opencode"),
             "hello",
             &config,
-            "gpt-5.4",
+            "gpt-6-luna",
             Some("anthropic"),
         );
         assert_eq!(inv.args[0], "run");
         assert!(inv.args.contains(&"-m".to_owned()));
-        assert!(inv.args.contains(&"anthropic/gpt-5.4".to_owned()));
+        assert!(inv.args.contains(&"anthropic/gpt-6-luna".to_owned()));
         assert_eq!(inv.args.last().map(String::as_str), Some("hello"));
         assert!(inv.stdin.is_none());
         // The PR stage must NOT pass --variant minimal — PR synthesis quality
@@ -1501,11 +1501,11 @@ mod tests {
             Path::new("/usr/bin/codex"),
             "hello",
             &config,
-            "gpt-5.4",
+            "gpt-6-luna",
             Some("openrouter"),
         );
         assert!(inv.args.contains(&"-m".to_owned()));
-        assert!(inv.args.contains(&"gpt-5.4".to_owned()));
+        assert!(inv.args.contains(&"gpt-6-luna".to_owned()));
         assert!(
             inv.args
                 .contains(&"model_provider=\"openrouter\"".to_owned())
