@@ -6,7 +6,7 @@ OpenCodeCommit handles git diffs and can send selected context to AI backends, s
 
 Please do not open a public issue for vulnerabilities or accidental secret exposure.
 
-Report security issues through GitHub private vulnerability reporting if it is available for the repository. If that is not available, contact the maintainer through the repository owner profile and include only the minimum information needed to reproduce the issue.
+Report security issues through [GitHub private vulnerability reporting](https://github.com/Nevaberry/opencodecommit/security/advisories/new). Reports submitted there are visible only to the reporter and the repository's security maintainers until they are ready for coordinated disclosure.
 
 Useful report details:
 - affected version
@@ -16,6 +16,10 @@ Useful report details:
 - expected and actual behavior
 
 Avoid sending real tokens, private keys, proprietary diffs, or private repository contents.
+
+## Security Maintainer
+
+[Antti Jalomäki](https://github.com/AnttiJalomaki) is the security maintainer for OpenCodeCommit.
 
 ## Data Flow
 
