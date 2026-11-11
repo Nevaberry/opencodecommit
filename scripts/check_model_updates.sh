@@ -101,7 +101,8 @@ detect_opencode_models() {
     # provider/model identifiers, so strip the provider before comparing it to
     # the catalogue defaults.
     local all_models
-    all_models=$(opencode models openai 2>/dev/null | grep '^openai/' | sed 's#^openai/##' || true)
+    # OpenCode 2 lists all models; filter provider/model identifiers here.
+    all_models=$(opencode models --standalone 2>/dev/null | grep '^openai/' | sed 's#^openai/##' || true)
     if [[ -z "$all_models" ]]; then
         echo "SKIP: OpenCode returned no OpenAI models" >&2
         return

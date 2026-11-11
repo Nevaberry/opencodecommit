@@ -8,7 +8,7 @@ Install only the tools you want to use:
 
 ```bash
 npm i -g @openai/codex
-npm i -g opencode
+npm i -g @opencode/cli # OpenCode 2 or newer
 npm i -g @anthropic-ai/claude-code
 # Antigravity
 curl -fsSL https://antigravity.google/cli/install.sh | bash
@@ -18,7 +18,7 @@ curl -fsSL https://x.ai/cli/install.sh | bash
 
 Supported CLI backends:
 - Codex CLI
-- OpenCode CLI
+- OpenCode CLI 2.x
 - Claude Code CLI
 - Antigravity CLI (`agy`)
 - Grok Build CLI
@@ -30,6 +30,24 @@ backend-order = ["codex", "opencode", "claude", "agy", "grok"]
 ```
 
 OpenCodeCommit tries each backend in order until one succeeds.
+
+### OpenCode 2
+
+The OpenCode CLI backend requires OpenCode 2 or newer and was verified with
+2.2.7. Install it with `npm i -g @opencode/cli`, or use the official
+[`https://opencode.ai/v2/install` installer](https://opencode.ai/docs/).
+The old `opencode` npm package and the 1.x CLI are not supported.
+
+Requests use `opencode run --standalone` so each invocation inherits the
+current environment through its own private server. Fast generation selects
+`#none` for GPT-6 Luna and GPT-6.1 Terra, and `#low` for Astra and GPT-6.1 Sol.
+An explicit model variant such as `gpt-6.1-sol#high` takes precedence. PR stages
+keep the configured model's default reasoning effort. OpenCode 2 removed the
+separate `--variant` flag and the positional provider filter for `models`.
+
+Sources: [OpenCode CLI commands](https://opencode.ai/docs/cli/commands/),
+[model variants](https://opencode.ai/docs/models/#variants), and
+[V1 migration guide](https://opencode.ai/docs/migrate-v1/).
 
 ## Direct API Backends
 

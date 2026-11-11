@@ -585,33 +585,36 @@ fn requires_reasoning(model: &str) -> bool {
 fn opencode_common_args(model_spec: &str, prompt: &str) -> Vec<String> {
     vec![
         "run".to_owned(),
+        "--standalone".to_owned(),
         "-m".to_owned(),
         model_spec.to_owned(),
         prompt.to_owned(),
     ]
 }
 
-/// `opencode run` argv for the fast commit-generation path. Adds
-/// `--variant minimal` (provider-specific minimal reasoning effort), which is
-/// the one flag that measurably reduces wall time for short, templated tasks
-/// like commit-message generation. Not applied to the PR path, where
-/// synthesis benefits from the provider's default reasoning budget.
+/// OpenCode 2 uses provider/model#variant selectors. Keep explicit choices and
+/// unfamiliar models intact; use the lowest supported effort for our defaults.
 fn opencode_base_args(model_spec: &str, prompt: &str) -> Vec<String> {
-    let mut args = opencode_common_args(model_spec, prompt);
-    // Insert "--variant minimal" between "run" and "-m" so the prompt stays
-    // as the final positional argument.
-    let model = model_spec.rsplit('/').next().unwrap_or(model_spec);
-    args.insert(
-        1,
-        if requires_reasoning(model) {
-            "low"
+    if !model_spec.contains('#')
+        && let Some(model) = model_spec.strip_prefix("openai/")
+    {
+        let variant = if requires_reasoning(model) {
+            Some("low")
+        } else if ["gpt-6-luna", "gpt-6.1-terra"].iter().any(|prefix| {
+            model == *prefix
+                || model
+                    .strip_prefix(prefix)
+                    .is_some_and(|s| s.starts_with('-'))
+        }) {
+            Some("none")
         } else {
-            "minimal"
+            None
+        };
+        if let Some(variant) = variant {
+            return opencode_common_args(&format!("{model_spec}#{variant}"), prompt);
         }
-        .to_owned(),
-    );
-    args.insert(1, "--variant".to_owned());
-    args
+    }
+    opencode_common_args(model_spec, prompt)
 }
 
 /// `grok` headless argv for prompt-only generation. The prompt already
@@ -683,7 +686,7 @@ pub fn build_invocation_with_model_for(
         CliBackend::Opencode => {
             let prov = provider.unwrap_or(&config.provider);
             let model_spec = format!("{prov}/{model}");
-            // PR stages intentionally omit --variant minimal; summary/final
+            // PR stages intentionally omit the fast variant; summary/final
             // synthesis benefits from the full reasoning budget assigned by
             // the user's provider defaults.
             Invocation {
@@ -1111,20 +1114,11 @@ mod tests {
             ..Config::default()
         };
         let inv = build_invocation(Path::new("/usr/bin/opencode"), "hello", &config);
-        // Fast-path flags: --variant minimal on the commit path.
         assert_eq!(inv.args[0], "run");
-        assert!(inv.args.contains(&"--variant".to_owned()));
-        let variant_idx = inv
-            .args
-            .iter()
-            .position(|a| a == "--variant")
-            .expect("--variant present");
-        assert_eq!(
-            inv.args.get(variant_idx + 1).map(String::as_str),
-            Some("minimal")
-        );
+        assert!(inv.args.contains(&"--standalone".to_owned()));
+        assert!(!inv.args.contains(&"--variant".to_owned()));
         assert!(inv.args.contains(&"-m".to_owned()));
-        assert!(inv.args.contains(&"openai/gpt-6-luna".to_owned()));
+        assert!(inv.args.contains(&"openai/gpt-6-luna#none".to_owned()));
         // Prompt must be the final positional arg (opencode reads it from argv).
         assert_eq!(inv.args.last().map(String::as_str), Some("hello"));
         assert!(inv.stdin.is_none());
@@ -1180,15 +1174,55 @@ mod tests {
             assert!(!args.contains(&"model_reasoning_effort=\"none\"".to_owned()));
             let spec = format!("openai/{model}");
             let args = opencode_base_args(&spec, "synthetic diff");
-            assert!(args.windows(2).any(|args| args == ["--variant", "low"]));
-            assert!(
-                !opencode_common_args(&spec, "synthetic diff").contains(&"--variant".to_owned())
-            );
+            assert!(args.contains(&format!("{spec}#low")));
+            assert!(opencode_common_args(&spec, "synthetic diff").contains(&spec));
         }
         assert!(
             codex_base_args("gpt-6.1-terra", None)
                 .contains(&"model_reasoning_effort=\"none\"".to_owned())
         );
+    }
+
+    #[test]
+    fn opencode_v2_uses_inline_variants_and_a_private_server() {
+        for (model, variant) in [
+            ("gpt-6-luna", "none"),
+            ("gpt-6.1-terra", "none"),
+            ("gpt-6.1-sol", "low"),
+            ("gpt-6-astra", "low"),
+            ("gpt-6.1-sol-2026-11-02", "low"),
+        ] {
+            let spec = format!("openai/{model}");
+            let args = opencode_base_args(&spec, "synthetic diff");
+            assert!(args.contains(&format!("{spec}#{variant}")));
+            assert!(args.contains(&"--standalone".to_owned()));
+            assert!(!args.contains(&"--variant".to_owned()));
+            assert_eq!(args.last().unwrap(), "synthetic diff");
+        }
+    }
+
+    #[test]
+    fn opencode_v2_preserves_explicit_variants_and_pr_defaults() {
+        for spec in [
+            "openai/gpt-6.1-sol#high",
+            "anthropic/claude-sonnet-5-5",
+            "openai/custom-model",
+        ] {
+            let args = opencode_base_args(spec, "synthetic diff");
+            assert!(args.contains(&spec.to_owned()));
+            assert!(!args.contains(&"--variant".to_owned()));
+        }
+        let args = opencode_common_args("openai/gpt-6.1-sol", "PR");
+        assert!(args.contains(&"openai/gpt-6.1-sol".to_owned()));
+        assert!(!args.iter().any(|arg| arg.contains('#')));
+    }
+
+    #[test]
+    fn opencode_v2_preserves_wsl_launcher() {
+        let mut args = opencode_base_args("openai/gpt-6.1-sol", "synthetic diff");
+        args.insert(0, "opencode".to_owned());
+        assert_eq!(&args[..3], ["opencode", "run", "--standalone"]);
+        assert!(args.contains(&"openai/gpt-6.1-sol#low".to_owned()));
     }
 
     #[test]
@@ -1543,7 +1577,7 @@ mod tests {
         assert!(inv.args.contains(&"anthropic/gpt-6-luna".to_owned()));
         assert_eq!(inv.args.last().map(String::as_str), Some("hello"));
         assert!(inv.stdin.is_none());
-        // The PR stage must NOT pass --variant minimal — PR synthesis quality
+        // The PR stage must NOT force a fast variant — PR synthesis quality
         // relies on the provider's default reasoning budget.
         assert!(!inv.args.contains(&"--variant".to_owned()));
         assert!(inv.env.is_empty(), "opencode must not leak CODEX_HOME");

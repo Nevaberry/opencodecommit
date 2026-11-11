@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.2.0
+
+- Requires OpenCode CLI 2 or newer; verified with 2.2.7. Removes legacy
+  OpenCode 1 argument handling from the Rust CLI/TUI and VS Code extension.
+- Uses standalone OpenCode runs and inline `provider/model#variant` selectors,
+  with `#none` for Luna/Terra and `#low` for Astra/Sol. Preserves explicit
+  variants and PR reasoning defaults.
+- Updates OpenCode installation instructions to `@opencode/cli` and fixes
+  model discovery for the OpenCode 2 CLI.
+- Adds regression coverage for OpenCode 2 invocation and JSON responses.
+
 ## 2.1.3
 
 - Refreshes the model catalog and defaults for GPT-6.1 Sol/Terra, Claude Fable

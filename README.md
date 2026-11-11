@@ -40,7 +40,7 @@ Optional CLI backends:
 
 ```bash
 npm i -g @openai/codex
-npm i -g opencode
+npm i -g @opencode/cli # OpenCode 2 or newer
 npm i -g @anthropic-ai/claude-code
 # Antigravity
 curl -fsSL https://antigravity.google/cli/install.sh | bash

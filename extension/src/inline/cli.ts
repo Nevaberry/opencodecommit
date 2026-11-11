@@ -476,13 +476,14 @@ export function buildInvocation(
           args: [
             ...launcherArgs,
             "run",
+            "--standalone",
             "-m",
-            `${config.provider}/${config.model}`,
+            opencodeModel(
+              `${config.provider}/${config.model}`,
+              operation !== "pr",
+            ),
             "--format",
             "json",
-            ...(operation !== "pr" && requiresReasoning(config.model)
-              ? ["--variant", "low"]
-              : []),
             prompt,
           ],
           timeout,
@@ -566,6 +567,21 @@ export function buildInvocation(
         },
       }
   }
+}
+
+function opencodeModel(spec: string, fast: boolean): string {
+  if (fast && spec.startsWith("openai/") && !spec.includes("#")) {
+    const model = spec.slice("openai/".length)
+    const variant = requiresReasoning(model)
+      ? "low"
+      : ["gpt-6-luna", "gpt-6.1-terra"].some(
+            (prefix) => model === prefix || model.startsWith(`${prefix}-`),
+          )
+        ? "none"
+        : undefined
+    if (variant) return `${spec}#${variant}`
+  }
+  return spec
 }
 
 /** Parse opencode --format json event stream into text response */

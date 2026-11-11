@@ -5,7 +5,12 @@ import * as os from "node:os"
 import * as path from "node:path"
 import { describe, it } from "node:test"
 import { withBackendOverride } from "../inline/backends"
-import { buildInvocation, detectCli, execCli } from "../inline/cli"
+import {
+  buildInvocation,
+  detectCli,
+  execCli,
+  parseOpenCodeJson,
+} from "../inline/cli"
 import { ensureMinimalCodexHomeAt } from "../inline/codex-home"
 import type { CommitContext } from "../inline/context"
 import {
@@ -735,11 +740,81 @@ describe("backend helpers", () => {
         "pr",
       )
       assert.strictEqual(
-        commit.invocation.args[commit.invocation.args.indexOf("--variant") + 1],
-        "low",
+        commit.invocation.args[commit.invocation.args.indexOf("-m") + 1],
+        `openai/${model}#low`,
       )
       assert.ok(!pr.invocation.args.includes("--variant"))
     }
+  })
+
+  it("uses OpenCode 2 inline variants and a private server", () => {
+    for (const [model, variant] of [
+      ["gpt-6-luna", "none"],
+      ["gpt-6.1-terra", "none"],
+      ["gpt-6.1-sol", "low"],
+      ["gpt-6-astra", "low"],
+      ["gpt-6.1-sol-2026-11-02", "low"],
+    ]) {
+      const { invocation } = buildInvocation(
+        "/usr/bin/opencode",
+        "synthetic diff",
+        makeConfig({ model }),
+        "opencode",
+      )
+      assert.ok(invocation.args.includes(`openai/${model}#${variant}`))
+      assert.ok(invocation.args.includes("--standalone"))
+      assert.ok(!invocation.args.includes("--variant"))
+      assert.strictEqual(invocation.args.at(-1), "synthetic diff")
+    }
+  })
+
+  it("preserves OpenCode 2 explicit variants, PR defaults, and WSL arguments", () => {
+    for (const [provider, model] of [
+      ["openai", "gpt-6.1-sol#high"],
+      ["anthropic", "claude-sonnet-5-5"],
+      ["openai", "custom-model"],
+    ]) {
+      const { invocation } = buildInvocation(
+        "/usr/bin/opencode",
+        "diff",
+        makeConfig({ provider, model }),
+        "opencode",
+      )
+      assert.ok(invocation.args.includes(`${provider}/${model}`))
+      assert.ok(!invocation.args.includes("--variant"))
+    }
+    const { invocation } = buildInvocation(
+      "wsl.exe",
+      "PR",
+      makeConfig({ model: "gpt-6.1-sol" }),
+      "opencode",
+      "pr",
+    )
+    assert.deepStrictEqual(invocation.args.slice(0, 3), [
+      "opencode",
+      "run",
+      "--standalone",
+    ])
+    assert.ok(invocation.args.includes("openai/gpt-6.1-sol"))
+    assert.ok(!invocation.args.some((arg) => arg.includes("#")))
+  })
+
+  it("reads OpenCode 2 JSON events without including reasoning or step metadata", () => {
+    const output = [
+      { type: "step_start", part: { type: "step-start" } },
+      { type: "reasoning", part: { text: "private reasoning" } },
+      {
+        type: "text",
+        part: { type: "text", text: "docs: verify OpenCode 2 compatibility" },
+      },
+      { type: "step_finish", part: { type: "step-finish", reason: "stop" } },
+    ]
+      .map((event) => JSON.stringify(event))
+      .join("\n")
+    assert.strictEqual(
+      parseOpenCodeJson(output),
+      "docs: verify OpenCode 2 compatibility",
+    )
   })
 
   it("places the Codex temp workspace under XDG cache when available", () => {
