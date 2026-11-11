@@ -211,14 +211,14 @@ function buildSettings(activeBackends: string[]) {
       process.env.OCC_E2E_OPENCODE_MODEL ?? "gpt-6-luna",
     "opencodecommit.opencodeCLIPath": process.env.OCC_E2E_OPENCODE_PATH ?? "",
     "opencodecommit.claudeCodeCLIModel":
-      process.env.OCC_E2E_CLAUDE_MODEL ?? "claude-sonnet-5",
+      process.env.OCC_E2E_CLAUDE_MODEL ?? "claude-sonnet-5-5",
     "opencodecommit.claudeCodeCLIPath": process.env.OCC_E2E_CLAUDE_PATH ?? "",
     "opencodecommit.codexCLIProvider": process.env.OCC_E2E_CODEX_PROVIDER ?? "",
     "opencodecommit.codexCLIModel":
       process.env.OCC_E2E_CODEX_MODEL ?? "gpt-6-luna",
     "opencodecommit.codexCLIPath": process.env.OCC_E2E_CODEX_PATH ?? "",
     "opencodecommit.agyCLIModel":
-      process.env.OCC_E2E_AGY_MODEL ?? "Gemini 3.5 Flash (Low)",
+      process.env.OCC_E2E_AGY_MODEL ?? "Gemini 3.8 Flash (Low)",
     "opencodecommit.agyCLIPath": process.env.OCC_E2E_AGY_PATH ?? "",
     "opencodecommit.grokCLIModel":
       process.env.OCC_E2E_GROK_MODEL ?? "grok-build",
@@ -238,7 +238,7 @@ function buildSettings(activeBackends: string[]) {
     "opencodecommit.claudePRModel":
       process.env.OCC_E2E_CLAUDE_PR_MODEL ?? "claude-opus-5-5",
     "opencodecommit.claudeCheapModel":
-      process.env.OCC_E2E_CLAUDE_CHEAP_MODEL ?? "claude-haiku-4-5",
+      process.env.OCC_E2E_CLAUDE_CHEAP_MODEL ?? "claude-haiku-5-5",
     "opencodecommit.codexPRProvider":
       process.env.OCC_E2E_CODEX_PR_PROVIDER ??
       process.env.OCC_E2E_CODEX_PROVIDER ??
@@ -252,9 +252,9 @@ function buildSettings(activeBackends: string[]) {
     "opencodecommit.codexCheapModel":
       process.env.OCC_E2E_CODEX_CHEAP_MODEL ?? "gpt-6-luna",
     "opencodecommit.agyPRModel":
-      process.env.OCC_E2E_AGY_PR_MODEL ?? "Gemini 3.1 Pro (High)",
+      process.env.OCC_E2E_AGY_PR_MODEL ?? "Gemini 4 Argon (High)",
     "opencodecommit.agyCheapModel":
-      process.env.OCC_E2E_AGY_CHEAP_MODEL ?? "Gemini 3.5 Flash (Low)",
+      process.env.OCC_E2E_AGY_CHEAP_MODEL ?? "Gemini 3.8 Flash (Low)",
     "opencodecommit.grokPRModel":
       process.env.OCC_E2E_GROK_PR_MODEL ?? "grok-build",
     "opencodecommit.grokCheapModel":

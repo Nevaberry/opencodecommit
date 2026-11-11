@@ -169,12 +169,12 @@ occ_e2e_render_config_for_backends() {
   local opencode_provider=${OCC_E2E_OPENCODE_PROVIDER:-openai}
   local opencode_model=${OCC_E2E_OPENCODE_MODEL:-gpt-6-luna}
   local opencode_path=${OCC_E2E_OPENCODE_PATH:-}
-  local claude_model=${OCC_E2E_CLAUDE_MODEL:-claude-sonnet-5}
+  local claude_model=${OCC_E2E_CLAUDE_MODEL:-claude-sonnet-5-5}
   local claude_path=${OCC_E2E_CLAUDE_PATH:-}
   local codex_model=${OCC_E2E_CODEX_MODEL:-gpt-6-luna}
   local codex_provider=${OCC_E2E_CODEX_PROVIDER:-}
   local codex_path=${OCC_E2E_CODEX_PATH:-}
-  local agy_model="${OCC_E2E_AGY_MODEL:-Gemini 3.5 Flash (Low)}"
+  local agy_model="${OCC_E2E_AGY_MODEL:-Gemini 3.8 Flash (Low)}"
   local agy_path=${OCC_E2E_AGY_PATH:-}
   local grok_model=${OCC_E2E_GROK_MODEL:-grok-build}
   local grok_path=${OCC_E2E_GROK_PATH:-}
@@ -184,13 +184,13 @@ occ_e2e_render_config_for_backends() {
   local opencode_cheap_provider=${OCC_E2E_OPENCODE_CHEAP_PROVIDER:-$opencode_provider}
   local opencode_cheap_model=${OCC_E2E_OPENCODE_CHEAP_MODEL:-gpt-6-luna}
   local claude_pr_model=${OCC_E2E_CLAUDE_PR_MODEL:-claude-opus-5-5}
-  local claude_cheap_model=${OCC_E2E_CLAUDE_CHEAP_MODEL:-claude-haiku-4-5}
+  local claude_cheap_model=${OCC_E2E_CLAUDE_CHEAP_MODEL:-claude-haiku-5-5}
   local codex_pr_provider=${OCC_E2E_CODEX_PR_PROVIDER:-$codex_provider}
   local codex_pr_model=${OCC_E2E_CODEX_PR_MODEL:-gpt-6-luna}
   local codex_cheap_provider=${OCC_E2E_CODEX_CHEAP_PROVIDER:-$codex_provider}
   local codex_cheap_model=${OCC_E2E_CODEX_CHEAP_MODEL:-gpt-6-luna}
-  local agy_pr_model="${OCC_E2E_AGY_PR_MODEL:-Gemini 3.1 Pro (High)}"
-  local agy_cheap_model="${OCC_E2E_AGY_CHEAP_MODEL:-Gemini 3.5 Flash (Low)}"
+  local agy_pr_model="${OCC_E2E_AGY_PR_MODEL:-Gemini 4 Argon (High)}"
+  local agy_cheap_model="${OCC_E2E_AGY_CHEAP_MODEL:-Gemini 3.8 Flash (Low)}"
   local grok_pr_model=${OCC_E2E_GROK_PR_MODEL:-grok-build}
   local grok_cheap_model=${OCC_E2E_GROK_CHEAP_MODEL:-grok-build}
   local commit_timeout=${OCC_E2E_COMMIT_TIMEOUT_SECONDS:-120}
@@ -245,21 +245,21 @@ pr-model = "gpt-6-luna"
 cheap-model = "gpt-6-luna"
 
 [api.anthropic]
-model = "claude-sonnet-5"
+model = "claude-sonnet-5-5"
 endpoint = "https://api.anthropic.com/v1/messages"
 key-env = "ANTHROPIC_API_KEY"
 pr-model = "claude-opus-4-6"
-cheap-model = "claude-haiku-4-5"
+cheap-model = "claude-haiku-5-5"
 
 [api.gemini]
-model = "gemini-2.5-flash"
+model = "gemini-3.8-flash"
 endpoint = "https://generativelanguage.googleapis.com/v1beta"
 key-env = "GEMINI_API_KEY"
-pr-model = "gemini-3-flash-preview"
-cheap-model = "gemini-3.1-flash-lite-preview"
+pr-model = "gemini-3.8-flash"
+cheap-model = "gemini-3.5-flash-lite"
 
 [api.openrouter]
-model = "anthropic/claude-sonnet-5"
+model = "anthropic/claude-sonnet-5.5"
 endpoint = "https://openrouter.ai/api/v1/chat/completions"
 key-env = "OPENROUTER_API_KEY"
 pr-model = "openai/gpt-6-luna"
@@ -267,7 +267,7 @@ cheap-model = "openai/gpt-6-luna"
 
 [api.opencode]
 model = "gpt-6-luna"
-endpoint = "https://opencode.ai/zen/v1/chat/completions"
+endpoint = "https://opencode.ai/inference/openai/v1/responses"
 key-env = "OPENCODE_API_KEY"
 pr-model = "gpt-6-luna"
 cheap-model = "gpt-6-luna"

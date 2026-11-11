@@ -3,6 +3,7 @@ set -euo pipefail
 
 REPO_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 BACKENDS=("$@")
+# Entries may include a model override, for example codex:gpt-6.1-sol.
 if [ ${#BACKENDS[@]} -eq 0 ]; then
   BACKENDS=(codex opencode claude agy grok)
 fi
@@ -42,6 +43,13 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Exercise the shipped defaults, independent of the user's saved model choices.
+# An explicit config still allows testing a custom provider or CLI path.
+SMOKE_CONFIG=${OCC_SMOKE_CONFIG:-$TMP_DIR/config.toml}
+if [ -z "${OCC_SMOKE_CONFIG:-}" ]; then
+  : > "$SMOKE_CONFIG"
+fi
+
 TEST_REPO="$TMP_DIR/live-backend-smoke"
 mkdir -p "$TEST_REPO"
 cd "$TEST_REPO"
@@ -78,7 +86,12 @@ PASS_COUNT=0
 SKIP_COUNT=0
 FAIL_COUNT=0
 
-for backend in "${BACKENDS[@]}"; do
+for entry in "${BACKENDS[@]}"; do
+  backend=${entry%%:*}
+  model_args=()
+  if [[ "$entry" == *:* ]]; then
+    model_args=(--model "${entry#*:}")
+  fi
   binary=$(backend_binary "$backend")
   if ! command -v "$binary" >/dev/null 2>&1; then
     printf '[skip] %s: %s not found on PATH\n' "$backend" "$binary"
@@ -86,12 +99,12 @@ for backend in "${BACKENDS[@]}"; do
     continue
   fi
 
-  printf '[run] %s\n' "$backend"
-  if output=$(printf '%s' "$DIFF" | "${OCC_RUNNER[@]}" commit --stdin --dry-run --text --backend "$backend" 2>&1); then
-    printf '[pass] %s\n%s\n' "$backend" "$output"
+  printf '[run] %s\n' "$entry"
+  if output=$(printf '%s' "$DIFF" | "${OCC_RUNNER[@]}" commit --stdin --dry-run --text --config "$SMOKE_CONFIG" --backend "$backend" "${model_args[@]}" 2>&1); then
+    printf '[pass] %s\n%s\n' "$entry" "$output"
     PASS_COUNT=$((PASS_COUNT + 1))
   else
-    printf '[fail] %s\n%s\n' "$backend" "$output" >&2
+    printf '[fail] %s\n%s\n' "$entry" "$output" >&2
     FAIL_COUNT=$((FAIL_COUNT + 1))
   fi
   printf '\n'

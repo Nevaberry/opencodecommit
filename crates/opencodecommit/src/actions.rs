@@ -487,10 +487,10 @@ fn exec_with_fallback(
         match dispatch::dispatch(backend, prompt, config, task, timeout_secs) {
             Ok(response) => return Ok((response, backend, failures)),
             Err(e) => {
-                let error = truncate_error(&e.to_string());
+                let error = e.to_string();
                 on_progress(BackendProgress::Failed {
                     backend,
-                    error: error.clone(),
+                    error: truncate_error(&error),
                 });
                 failures.push(BackendFailure {
                     backend: backend.to_string(),
@@ -576,10 +576,10 @@ pub fn generate_pr_preview_with_fallback(
                 return Ok(preview);
             }
             Err(err) => {
-                let error = truncate_error(&err.to_string());
+                let error = err.to_string();
                 on_progress(BackendProgress::Failed {
                     backend,
-                    error: error.clone(),
+                    error: truncate_error(&error),
                 });
                 failures.push(BackendFailure {
                     backend: backend.to_string(),
@@ -744,6 +744,26 @@ mod tests {
         let path = dir.join(script_name).with_extension("cmd");
         fs::write(&path, format!("@echo off\r\n{windows_body}\r\n")).unwrap();
         path
+    }
+
+    #[test]
+    fn fallback_preserves_multiline_backend_errors() {
+        let cli = fake_cli(
+            "stdout-error",
+            "echo '> build' >&2\necho 'Token refresh failed: 401'\nexit 1",
+            "echo ^> build 1>&2\r\necho Token refresh failed: 401\r\nexit /b 1",
+        );
+        let cfg = Config {
+            backend: Backend::Opencode,
+            backend_order: vec![Backend::Opencode],
+            cli_path: cli.to_string_lossy().into_owned(),
+            ..Config::default()
+        };
+        let error = exec_with_fallback(&cfg, "synthetic diff", DispatchTask::Commit, 5, &|_| {})
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("Token refresh failed: 401"));
+        fs::remove_dir_all(cli.parent().unwrap()).unwrap();
     }
 
     #[test]

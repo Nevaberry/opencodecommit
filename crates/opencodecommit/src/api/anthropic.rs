@@ -89,10 +89,13 @@ pub fn exec(request: &ApiRequest) -> Result<ApiResponse> {
 }
 
 fn anthropic_endpoint(endpoint: &str) -> String {
-    let trimmed = endpoint.trim();
+    let trimmed = endpoint.trim().trim_end_matches('/');
     if trimmed.ends_with("/v1/messages") {
         trimmed.to_owned()
     } else {
-        format!("{}/v1/messages", trimmed.trim_end_matches('/'))
+        format!(
+            "{}/v1/messages",
+            trimmed.strip_suffix("/v1").unwrap_or(trimmed)
+        )
     }
 }

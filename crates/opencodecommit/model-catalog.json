@@ -11,20 +11,24 @@
       "Grok Build"
     ],
     "models": [
-      "claude-fable-5-1",
+      "claude-fable-5-2",
       "claude-opus-5-5",
-      "claude-sonnet-5",
-      "claude-haiku-4-5",
+      "claude-sonnet-5-5",
+      "claude-haiku-5-5",
       "gpt-6-astra",
-      "gpt-6-sol",
+      "gpt-6.1-sol",
+      "gpt-6.1-terra",
       "gpt-6-luna",
       "grok-build",
-      "kimi-k2.6",
-      "gemini-3.1-pro-preview",
+      "kimi-k3.1-pro",
+      "gemini-4-carbon",
+      "gemini-4-argon",
+      "gemini-3.8-flash",
       "composer-2.5",
       "big-pickle",
-      "grok-4.3",
-      "deepseek-v4-pro"
+      "grok-4.7",
+      "deepseek-v4-pro",
+      "deepseek-flash"
     ],
     "quick": [
       {
@@ -37,14 +41,14 @@
       {
         "label": "Sol",
         "agent": "Codex",
-        "model": "gpt-6-sol",
+        "model": "gpt-6.1-sol",
         "versionCommand": "codex -V",
         "versionPattern": "codex-cli (?<version>\\S+)"
       },
       {
         "label": "Fable",
         "agent": "Claude Code",
-        "model": "claude-fable-5-1",
+        "model": "claude-fable-5-2",
         "versionCommand": "claude -v",
         "versionPattern": "(?<version>\\S+) \\(Claude Code\\)"
       },
@@ -71,9 +75,9 @@
       "cheap_model": "gpt-6-luna"
     },
     "claude": {
-      "commit_model": "claude-sonnet-5",
+      "commit_model": "claude-sonnet-5-5",
       "pr_model": "claude-opus-5-5",
-      "cheap_model": "claude-haiku-4-5"
+      "cheap_model": "claude-haiku-5-5"
     },
     "codex": {
       "commit_model": "gpt-6-luna",
@@ -81,9 +85,9 @@
       "cheap_model": "gpt-6-luna"
     },
     "agy": {
-      "commit_model": "Gemini 3.5 Flash (Low)",
-      "pr_model": "Gemini 3.1 Pro (High)",
-      "cheap_model": "Gemini 3.5 Flash (Low)"
+      "commit_model": "Gemini 3.8 Flash (Low)",
+      "pr_model": "Gemini 4 Argon (High)",
+      "cheap_model": "Gemini 3.8 Flash (Low)"
     },
     "grok": {
       "commit_model": "grok-build",

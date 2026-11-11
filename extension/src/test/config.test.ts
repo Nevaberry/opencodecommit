@@ -153,9 +153,9 @@ describe("config schema", () => {
     assert.strictEqual(mirrored.showLanguageSelector, true)
     assert.strictEqual(mirrored.commitBranchTimeoutSeconds, 70)
     assert.strictEqual(mirrored.prTimeoutSeconds, 180)
-    assert.strictEqual(mirrored.agyCLIModel, "Gemini 3.5 Flash (Low)")
-    assert.strictEqual(mirrored.agyPRModel, "Gemini 3.1 Pro (High)")
-    assert.strictEqual(mirrored.agyCheapModel, "Gemini 3.5 Flash (Low)")
+    assert.strictEqual(mirrored.agyCLIModel, "Gemini 3.8 Flash (Low)")
+    assert.strictEqual(mirrored.agyPRModel, "Gemini 4 Argon (High)")
+    assert.strictEqual(mirrored.agyCheapModel, "Gemini 3.8 Flash (Low)")
     assert.strictEqual(mirrored.grokCLIModel, "grok-build")
     assert.strictEqual(mirrored.grokPRModel, "grok-build")
     assert.strictEqual(mirrored.grokCheapModel, "grok-build")
@@ -182,7 +182,7 @@ describe("config schema", () => {
       ),
     )
     assert.strictEqual(runtimeConfig.api.openai.keyEnv, "OPENAI_API_KEY")
-    assert.strictEqual(runtimeConfig.agyModel, "Gemini 3.5 Flash (Low)")
+    assert.strictEqual(runtimeConfig.agyModel, "Gemini 3.8 Flash (Low)")
     assert.strictEqual(runtimeConfig.grokModel, "grok-build")
 
     const updatedDoc = applyMirroredSettingsToToml(parsedDoc, {
@@ -217,12 +217,12 @@ describe("config schema", () => {
     )
     assert.deepStrictEqual(migrated.backendOrder, ["agy", "codex"])
     assert.strictEqual(migrated.agyCLIPath, "")
-    assert.strictEqual(migrated.agyCLIModel, "Gemini 3.5 Flash (Low)")
-    assert.strictEqual(migrated.agyPRModel, "Gemini 3.1 Pro (High)")
-    assert.strictEqual(migrated.agyCheapModel, "Gemini 3.5 Flash (Low)")
+    assert.strictEqual(migrated.agyCLIModel, "Gemini 3.8 Flash (Low)")
+    assert.strictEqual(migrated.agyPRModel, "Gemini 4 Argon (High)")
+    assert.strictEqual(migrated.agyCheapModel, "Gemini 3.8 Flash (Low)")
 
     const migratedDoc = applyMirroredSettingsToToml(parsedDoc, migrated)
     assert.ok(!("gemini-model" in migratedDoc))
-    assert.strictEqual(migratedDoc["agy-model"], "Gemini 3.5 Flash (Low)")
+    assert.strictEqual(migratedDoc["agy-model"], "Gemini 3.8 Flash (Low)")
   })
 })

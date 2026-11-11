@@ -405,13 +405,20 @@ function codexCommonArgs(model: string): string[] {
   ]
 }
 
+// Astra and GPT-6.1 Sol reject `none`, including their dated snapshots.
+function requiresReasoning(model: string): boolean {
+  return ["gpt-6-astra", "gpt-6.1-sol"].some(
+    (prefix) => model === prefix || model.startsWith(`${prefix}-`),
+  )
+}
+
 function codexFastArgs(model: string, schemaPath?: string): string[] {
   const args = [
     ...codexCommonArgs(model),
     "--disable",
     "apps",
     "-c",
-    'model_reasoning_effort="none"',
+    `model_reasoning_effort="${requiresReasoning(model) ? "low" : "none"}"`,
     "-c",
     'web_search="disabled"',
   ]
@@ -473,6 +480,9 @@ export function buildInvocation(
             `${config.provider}/${config.model}`,
             "--format",
             "json",
+            ...(operation !== "pr" && requiresReasoning(config.model)
+              ? ["--variant", "low"]
+              : []),
             prompt,
           ],
           timeout,
@@ -699,11 +709,10 @@ export function execCli(
           const output = stripAnsi(stdout.trim())
           resolve(parseJsonResponseField(output, jsonResponseField) ?? output)
         } else {
-          reject(
-            new Error(
-              `CLI exited with code ${code}: ${stripAnsi(stderr.trim())}`,
-            ),
-          )
+          const detail = [stripAnsi(stderr).trim(), stripAnsi(stdout).trim()]
+            .filter(Boolean)
+            .join("\n")
+          reject(new Error(`CLI exited with code ${code}: ${detail}`))
         }
       })
 

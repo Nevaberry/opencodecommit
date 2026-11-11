@@ -25,6 +25,8 @@ struct Content {
 #[derive(Debug, Deserialize)]
 struct Part {
     #[serde(default)]
+    thought: bool,
+    #[serde(default)]
     text: String,
 }
 
@@ -65,6 +67,7 @@ pub fn exec(request: &ApiRequest) -> Result<ApiResponse> {
                 content
                     .parts
                     .iter()
+                    .filter(|part| !part.thought)
                     .map(|part| part.text.as_str())
                     .collect::<Vec<_>>()
                     .join("")

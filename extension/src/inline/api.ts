@@ -108,24 +108,42 @@ async function execOpenAiCompatible(
     headers["X-Title"] = "OpenCodeCommit"
   }
 
+  const endpoint = request.endpoint.trim().replace(/\/+$/, "")
+  const responsesApi = endpoint.endsWith("/responses")
+  const body = responsesApi
+    ? {
+        model,
+        input: request.prompt,
+        max_output_tokens: request.maxTokens,
+        store: false,
+      }
+    : {
+        model,
+        messages: [{ role: "user", content: request.prompt }],
+        ...(provider === "openai-api"
+          ? { max_completion_tokens: request.maxTokens, store: false }
+          : { max_tokens: request.maxTokens }),
+      }
+
   const response = await fetchWithTimeout(
-    chatEndpoint(request.endpoint),
+    responsesApi ? endpoint : chatEndpoint(endpoint),
     {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        model,
-        messages: [{ role: "user", content: request.prompt }],
-        max_tokens: request.maxTokens,
-      }),
+      body: JSON.stringify(body),
     },
     request.timeoutMs,
   )
+  if (responsesApi) return parseResponses(response)
   const payload = (await response.json()) as {
     choices?: Array<{
+      finish_reason?: string
       message?: { content?: unknown }
       text?: string
     }>
+  }
+  if (payload.choices?.[0]?.finish_reason === "length") {
+    throw new Error(`${provider} response exceeded the output token limit`)
   }
 
   const text =
@@ -155,6 +173,30 @@ async function execOpenAiCompatible(
   return text.trim()
 }
 
+async function parseResponses(response: Response): Promise<string> {
+  const payload = (await response.json()) as {
+    status?: string
+    output?: Array<{
+      type?: string
+      content?: Array<{ type?: string; text?: string }>
+    }>
+  }
+  if (payload.status !== "completed") {
+    throw new Error(
+      `OpenAI Responses request did not complete (${payload.status ?? "unknown"})`,
+    )
+  }
+  const text = (payload.output ?? [])
+    .filter((item) => item.type === "message")
+    .flatMap((item) => item.content ?? [])
+    .filter((part) => part.type === "output_text")
+    .map((part) => part.text ?? "")
+    .join("")
+    .trim()
+  if (!text) throw new Error("OpenAI Responses returned an empty response")
+  return text
+}
+
 async function execAnthropic(request: ApiRequest): Promise<string> {
   if (!request.apiKey) throw new Error("Anthropic API key is not configured")
   if (!request.model.trim())
@@ -181,9 +223,9 @@ async function execAnthropic(request: ApiRequest): Promise<string> {
     content?: Array<{ text?: string }>
   }
   const text = (payload.content ?? [])
-    .map((part) => part.text?.trim() ?? "")
-    .filter(Boolean)
+    .map((part) => part.text ?? "")
     .join("")
+    .trim()
   if (!text) throw new Error("Anthropic returned an empty response")
   return text
 }
@@ -209,14 +251,15 @@ async function execGemini(request: ApiRequest): Promise<string> {
   )
   const payload = (await response.json()) as {
     candidates?: Array<{
-      content?: { parts?: Array<{ text?: string }> }
+      content?: { parts?: Array<{ text?: string; thought?: boolean }> }
     }>
   }
   const text =
     payload.candidates?.[0]?.content?.parts
-      ?.map((part) => part.text?.trim() ?? "")
-      .filter(Boolean)
-      .join("") ?? ""
+      ?.filter((part) => !part.thought)
+      ?.map((part) => part.text ?? "")
+      .join("")
+      .trim() ?? ""
   if (!text) throw new Error("Gemini returned an empty response")
   return text
 }
@@ -269,7 +312,7 @@ async function fetchWithTimeout(
 }
 
 function chatEndpoint(endpoint: string): string {
-  const trimmed = endpoint.trim()
+  const trimmed = endpoint.trim().replace(/\/+$/, "")
   if (trimmed.endsWith("/chat/completions")) return trimmed
   return `${trimBase(trimmed)}/v1/chat/completions`
 }
@@ -279,7 +322,7 @@ function modelsEndpoint(endpoint: string): string {
 }
 
 function anthropicEndpoint(endpoint: string): string {
-  const trimmed = endpoint.trim()
+  const trimmed = endpoint.trim().replace(/\/+$/, "")
   if (trimmed.endsWith("/v1/messages")) return trimmed
   return `${trimBase(trimmed)}/v1/messages`
 }
@@ -297,10 +340,11 @@ function geminiEndpoint(endpoint: string, model: string): string {
 function trimBase(endpoint: string): string {
   return endpoint
     .trim()
-    .replace(/\/$/, "")
+    .replace(/\/+$/, "")
     .replace(/\/v1\/chat\/completions$/, "")
     .replace(/\/chat\/completions$/, "")
     .replace(/\/v1\/models$/, "")
     .replace(/\/models$/, "")
     .replace(/\/v1\/messages$/, "")
+    .replace(/\/v1$/, "")
 }

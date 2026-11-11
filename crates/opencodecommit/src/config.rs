@@ -495,7 +495,7 @@ fn default_model() -> String {
 }
 
 fn default_claude_model() -> String {
-    model_catalog_backend_default("claude", "commit_model", "claude-sonnet-5")
+    model_catalog_backend_default("claude", "commit_model", "claude-sonnet-5-5")
 }
 
 fn default_codex_model() -> String {
@@ -503,7 +503,7 @@ fn default_codex_model() -> String {
 }
 
 fn default_agy_model() -> String {
-    model_catalog_backend_default("agy", "commit_model", "Gemini 3.5 Flash (Low)")
+    model_catalog_backend_default("agy", "commit_model", "Gemini 3.8 Flash (Low)")
 }
 
 fn default_grok_model() -> String {
@@ -563,7 +563,7 @@ fn default_claude_pr_model() -> String {
 }
 
 fn default_claude_cheap_model() -> String {
-    model_catalog_backend_default("claude", "cheap_model", "claude-haiku-4-5")
+    model_catalog_backend_default("claude", "cheap_model", "claude-haiku-5-5")
 }
 
 fn default_codex_pr_model() -> String {
@@ -575,11 +575,11 @@ fn default_codex_cheap_model() -> String {
 }
 
 fn default_agy_pr_model() -> String {
-    model_catalog_backend_default("agy", "pr_model", "Gemini 3.1 Pro (High)")
+    model_catalog_backend_default("agy", "pr_model", "Gemini 4 Argon (High)")
 }
 
 fn default_agy_cheap_model() -> String {
-    model_catalog_backend_default("agy", "cheap_model", "Gemini 3.5 Flash (Low)")
+    model_catalog_backend_default("agy", "cheap_model", "Gemini 3.8 Flash (Low)")
 }
 
 fn default_grok_pr_model() -> String {
@@ -616,27 +616,27 @@ fn default_openai_api_config() -> ApiProviderConfig {
 
 fn default_anthropic_api_config() -> ApiProviderConfig {
     ApiProviderConfig {
-        model: "claude-sonnet-5".to_owned(),
+        model: "claude-sonnet-5-5".to_owned(),
         endpoint: "https://api.anthropic.com/v1/messages".to_owned(),
         key_env: "ANTHROPIC_API_KEY".to_owned(),
         pr_model: "claude-opus-5-5".to_owned(),
-        cheap_model: "claude-haiku-4-5".to_owned(),
+        cheap_model: "claude-haiku-5-5".to_owned(),
     }
 }
 
 fn default_gemini_api_config() -> ApiProviderConfig {
     ApiProviderConfig {
-        model: "gemini-2.5-flash".to_owned(),
+        model: "gemini-3.8-flash".to_owned(),
         endpoint: "https://generativelanguage.googleapis.com/v1beta".to_owned(),
         key_env: "GEMINI_API_KEY".to_owned(),
-        pr_model: "gemini-3-flash-preview".to_owned(),
-        cheap_model: "gemini-3.1-flash-lite-preview".to_owned(),
+        pr_model: "gemini-3.8-flash".to_owned(),
+        cheap_model: "gemini-3.5-flash-lite".to_owned(),
     }
 }
 
 fn default_openrouter_api_config() -> ApiProviderConfig {
     ApiProviderConfig {
-        model: "anthropic/claude-sonnet-5".to_owned(),
+        model: "anthropic/claude-sonnet-5.5".to_owned(),
         endpoint: "https://openrouter.ai/api/v1/chat/completions".to_owned(),
         key_env: "OPENROUTER_API_KEY".to_owned(),
         pr_model: "openai/gpt-6-luna".to_owned(),
@@ -647,7 +647,7 @@ fn default_openrouter_api_config() -> ApiProviderConfig {
 fn default_opencode_api_config() -> ApiProviderConfig {
     ApiProviderConfig {
         model: "gpt-6-luna".to_owned(),
-        endpoint: "https://opencode.ai/zen/v1/chat/completions".to_owned(),
+        endpoint: "https://opencode.ai/inference/openai/v1/responses".to_owned(),
         key_env: "OPENCODE_API_KEY".to_owned(),
         pr_model: "gpt-6-luna".to_owned(),
         cheap_model: "gpt-6-luna".to_owned(),
@@ -1131,13 +1131,13 @@ mod tests {
         assert_eq!(cfg.cli_path, "");
         assert_eq!(cfg.claude_path, "");
         assert_eq!(cfg.codex_path, "");
-        assert_eq!(cfg.claude_model, "claude-sonnet-5");
+        assert_eq!(cfg.claude_model, "claude-sonnet-5-5");
         assert_eq!(cfg.codex_model, "gpt-6-luna");
         assert_eq!(cfg.codex_provider, "");
         assert_eq!(cfg.agy_path, "");
-        assert_eq!(cfg.agy_model, "Gemini 3.5 Flash (Low)");
-        assert_eq!(cfg.agy_pr_model, "Gemini 3.1 Pro (High)");
-        assert_eq!(cfg.agy_cheap_model, "Gemini 3.5 Flash (Low)");
+        assert_eq!(cfg.agy_model, "Gemini 3.8 Flash (Low)");
+        assert_eq!(cfg.agy_pr_model, "Gemini 4 Argon (High)");
+        assert_eq!(cfg.agy_cheap_model, "Gemini 3.8 Flash (Low)");
         assert_eq!(cfg.grok_path, "");
         assert_eq!(cfg.grok_model, "grok-build");
         assert_eq!(cfg.grok_pr_model, "grok-build");
@@ -1315,7 +1315,7 @@ mod tests {
 
         cfg.backend = Backend::Claude;
         cfg.claude_path = "/usr/bin/claude".to_owned();
-        assert_eq!(cfg.backend_model(), "claude-sonnet-5");
+        assert_eq!(cfg.backend_model(), "claude-sonnet-5-5");
         assert_eq!(cfg.backend_cli_path(), "/usr/bin/claude");
 
         cfg.backend = Backend::Codex;
@@ -1325,8 +1325,8 @@ mod tests {
 
         cfg.backend = Backend::Agy;
         cfg.agy_path = "/usr/bin/agy".to_owned();
-        cfg.agy_model = "Gemini 3.5 Flash (Low)".to_owned();
-        assert_eq!(cfg.backend_model(), "Gemini 3.5 Flash (Low)");
+        cfg.agy_model = "Gemini 3.8 Flash (Low)".to_owned();
+        assert_eq!(cfg.backend_model(), "Gemini 3.8 Flash (Low)");
         assert_eq!(cfg.backend_cli_path(), "/usr/bin/agy");
 
         cfg.backend = Backend::Grok;
@@ -1593,7 +1593,7 @@ endpoint = "http://127.0.0.1:11434"
 
         cfg.backend = Backend::Claude;
         assert_eq!(cfg.backend_pr_model(), "claude-opus-5-5");
-        assert_eq!(cfg.backend_cheap_model(), "claude-haiku-4-5");
+        assert_eq!(cfg.backend_cheap_model(), "claude-haiku-5-5");
         assert_eq!(cfg.backend_pr_provider(), "");
         assert_eq!(cfg.backend_cheap_provider(), "");
 
@@ -1602,8 +1602,8 @@ endpoint = "http://127.0.0.1:11434"
         assert_eq!(cfg.backend_cheap_model(), "gpt-6-luna");
 
         cfg.backend = Backend::Agy;
-        assert_eq!(cfg.backend_pr_model(), "Gemini 3.1 Pro (High)");
-        assert_eq!(cfg.backend_cheap_model(), "Gemini 3.5 Flash (Low)");
+        assert_eq!(cfg.backend_pr_model(), "Gemini 4 Argon (High)");
+        assert_eq!(cfg.backend_cheap_model(), "Gemini 3.8 Flash (Low)");
 
         cfg.backend = Backend::Grok;
         assert_eq!(cfg.backend_pr_model(), "grok-build");
@@ -1656,9 +1656,9 @@ gemini-cheap-model = "legacy-cheap"
         assert_eq!(cfg.backend, Backend::Agy);
         assert_eq!(cfg.backend_order, vec![Backend::Agy, Backend::Codex]);
         assert_eq!(cfg.agy_path, "");
-        assert_eq!(cfg.agy_model, "Gemini 3.5 Flash (Low)");
-        assert_eq!(cfg.agy_pr_model, "Gemini 3.1 Pro (High)");
-        assert_eq!(cfg.agy_cheap_model, "Gemini 3.5 Flash (Low)");
+        assert_eq!(cfg.agy_model, "Gemini 3.8 Flash (Low)");
+        assert_eq!(cfg.agy_pr_model, "Gemini 4 Argon (High)");
+        assert_eq!(cfg.agy_cheap_model, "Gemini 3.8 Flash (Low)");
     }
 
     #[test]

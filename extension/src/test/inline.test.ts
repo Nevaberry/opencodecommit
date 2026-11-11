@@ -155,23 +155,23 @@ function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
     codexPath: "",
     agyPath: "",
     grokPath: "",
-    claudeModel: "claude-sonnet-5",
+    claudeModel: "claude-sonnet-5-5",
     codexModel: "gpt-6-luna",
     codexProvider: "",
-    agyModel: "Gemini 3.5 Flash (Low)",
+    agyModel: "Gemini 3.8 Flash (Low)",
     grokModel: "grok-build",
     opencodePrProvider: "openai",
     opencodePrModel: "gpt-6-luna",
     opencodeCheapProvider: "openai",
     opencodeCheapModel: "gpt-6-luna",
     claudePrModel: "claude-opus-5-5",
-    claudeCheapModel: "claude-haiku-4-5",
+    claudeCheapModel: "claude-haiku-5-5",
     codexPrProvider: "",
     codexPrModel: "gpt-6-luna",
     codexCheapProvider: "",
     codexCheapModel: "gpt-6-luna",
-    agyPrModel: "Gemini 3.1 Pro (High)",
-    agyCheapModel: "Gemini 3.5 Flash (Low)",
+    agyPrModel: "Gemini 4 Argon (High)",
+    agyCheapModel: "Gemini 3.8 Flash (Low)",
     grokPrModel: "grok-build",
     grokCheapModel: "grok-build",
     prBaseBranch: "",
@@ -186,21 +186,21 @@ function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
         cheapModel: "gpt-6-luna",
       },
       anthropic: {
-        model: "claude-sonnet-5",
+        model: "claude-sonnet-5-5",
         endpoint: "https://api.anthropic.com/v1/messages",
         keyEnv: "ANTHROPIC_API_KEY",
         prModel: "claude-opus-5-5",
-        cheapModel: "claude-haiku-4-5",
+        cheapModel: "claude-haiku-5-5",
       },
       gemini: {
-        model: "gemini-2.5-flash",
+        model: "gemini-3.8-flash",
         endpoint: "https://generativelanguage.googleapis.com/v1beta",
         keyEnv: "GEMINI_API_KEY",
-        prModel: "gemini-3-flash-preview",
-        cheapModel: "gemini-3.1-flash-lite-preview",
+        prModel: "gemini-3.8-flash",
+        cheapModel: "gemini-3.5-flash-lite",
       },
       openrouter: {
-        model: "anthropic/claude-sonnet-5",
+        model: "anthropic/claude-sonnet-5.5",
         endpoint: "https://openrouter.ai/api/v1/chat/completions",
         keyEnv: "OPENROUTER_API_KEY",
         prModel: "openai/gpt-6-luna",
@@ -208,7 +208,7 @@ function makeConfig(overrides: Partial<ExtensionConfig> = {}): ExtensionConfig {
       },
       opencode: {
         model: "gpt-6-luna",
-        endpoint: "https://opencode.ai/zen/v1/chat/completions",
+        endpoint: "https://opencode.ai/inference/openai/v1/responses",
         keyEnv: "OPENCODE_API_KEY",
         prModel: "gpt-6-luna",
         cheapModel: "gpt-6-luna",
@@ -387,12 +387,12 @@ describe("evidence Assisted-by helpers", () => {
       "Claude Code",
     ])
     assert.ok(DEFAULT_HARNESSES.includes("GitHub Copilot"))
-    assert.ok(DEFAULT_MODELS.includes("claude-fable-5-1"))
+    assert.ok(DEFAULT_MODELS.includes("claude-fable-5-2"))
     assert.ok(DEFAULT_MODELS.includes("claude-opus-5-5"))
-    assert.ok(DEFAULT_MODELS.includes("claude-sonnet-5"))
+    assert.ok(DEFAULT_MODELS.includes("claude-sonnet-5-5"))
     assert.ok(DEFAULT_MODELS.includes("gpt-6-astra"))
-    assert.ok(DEFAULT_MODELS.includes("gpt-6-sol"))
-    assert.ok(DEFAULT_MODELS.includes("claude-haiku-4-5"))
+    assert.ok(DEFAULT_MODELS.includes("gpt-6.1-sol"))
+    assert.ok(DEFAULT_MODELS.includes("claude-haiku-5-5"))
     assert.ok(DEFAULT_MODELS.includes("gpt-6-luna"))
     assert.ok(DEFAULT_MODELS.includes("grok-build"))
     assert.ok(DEFAULT_MODELS.includes("composer-2.5"))
@@ -412,7 +412,7 @@ describe("evidence Assisted-by helpers", () => {
     assert.strictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find((option) => option.label === "Sol")
         ?.model,
-      "gpt-6-sol",
+      "gpt-6.1-sol",
     )
     assert.strictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find(
@@ -424,7 +424,7 @@ describe("evidence Assisted-by helpers", () => {
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find(
         (option) => option.label === "Fable",
       )?.model,
-      "claude-fable-5-1",
+      "claude-fable-5-2",
     )
     assert.deepStrictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find(
@@ -560,7 +560,7 @@ describe("backend helpers", () => {
   })
 
   it("runs Antigravity in print, plan, and sandbox mode", () => {
-    const config = makeConfig({ agyModel: "Gemini 3.5 Flash (Low)" })
+    const config = makeConfig({ agyModel: "Gemini 3.8 Flash (Low)" })
     const { invocation, stdin } = buildInvocation(
       "/usr/bin/agy",
       "summarize the diff",
@@ -573,7 +573,7 @@ describe("backend helpers", () => {
       "plan",
       "--sandbox",
       "--model",
-      "Gemini 3.5 Flash (Low)",
+      "Gemini 3.8 Flash (Low)",
       "--print",
       "summarize the diff",
     ])
@@ -681,6 +681,64 @@ describe("backend helpers", () => {
         0,
         "Codex should run from an empty cwd",
       )
+    }
+  })
+
+  it("reports CLI errors written to stdout", async () => {
+    await assert.rejects(
+      execCli({
+        command: process.execPath,
+        args: [
+          "-e",
+          'process.stderr.write("> build\\n"); process.stdout.write("\\u001b[31mToken refresh failed: 401\\u001b[0m"); process.exit(1)',
+        ],
+        timeout: 5_000,
+      }),
+      /CLI exited with code 1: > build\s+Token refresh failed: 401/,
+    )
+  })
+
+  it("uses low reasoning for Astra and GPT-6.1 Sol, including snapshots", () => {
+    for (const model of [
+      "gpt-6-astra",
+      "gpt-6.1-sol",
+      "gpt-6.1-sol-2026-11-02",
+    ]) {
+      const { invocation } = buildInvocation(
+        "/usr/bin/codex",
+        "synthetic diff",
+        makeConfig({ codexModel: model }),
+        "codex",
+      )
+      try {
+        assert.ok(invocation.args.includes('model_reasoning_effort="low"'))
+        assert.ok(!invocation.args.includes('model_reasoning_effort="none"'))
+        assert.ok(
+          invocation.fallbackArgs?.includes('model_reasoning_effort="low"'),
+        )
+      } finally {
+        if (invocation.cleanupDir)
+          fs.rmSync(invocation.cleanupDir, { recursive: true, force: true })
+      }
+      const config = makeConfig({ model })
+      const commit = buildInvocation(
+        "/usr/bin/opencode",
+        "synthetic diff",
+        config,
+        "opencode",
+      )
+      const pr = buildInvocation(
+        "/usr/bin/opencode",
+        "synthetic diff",
+        config,
+        "opencode",
+        "pr",
+      )
+      assert.strictEqual(
+        commit.invocation.args[commit.invocation.args.indexOf("--variant") + 1],
+        "low",
+      )
+      assert.ok(!pr.invocation.args.includes("--variant"))
     }
   })
 

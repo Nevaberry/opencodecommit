@@ -18,6 +18,8 @@ struct ChatCompletionResponse {
 #[derive(Debug, Deserialize)]
 struct ChatChoice {
     #[serde(default)]
+    finish_reason: Option<String>,
+    #[serde(default)]
     message: Option<ChatMessage>,
     #[serde(default)]
     text: Option<String>,
@@ -48,16 +50,56 @@ struct ModelEntry {
     id: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct ResponsesResponse {
+    status: String,
+    #[serde(default)]
+    model: String,
+    #[serde(default)]
+    output: Vec<Value>,
+    usage: Option<ResponsesUsage>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ResponsesUsage {
+    input_tokens: u32,
+    output_tokens: u32,
+}
+
 pub fn exec(request: &ApiRequest, backend: Backend) -> Result<ApiResponse> {
     let model = resolve_model(request, backend)?;
     let client = http_client(request.timeout_secs)?;
-    let endpoint = chat_endpoint(&request.endpoint);
-
-    let mut builder = client.post(endpoint).json(&json!({
-        "model": model,
-        "messages": [{"role": "user", "content": request.prompt}],
-        "max_tokens": request.max_tokens,
-    }));
+    let configured_endpoint = request.endpoint.trim().trim_end_matches('/');
+    let responses_api = configured_endpoint.ends_with("/responses");
+    let endpoint = if responses_api {
+        configured_endpoint.to_owned()
+    } else {
+        chat_endpoint(configured_endpoint)
+    };
+    let body = if responses_api {
+        json!({
+            "model": model,
+            "input": request.prompt,
+            "max_output_tokens": request.max_tokens,
+            "store": false,
+        })
+    } else {
+        let mut body = json!({
+            "model": model,
+            "messages": [{"role": "user", "content": request.prompt}],
+        });
+        // OpenAI reasoning models reject the legacy max_tokens parameter.
+        // Other Chat Completions providers still use that parameter.
+        let token_key = if backend == Backend::OpenaiApi {
+            body["store"] = json!(false);
+            "max_completion_tokens"
+        } else {
+            "max_tokens"
+        };
+        body[token_key] = json!(request.max_tokens);
+        body
+    };
+    let mut builder = client.post(endpoint).json(&body);
 
     if let Some(api_key) = request.api_key.as_deref()
         && !api_key.is_empty()
@@ -82,9 +124,21 @@ pub fn exec(request: &ApiRequest, backend: Backend) -> Result<ApiResponse> {
         builder.send().map_err(http_error("OpenAI-compatible"))?,
         "OpenAI-compatible",
     )?;
+    if responses_api {
+        return parse_responses(response, model);
+    }
     let payload: ChatCompletionResponse = response.json().map_err(|err| {
         Error::BackendExecution(format!("invalid OpenAI-compatible response: {err}"))
     })?;
+    if payload
+        .choices
+        .first()
+        .is_some_and(|choice| choice.finish_reason.as_deref() == Some("length"))
+    {
+        return Err(Error::BackendExecution(
+            "OpenAI-compatible response exceeded the output token limit".to_owned(),
+        ));
+    }
 
     let text = payload
         .choices
@@ -116,6 +170,47 @@ pub fn exec(request: &ApiRequest, backend: Backend) -> Result<ApiResponse> {
         usage: payload.usage.map(|usage| TokenUsage {
             input_tokens: usage.prompt_tokens,
             output_tokens: usage.completion_tokens,
+        }),
+    })
+}
+
+fn parse_responses(response: reqwest::blocking::Response, model: String) -> Result<ApiResponse> {
+    let payload: ResponsesResponse = response.json().map_err(|err| {
+        Error::BackendExecution(format!("invalid OpenAI Responses response: {err}"))
+    })?;
+    if payload.status != "completed" {
+        return Err(Error::BackendExecution(format!(
+            "OpenAI Responses request did not complete ({})",
+            payload.status
+        )));
+    }
+    let text = payload
+        .output
+        .iter()
+        .filter(|item| item["type"] == "message")
+        .filter_map(|item| item["content"].as_array())
+        .flatten()
+        .filter(|part| part["type"] == "output_text")
+        .filter_map(|part| part["text"].as_str())
+        .collect::<Vec<_>>()
+        .join("")
+        .trim()
+        .to_owned();
+    if text.is_empty() {
+        return Err(Error::BackendExecution(
+            "OpenAI Responses returned empty response".to_owned(),
+        ));
+    }
+    Ok(ApiResponse {
+        text,
+        model: if payload.model.is_empty() {
+            model
+        } else {
+            payload.model
+        },
+        usage: payload.usage.map(|usage| TokenUsage {
+            input_tokens: usage.input_tokens,
+            output_tokens: usage.output_tokens,
         }),
     })
 }
@@ -170,7 +265,7 @@ fn extract_text(value: &Value) -> Option<String> {
 }
 
 fn chat_endpoint(endpoint: &str) -> String {
-    let trimmed = endpoint.trim();
+    let trimmed = endpoint.trim().trim_end_matches('/');
     if trimmed.ends_with("/chat/completions") {
         return trimmed.to_owned();
     }
@@ -188,6 +283,7 @@ fn base_endpoint(endpoint: &str) -> String {
         "/chat/completions",
         "/v1/models",
         "/models",
+        "/v1",
     ] {
         if let Some(base) = trimmed.strip_suffix(suffix) {
             return base.to_owned();

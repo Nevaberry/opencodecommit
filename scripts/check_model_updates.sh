@@ -28,6 +28,19 @@ get_default() {
     jq -r --arg b "$backend" --arg t "$tier" '.backendDefaults[$b][$t] // ""' "$DEFAULTS_FILE"
 }
 
+# Keep each configured cost/latency tier. A new Sol release must not silently
+# turn an intentionally cheap Luna default into a premium recommendation.
+latest_openai_model() {
+    local current="$1" tier="${1##*-}"
+    case "$tier" in
+        astra|sol|terra|luna) ;;
+        *) echo "$current"; cat >/dev/null; return ;;
+    esac
+    { printf '%s\n' "$current"; cat; } \
+        | grep -E "^gpt-[0-9]+(\.[0-9]+)*-${tier}$" \
+        | sort -V | tail -1
+}
+
 changes=()
 cli_versions=()
 
@@ -50,65 +63,16 @@ detect_codex_models() {
         return
     fi
 
-    # PR model: lowest priority number among visible models
-    local detected_pr
-    detected_pr=$(jq -r '
-        .models
-        | map(select(.visibility == "list"))
-        | sort_by(.priority)
-        | .[0].slug // ""
-    ' "$cache")
-
-    # Commit model: prefer the balanced/everyday tier, then fall back to mini.
-    local detected_commit
-    detected_commit=$(jq -r '
-        .models
-        | map(select(
-            .visibility == "list"
-            and (
-                (.slug | endswith("-terra"))
-                or ((.description // "" | ascii_downcase) | contains("balanced"))
-            )
-        ))
-        | sort_by(.priority)
-        | .[0].slug // ""
-    ' "$cache")
-    if [[ -z "$detected_commit" ]]; then
-        detected_commit=$(jq -r '
-            .models
-            | map(select(.visibility == "list" and (.slug | endswith("-mini"))))
-            | sort_by(.priority)
-            | .[0].slug // ""
-        ' "$cache")
-    fi
-
-    # Cheap model: prefer the efficient/high-volume tier, then fall back to mini.
-    local detected_cheap
-    detected_cheap=$(jq -r '
-        .models
-        | map(select(
-            .visibility == "list"
-            and (
-                (.slug | endswith("-luna"))
-                or ((.description // "" | ascii_downcase) | contains("affordable"))
-            )
-        ))
-        | sort_by(.priority)
-        | .[0].slug // ""
-    ' "$cache")
-    if [[ -z "$detected_cheap" ]]; then
-        detected_cheap=$(jq -r '
-            .models
-            | map(select(.visibility == "list" and (.slug | endswith("-mini"))))
-            | sort_by(.priority)
-            | .[0].slug // ""
-        ' "$cache")
-    fi
-
-    local cur_pr cur_commit cur_cheap
+    local all_models cur_pr cur_commit cur_cheap
+    all_models=$(jq -r '.models[] | select(.visibility == "list") | .slug' "$cache")
     cur_pr=$(get_default codex pr_model)
     cur_commit=$(get_default codex commit_model)
     cur_cheap=$(get_default codex cheap_model)
+
+    local detected_pr detected_commit detected_cheap
+    detected_pr=$(printf '%s\n' "$all_models" | latest_openai_model "$cur_pr")
+    detected_commit=$(printf '%s\n' "$all_models" | latest_openai_model "$cur_commit")
+    detected_cheap=$(printf '%s\n' "$all_models" | latest_openai_model "$cur_cheap")
 
     if [[ -n "$detected_pr" && "$detected_pr" != "$cur_pr" ]]; then
         changes+=("CODEX_PR_MODEL: $cur_pr -> $detected_pr")
@@ -143,24 +107,15 @@ detect_opencode_models() {
         return
     fi
 
-    pick_latest_tier() {
-        local tier="$1"
-        echo "$all_models" \
-            | grep -E "^gpt-[0-9]+(\.[0-9]+)*-${tier}$" \
-            | sort -V \
-            | tail -1 \
-            || true
-    }
-
-    local detected_pr detected_commit detected_cheap
-    detected_pr=$(pick_latest_tier sol)
-    detected_commit=$(pick_latest_tier terra)
-    detected_cheap=$(pick_latest_tier luna)
-
     local cur_pr cur_commit cur_cheap
     cur_pr=$(get_default opencode pr_model)
     cur_commit=$(get_default opencode commit_model)
     cur_cheap=$(get_default opencode cheap_model)
+
+    local detected_pr detected_commit detected_cheap
+    detected_pr=$(printf '%s\n' "$all_models" | latest_openai_model "$cur_pr")
+    detected_commit=$(printf '%s\n' "$all_models" | latest_openai_model "$cur_commit")
+    detected_cheap=$(printf '%s\n' "$all_models" | latest_openai_model "$cur_cheap")
 
     if [[ -n "$detected_pr" && "$detected_pr" != "$cur_pr" ]]; then
         changes+=("OPENCODE_PR_MODEL: $cur_pr -> $detected_pr")
@@ -272,7 +227,7 @@ detect_agy_models() {
     fi
 
     local detected_pr detected_commit detected_cheap
-    detected_pr=$(echo "$all_models" | grep -E 'Pro.*\(High\)$' | head -1 || true)
+    detected_pr=$(echo "$all_models" | grep -E '(Argon|Pro).*\(High\)$' | head -1 || true)
     detected_commit=$(echo "$all_models" | grep -E 'Flash.*\(Low\)$' | head -1 || true)
     detected_cheap=$detected_commit
 

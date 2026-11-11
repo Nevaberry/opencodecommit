@@ -23,9 +23,9 @@ active-language = "English"
 commit-branch-timeout-seconds = 90
 pr-timeout-seconds = 240
 agy-path = ""
-agy-model = "Gemini 3.5 Flash (Low)"
-agy-pr-model = "Gemini 3.1 Pro (High)"
-agy-cheap-model = "Gemini 3.5 Flash (Low)"
+agy-model = "Gemini 3.8 Flash (Low)"
+agy-pr-model = "Gemini 4 Argon (High)"
+agy-cheap-model = "Gemini 3.8 Flash (Low)"
 grok-path = ""
 grok-model = "grok-build"
 grok-pr-model = "grok-build"
@@ -42,21 +42,21 @@ pr-model = "gpt-6-luna"
 cheap-model = "gpt-6-luna"
 
 [api.anthropic]
-model = "claude-sonnet-5"
+model = "claude-sonnet-5-5"
 endpoint = "https://api.anthropic.com/v1/messages"
 key-env = "ANTHROPIC_API_KEY"
 pr-model = "claude-opus-4-6"
-cheap-model = "claude-haiku-4-5"
+cheap-model = "claude-haiku-5-5"
 
 [api.gemini]
-model = "gemini-2.5-flash"
+model = "gemini-3.8-flash"
 endpoint = "https://generativelanguage.googleapis.com/v1beta"
 key-env = "GEMINI_API_KEY"
-pr-model = "gemini-3-flash-preview"
-cheap-model = "gemini-3.1-flash-lite-preview"
+pr-model = "gemini-3.8-flash"
+cheap-model = "gemini-3.5-flash-lite"
 
 [api.openrouter]
-model = "anthropic/claude-sonnet-5"
+model = "anthropic/claude-sonnet-5.5"
 endpoint = "https://openrouter.ai/api/v1/chat/completions"
 key-env = "OPENROUTER_API_KEY"
 pr-model = "openai/gpt-6-luna"
@@ -64,7 +64,7 @@ cheap-model = "openai/gpt-6-luna"
 
 [api.opencode]
 model = "gpt-6-luna"
-endpoint = "https://opencode.ai/zen/v1/chat/completions"
+endpoint = "https://opencode.ai/inference/openai/v1/responses"
 key-env = "OPENCODE_API_KEY"
 pr-model = "gpt-6-luna"
 cheap-model = "gpt-6-luna"

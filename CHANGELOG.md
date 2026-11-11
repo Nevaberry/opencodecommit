@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.1.3
+
+- Refreshes the model catalog and defaults for GPT-6.1 Sol/Terra, Claude Fable
+  5.2, Sonnet/Haiku 5.5, Gemini 4/3.8, Kimi K3.1 Pro, and Grok 4.7.
+- Fixes reasoning effort for Astra and GPT-6.1 Sol, OpenRouter's Claude model
+  ID, OpenAI token limits, and versioned API base URLs in Rust and TypeScript.
+- Adds Responses API support for OpenCode's current GPT endpoint, excludes
+  Gemini thought text, and rejects incomplete OpenAI output.
+- Surfaces CLI errors written to stdout and adds API contract checks plus
+  isolated live smoke tests with optional model overrides.
+- Keeps model-update suggestions within the configured OpenAI tier and
+  recognizes Antigravity's Argon PR model.
+
 ## 2.1.2
 
 - Uses GPT-6 Luna for Codex, OpenCode, OpenAI, and OpenCode Zen commit, PR,

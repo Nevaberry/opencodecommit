@@ -544,7 +544,7 @@ fn codex_common_args(model: &str) -> Vec<String> {
 ///                                        integrations we don't use for commit
 ///                                        generation (consistently ~0.5–1 s off
 ///                                        cold invocations in benchmarking)
-///   -c model_reasoning_effort="none"   — commits don't need reasoning
+///   -c model_reasoning_effort           — lowest supported effort for the model
 ///   -c web_search="disabled"           — remove the web_search tool
 ///                                        (required for reasoning < low, and
 ///                                        trims tool preamble tokens)
@@ -553,7 +553,14 @@ fn codex_base_args(model: &str, schema_path: Option<&Path>) -> Vec<String> {
     args.push("--disable".to_owned());
     args.push("apps".to_owned());
     args.push("-c".to_owned());
-    args.push("model_reasoning_effort=\"none\"".to_owned());
+    args.push(format!(
+        "model_reasoning_effort=\"{}\"",
+        if requires_reasoning(model) {
+            "low"
+        } else {
+            "none"
+        }
+    ));
     args.push("-c".to_owned());
     args.push("web_search=\"disabled\"".to_owned());
     if let Some(schema_path) = schema_path {
@@ -561,6 +568,16 @@ fn codex_base_args(model: &str, schema_path: Option<&Path>) -> Vec<String> {
         args.push(schema_path.to_string_lossy().into_owned());
     }
     args
+}
+
+// Astra and GPT-6.1 Sol reject `none`, including their dated snapshots.
+fn requires_reasoning(model: &str) -> bool {
+    ["gpt-6-astra", "gpt-6.1-sol"].iter().any(|prefix| {
+        model == *prefix
+            || model
+                .strip_prefix(prefix)
+                .is_some_and(|s| s.starts_with('-'))
+    })
 }
 
 /// `opencode run` argv shared by commit and PR paths. The prompt is the last
@@ -583,7 +600,16 @@ fn opencode_base_args(model_spec: &str, prompt: &str) -> Vec<String> {
     let mut args = opencode_common_args(model_spec, prompt);
     // Insert "--variant minimal" between "run" and "-m" so the prompt stays
     // as the final positional argument.
-    args.insert(1, "minimal".to_owned());
+    let model = model_spec.rsplit('/').next().unwrap_or(model_spec);
+    args.insert(
+        1,
+        if requires_reasoning(model) {
+            "low"
+        } else {
+            "minimal"
+        }
+        .to_owned(),
+    );
     args.insert(1, "--variant".to_owned());
     args
 }
@@ -930,10 +956,18 @@ fn exec_cli_once(
                     }
                     return Ok(output);
                 } else {
+                    // Some CLIs put banners on stderr and the actual error on stdout.
+                    let output = [strip_ansi(stderr.trim()), strip_ansi(stdout.trim())];
+                    let detail = output
+                        .iter()
+                        .map(|s| s.trim())
+                        .filter(|s| !s.is_empty())
+                        .collect::<Vec<_>>()
+                        .join("\n");
                     return Err(Error::BackendExecution(format!(
                         "CLI exited with code {}: {}",
                         status.code().unwrap_or(-1),
-                        strip_ansi(stderr.trim())
+                        detail.trim()
                     )));
                 }
             }
@@ -1016,6 +1050,29 @@ mod tests {
         std::fs::write(path, format!("#!/bin/sh\n{body}\n")).unwrap();
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn reports_cli_errors_written_to_stdout() {
+        let dir = temp_test_dir("stdout-error");
+        let cli = dir.join("opencode");
+        fake_executable(
+            &cli,
+            "printf '> build\\n' >&2\nprintf '\\033[31mToken refresh failed: 401\\033[0m\\n'\nexit 1",
+        );
+        let invocation = build_invocation_for(
+            &cli,
+            "synthetic diff",
+            &Config::default(),
+            CliBackend::Opencode,
+        );
+        let error = exec_cli_with_timeout(&invocation, 5)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("Token refresh failed: 401"));
+        assert!(!error.contains('\u{1b}'));
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[cfg(unix)]
@@ -1113,6 +1170,25 @@ mod tests {
         assert_eq!(inv.args[6], "1");
         assert_eq!(inv.stdin.as_deref(), Some("hello"));
         assert!(inv.env.is_empty(), "claude must not leak CODEX_HOME");
+    }
+
+    #[test]
+    fn current_reasoning_models_use_low_effort_in_fast_profiles() {
+        for model in ["gpt-6-astra", "gpt-6.1-sol", "gpt-6.1-sol-2026-11-02"] {
+            let args = codex_base_args(model, None);
+            assert!(args.contains(&"model_reasoning_effort=\"low\"".to_owned()));
+            assert!(!args.contains(&"model_reasoning_effort=\"none\"".to_owned()));
+            let spec = format!("openai/{model}");
+            let args = opencode_base_args(&spec, "synthetic diff");
+            assert!(args.windows(2).any(|args| args == ["--variant", "low"]));
+            assert!(
+                !opencode_common_args(&spec, "synthetic diff").contains(&"--variant".to_owned())
+            );
+        }
+        assert!(
+            codex_base_args("gpt-6.1-terra", None)
+                .contains(&"model_reasoning_effort=\"none\"".to_owned())
+        );
     }
 
     #[test]
@@ -1385,7 +1461,7 @@ mod tests {
     fn build_invocation_agy() {
         let config = Config {
             backend: Backend::Agy,
-            agy_model: "Gemini 3.5 Flash (Low)".to_owned(),
+            agy_model: "Gemini 3.8 Flash (Low)".to_owned(),
             ..Config::default()
         };
         let inv = build_invocation(Path::new("/usr/bin/agy"), "hello", &config);
@@ -1396,7 +1472,7 @@ mod tests {
                 "plan",
                 "--sandbox",
                 "--model",
-                "Gemini 3.5 Flash (Low)",
+                "Gemini 3.8 Flash (Low)",
                 "--print",
                 "hello"
             ]
@@ -1535,7 +1611,7 @@ mod tests {
             Path::new("/usr/bin/agy"),
             "hello",
             &config,
-            "Gemini 3.1 Pro (High)",
+            "Gemini 4 Argon (High)",
             None,
         );
         assert_eq!(
@@ -1545,7 +1621,7 @@ mod tests {
                 "plan",
                 "--sandbox",
                 "--model",
-                "Gemini 3.1 Pro (High)",
+                "Gemini 4 Argon (High)",
                 "--print",
                 "hello"
             ]
