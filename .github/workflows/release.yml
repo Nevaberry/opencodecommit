@@ -40,6 +40,7 @@ jobs:
         run: bun install
       - run: bunx tsc -p extension/tsconfig.json --noEmit
       - run: bun test extension/src/test/inline.test.ts extension/src/test/config.test.ts extension/src/test/api.test.ts
+      - run: node --test scripts/check-release.test.mjs
 
   # ── Cross-compile ─────────────────────────────────────────────────
   cross-compile:
@@ -51,7 +52,7 @@ jobs:
             os: ubuntu-latest
             platform: linux-x64
           - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
+            os: ubuntu-24.04-arm
             platform: linux-arm64
           - target: x86_64-apple-darwin
             os: macos-latest
@@ -68,10 +69,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
-          echo 'CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc' >> $GITHUB_ENV
       - run: cargo build --release --target ${{ matrix.target }} -p opencodecommit
       - name: Copy binary
         shell: bash
@@ -118,11 +115,21 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
 
+      - name: Check npm primary release
+        id: npm-primary
+        run: node scripts/check-release.mjs npm
+
       - name: Publish opencodecommit (primary)
+        if: steps.npm-primary.outputs.publish == 'true'
         working-directory: npm/opencodecommit
         run: npm publish --access public
 
+      - name: Check npm alias release
+        id: npm-alias
+        run: node scripts/check-release.mjs npm-alias
+
       - name: Publish @nevaberry/opencodecommit (redirect)
+        if: steps.npm-alias.outputs.publish == 'true'
         working-directory: npm/nb-opencodecommit
         run: npm publish --access public
 
@@ -133,7 +140,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
+      - name: Check crates.io release
+        id: cargo
+        run: node scripts/check-release.mjs cargo
       - name: Publish to crates.io
+        if: steps.cargo.outputs.publish == 'true'
         working-directory: crates/opencodecommit
         run: cargo publish
         env:
@@ -152,12 +163,20 @@ jobs:
       - name: Build extension
         working-directory: extension
         run: bun run build:vsix
+      - name: Check VS Code Marketplace release
+        id: vscode
+        run: node scripts/check-release.mjs vscode
       - name: Publish to VS Code Marketplace
+        if: steps.vscode.outputs.publish == 'true'
         working-directory: extension
         run: bunx @vscode/vsce publish --pat "$VSCE_PAT"
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      - name: Check Open VSX release
+        id: openvsx
+        run: node scripts/check-release.mjs openvsx
       - name: Publish to Open VSX
+        if: steps.openvsx.outputs.publish == 'true'
         working-directory: extension
         run: bunx ovsx publish --pat "$OVSX_PAT"
         env:
@@ -190,6 +209,7 @@ jobs:
             if ls occ.exe 2>/dev/null; then
               zip "../../release/occ-${platform}.zip" occ.exe
             else
+              chmod +x occ
               tar czf "../../release/occ-${platform}.tar.gz" occ
             fi
             cd ../..
@@ -199,5 +219,6 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.version.outputs.version }}
+          target_commitish: ${{ github.sha }}
           generate_release_notes: true
           files: release/*
