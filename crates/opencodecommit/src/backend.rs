@@ -570,14 +570,16 @@ fn codex_base_args(model: &str, schema_path: Option<&Path>) -> Vec<String> {
     args
 }
 
-// Astra and GPT-6.1 Sol reject `none`, including their dated snapshots.
+// These Astra and Sol releases reject `none`, including their dated snapshots.
 fn requires_reasoning(model: &str) -> bool {
-    ["gpt-6-astra", "gpt-6.1-sol"].iter().any(|prefix| {
-        model == *prefix
-            || model
-                .strip_prefix(prefix)
-                .is_some_and(|s| s.starts_with('-'))
-    })
+    ["gpt-6-astra", "gpt-6.1-sol", "gpt-6.2-astra", "gpt-6.2-sol"]
+        .iter()
+        .any(|prefix| {
+            model == *prefix
+                || model
+                    .strip_prefix(prefix)
+                    .is_some_and(|s| s.starts_with('-'))
+        })
 }
 
 /// `opencode run` argv shared by commit and PR paths. The prompt is the last
@@ -1168,7 +1170,15 @@ mod tests {
 
     #[test]
     fn current_reasoning_models_use_low_effort_in_fast_profiles() {
-        for model in ["gpt-6-astra", "gpt-6.1-sol", "gpt-6.1-sol-2026-11-02"] {
+        for model in [
+            "gpt-6-astra",
+            "gpt-6.1-sol",
+            "gpt-6.1-sol-2026-11-02",
+            "gpt-6.2-astra",
+            "gpt-6.2-sol",
+            "gpt-6.2-astra-snapshot",
+            "gpt-6.2-sol-snapshot",
+        ] {
             let args = codex_base_args(model, None);
             assert!(args.contains(&"model_reasoning_effort=\"low\"".to_owned()));
             assert!(!args.contains(&"model_reasoning_effort=\"none\"".to_owned()));
@@ -1191,6 +1201,8 @@ mod tests {
             ("gpt-6.1-sol", "low"),
             ("gpt-6-astra", "low"),
             ("gpt-6.1-sol-2026-11-02", "low"),
+            ("gpt-6.2-astra", "low"),
+            ("gpt-6.2-sol", "low"),
         ] {
             let spec = format!("openai/{model}");
             let args = opencode_base_args(&spec, "synthetic diff");
@@ -1205,6 +1217,8 @@ mod tests {
     fn opencode_v2_preserves_explicit_variants_and_pr_defaults() {
         for spec in [
             "openai/gpt-6.1-sol#high",
+            "openai/gpt-6.2-astra#high",
+            "openai/gpt-6.2-sol#high",
             "anthropic/claude-sonnet-5-5",
             "openai/custom-model",
         ] {

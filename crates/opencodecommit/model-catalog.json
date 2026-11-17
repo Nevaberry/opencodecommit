@@ -15,8 +15,8 @@
       "claude-opus-5-5",
       "claude-sonnet-5-5",
       "claude-haiku-5-5",
-      "gpt-6-astra",
-      "gpt-6.1-sol",
+      "gpt-6.2-astra",
+      "gpt-6.2-sol",
       "gpt-6.1-terra",
       "gpt-6-luna",
       "grok-build",
@@ -34,14 +34,14 @@
       {
         "label": "Astra",
         "agent": "Codex",
-        "model": "gpt-6-astra",
+        "model": "gpt-6.2-astra",
         "versionCommand": "codex -V",
         "versionPattern": "codex-cli (?<version>\\S+)"
       },
       {
         "label": "Sol",
         "agent": "Codex",
-        "model": "gpt-6.1-sol",
+        "model": "gpt-6.2-sol",
         "versionCommand": "codex -V",
         "versionPattern": "codex-cli (?<version>\\S+)"
       },

@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.2.1
+
+- Updates the shared Assisted-by catalog and Astra/Sol quick actions to
+  GPT-6.2 Astra and GPT-6.2 Sol in the Rust CLI/TUI and VS Code extension.
+- Uses supported `low` reasoning for both new models in fast Codex and
+  OpenCode generation, including snapshot IDs. Preserves explicit OpenCode
+  variants and PR reasoning defaults.
+- Refreshes model examples and adds GPT-6.2 regression coverage.
+
 ## 2.2.0
 
 - Requires OpenCode CLI 2 or newer; verified with 2.2.7. Removes legacy

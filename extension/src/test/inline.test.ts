@@ -395,8 +395,8 @@ describe("evidence Assisted-by helpers", () => {
     assert.ok(DEFAULT_MODELS.includes("claude-fable-5-2"))
     assert.ok(DEFAULT_MODELS.includes("claude-opus-5-5"))
     assert.ok(DEFAULT_MODELS.includes("claude-sonnet-5-5"))
-    assert.ok(DEFAULT_MODELS.includes("gpt-6-astra"))
-    assert.ok(DEFAULT_MODELS.includes("gpt-6.1-sol"))
+    assert.ok(DEFAULT_MODELS.includes("gpt-6.2-astra"))
+    assert.ok(DEFAULT_MODELS.includes("gpt-6.2-sol"))
     assert.ok(DEFAULT_MODELS.includes("claude-haiku-5-5"))
     assert.ok(DEFAULT_MODELS.includes("gpt-6-luna"))
     assert.ok(DEFAULT_MODELS.includes("grok-build"))
@@ -412,12 +412,12 @@ describe("evidence Assisted-by helpers", () => {
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find(
         (option) => option.label === "Astra",
       )?.model,
-      "gpt-6-astra",
+      "gpt-6.2-astra",
     )
     assert.strictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find((option) => option.label === "Sol")
         ?.model,
-      "gpt-6.1-sol",
+      "gpt-6.2-sol",
     )
     assert.strictEqual(
       DEFAULT_ASSISTED_BY_QUICK_OPTIONS.find(
@@ -703,11 +703,15 @@ describe("backend helpers", () => {
     )
   })
 
-  it("uses low reasoning for Astra and GPT-6.1 Sol, including snapshots", () => {
+  it("uses low reasoning for supported Astra and Sol releases, including snapshots", () => {
     for (const model of [
       "gpt-6-astra",
       "gpt-6.1-sol",
       "gpt-6.1-sol-2026-11-02",
+      "gpt-6.2-astra",
+      "gpt-6.2-sol",
+      "gpt-6.2-astra-snapshot",
+      "gpt-6.2-sol-snapshot",
     ]) {
       const { invocation } = buildInvocation(
         "/usr/bin/codex",
@@ -744,6 +748,8 @@ describe("backend helpers", () => {
         `openai/${model}#low`,
       )
       assert.ok(!pr.invocation.args.includes("--variant"))
+      assert.ok(pr.invocation.args.includes(`openai/${model}`))
+      assert.ok(!pr.invocation.args.some((arg) => arg.includes("#")))
     }
   })
 
@@ -754,6 +760,8 @@ describe("backend helpers", () => {
       ["gpt-6.1-sol", "low"],
       ["gpt-6-astra", "low"],
       ["gpt-6.1-sol-2026-11-02", "low"],
+      ["gpt-6.2-astra", "low"],
+      ["gpt-6.2-sol", "low"],
     ]) {
       const { invocation } = buildInvocation(
         "/usr/bin/opencode",
@@ -771,6 +779,8 @@ describe("backend helpers", () => {
   it("preserves OpenCode 2 explicit variants, PR defaults, and WSL arguments", () => {
     for (const [provider, model] of [
       ["openai", "gpt-6.1-sol#high"],
+      ["openai", "gpt-6.2-astra#high"],
+      ["openai", "gpt-6.2-sol#high"],
       ["anthropic", "claude-sonnet-5-5"],
       ["openai", "custom-model"],
     ]) {

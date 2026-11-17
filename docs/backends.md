@@ -40,8 +40,9 @@ The old `opencode` npm package and the 1.x CLI are not supported.
 
 Requests use `opencode run --standalone` so each invocation inherits the
 current environment through its own private server. Fast generation selects
-`#none` for GPT-6 Luna and GPT-6.1 Terra, and `#low` for Astra and GPT-6.1 Sol.
-An explicit model variant such as `gpt-6.1-sol#high` takes precedence. PR stages
+`#none` for GPT-6 Luna and GPT-6.1 Terra, and `#low` for GPT-6.2 Astra and Sol
+(also earlier GPT-6 Astra and GPT-6.1 Sol).
+An explicit model variant such as `gpt-6.2-sol#high` takes precedence. PR stages
 keep the configured model's default reasoning effort. OpenCode 2 removed the
 separate `--variant` flag and the positional provider filter for `models`.
 
@@ -73,14 +74,16 @@ Model defaults checked on November 11, 2026:
 | OpenRouter | `anthropic/claude-sonnet-5.5` | `openai/gpt-6-luna` | `openai/gpt-6-luna` |
 | Antigravity | `Gemini 3.8 Flash (Low)` | `Gemini 4 Argon (High)` | `Gemini 3.8 Flash (Low)` |
 
-The Assisted-by picker also includes GPT-6.1 Sol and Terra, Claude Fable 5.2,
-Gemini 4 Carbon and Argon, Kimi K3.1 Pro, Grok 4.7, and DeepSeek Flash.
+The Assisted-by picker and Astra/Sol quick actions use GPT-6.2 Astra and Sol,
+verified on November 17, 2026. The picker also includes GPT-6.1 Terra, Claude
+Fable 5.2, Gemini 4 Carbon and Argon, Kimi K3.1 Pro, Grok 4.7, and DeepSeek Flash.
 Luna remains the default OpenAI model for fast, inexpensive generation.
 Saved model choices remain explicit overrides; update your config to adopt new
 defaults if it already contains older IDs. Antigravity model access depends on
 your plan; use `agy models` to see the available display names.
 
-Sources: [OpenAI models](https://developers.openai.com/api/docs/models),
+Sources: [GPT-6.2 Astra](https://developers.openai.com/api/docs/models/gpt-6.2-astra),
+[GPT-6.2 Sol](https://developers.openai.com/api/docs/models/gpt-6.2-sol),
 [Claude models](https://platform.claude.com/docs/en/models/overview),
 [Gemini models](https://ai.google.dev/gemini-api/docs/latest-model),
 [Antigravity models](https://antigravity.google/docs/models/),
@@ -115,7 +118,11 @@ Commit, refine, branch, and changelog generation use the primary backend model.
 
 PR generation can use a stronger model for final writing and a cheaper model for summarization. Configure `pr-model` and `cheap-model` in the relevant backend section.
 
-Codex one-shot tasks use a fast, prompt-only profile. The default `gpt-6-luna` commit model runs with reasoning effort `none`; GPT-6 Astra and GPT-6.1 Sol use `low`, their lowest supported effort. PR generation keeps the more conservative quality profile. See [OpenAI migration guidance](https://developers.openai.com/api/docs/guides/latest-model#limitations).
+Codex one-shot tasks use a fast, prompt-only profile. The default `gpt-6-luna`
+commit model runs with reasoning effort `none`; GPT-6.2 Astra and Sol use `low`,
+their lowest supported effort, as do GPT-6 Astra and GPT-6.1 Sol. PR generation
+keeps the more conservative quality profile. See
+[OpenAI migration guidance](https://developers.openai.com/api/docs/guides/latest-model#migration-quickstart).
 
 Grok Build uses its `grok-build` model key in headless single-prompt mode. OpenCodeCommit disables auto-updates, tools, memory, subagents, planning, and web search for these runs because all required diff context is already in the prompt.
 
@@ -146,7 +153,7 @@ in an isolated config and leaves your saved configuration untouched. Set
 `OCC_SMOKE_CONFIG` to test a specific config. To check a particular model:
 
 ```bash
-bash scripts/test-live-backends.sh codex:gpt-6.1-sol claude:claude-sonnet-5-5
+bash scripts/test-live-backends.sh codex:gpt-6.2-sol claude:claude-sonnet-5-5
 ```
 
 Missing CLI binaries are reported as skipped. Authentication, model access,

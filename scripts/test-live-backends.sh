@@ -3,7 +3,7 @@ set -euo pipefail
 
 REPO_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 BACKENDS=("$@")
-# Entries may include a model override, for example codex:gpt-6.1-sol.
+# Entries may include a model override, for example codex:gpt-6.2-sol.
 if [ ${#BACKENDS[@]} -eq 0 ]; then
   BACKENDS=(codex opencode claude agy grok)
 fi

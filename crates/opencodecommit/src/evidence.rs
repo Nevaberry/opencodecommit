@@ -1263,8 +1263,8 @@ mod tests {
         assert!(config.models.contains(&"claude-fable-5-2".to_owned()));
         assert!(config.models.contains(&"claude-opus-5-5".to_owned()));
         assert!(config.models.contains(&"claude-sonnet-5-5".to_owned()));
-        assert!(config.models.contains(&"gpt-6-astra".to_owned()));
-        assert!(config.models.contains(&"gpt-6.1-sol".to_owned()));
+        assert!(config.models.contains(&"gpt-6.2-astra".to_owned()));
+        assert!(config.models.contains(&"gpt-6.2-sol".to_owned()));
         assert!(config.models.contains(&"claude-haiku-5-5".to_owned()));
         assert!(config.models.contains(&"gpt-6-luna".to_owned()));
         assert!(config.models.contains(&"grok-build".to_owned()));
@@ -1290,7 +1290,7 @@ mod tests {
                 .iter()
                 .find(|option| option.label == "Astra")
                 .map(|option| (option.agent.as_str(), option.model.as_str())),
-            Some(("Codex", "gpt-6-astra"))
+            Some(("Codex", "gpt-6.2-astra"))
         );
         assert_eq!(
             config
@@ -1298,7 +1298,7 @@ mod tests {
                 .iter()
                 .find(|option| option.label == "Sol")
                 .map(|option| option.model.as_str()),
-            Some("gpt-6.1-sol")
+            Some("gpt-6.2-sol")
         );
         assert_eq!(
             config

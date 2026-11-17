@@ -405,9 +405,9 @@ function codexCommonArgs(model: string): string[] {
   ]
 }
 
-// Astra and GPT-6.1 Sol reject `none`, including their dated snapshots.
+// These Astra and Sol releases reject `none`, including their dated snapshots.
 function requiresReasoning(model: string): boolean {
-  return ["gpt-6-astra", "gpt-6.1-sol"].some(
+  return ["gpt-6-astra", "gpt-6.1-sol", "gpt-6.2-astra", "gpt-6.2-sol"].some(
     (prefix) => model === prefix || model.startsWith(`${prefix}-`),
   )
 }
